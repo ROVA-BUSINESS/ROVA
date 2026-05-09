@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Trash2, User, CreditCard, Shield, Palette, Moon, Sun } from 'lucide-react';
 import { supabase, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';

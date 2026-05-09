@@ -256,7 +256,7 @@ export default function LandingPage() {
       </section>
 
       {/* --- Trust / Proof Section --- */}
-      <section style={{ padding: '80px 24px', background: 'rgba(147,51,234,0.03)', borderY: '1px solid var(--bg-border)' }}>
+      <section style={{ padding: '80px 24px', background: 'rgba(147,51,234,0.03)', borderTop: '1px solid var(--bg-border)', borderBottom: '1px solid var(--bg-border)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 80 }}>
           {[
             { label: 'Transactions Processed', value: '₦500M+' },
