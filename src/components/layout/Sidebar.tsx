@@ -25,53 +25,53 @@ const navGroups: NavGroup[] = [
     label: 'Overview',
     key: 'overview',
     items: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/assistant', icon: Sparkles, label: 'AI Assistant' },
+      { to: '/app/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/app/assistant', icon: Sparkles, label: 'AI Assistant' },
     ],
   },
   {
     label: 'Transactions',
     key: 'transactions',
     items: [
-      { to: '/transactions', icon: ArrowLeftRight, label: 'All Transactions' },
+      { to: '/app/transactions', icon: ArrowLeftRight, label: 'All Transactions' },
     ],
   },
   {
     label: 'Financial Records',
     key: 'records',
     items: [
-      { to: '/ledger', icon: BookOpen, label: 'General Ledger' },
-      { to: '/chart-of-accounts', icon: Layers, label: 'Chart of Accounts' },
-      { to: '/journal-entries', icon: BookMarked, label: 'Journal Entries' },
-      { to: '/trial-balance', icon: Scale, label: 'Trial Balance' },
+      { to: '/app/ledger', icon: BookOpen, label: 'General Ledger' },
+      { to: '/app/chart-of-accounts', icon: Layers, label: 'Chart of Accounts' },
+      { to: '/app/journal-entries', icon: BookMarked, label: 'Journal Entries' },
+      { to: '/app/trial-balance', icon: Scale, label: 'Trial Balance' },
     ],
   },
   {
     label: 'Financial Statements',
     key: 'statements',
     items: [
-      { to: '/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
-      { to: '/balance-sheet', icon: LayoutList, label: 'Balance Sheet' },
-      { to: '/cash-flow', icon: Banknote, label: 'Cash Flow' },
+      { to: '/app/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
+      { to: '/app/balance-sheet', icon: LayoutList, label: 'Balance Sheet' },
+      { to: '/app/cash-flow', icon: Banknote, label: 'Cash Flow' },
     ],
   },
   {
     label: 'People & Operations',
     key: 'people',
     items: [
-      { to: '/payroll', icon: Users, label: 'Payroll & Staff' },
-      { to: '/inventory', icon: Package, label: 'Inventory' },
-      { to: '/team', icon: Shield, label: 'Team & Access' },
+      { to: '/app/payroll', icon: Users, label: 'Payroll & Staff' },
+      { to: '/app/inventory', icon: Package, label: 'Inventory' },
+      { to: '/app/team', icon: Shield, label: 'Team & Access' },
     ],
   },
   {
     label: 'More',
     key: 'more',
     items: [
-      { to: '/reports', icon: BarChart2, label: 'Reports' },
-      { to: '/invoices', icon: Receipt, label: 'Invoices' },
-      { to: '/tax', icon: FileText, label: 'Tax & Compliance' },
-      { to: '/settings', icon: Settings, label: 'Settings' },
+      { to: '/app/reports', icon: BarChart2, label: 'Reports' },
+      { to: '/app/invoices', icon: Receipt, label: 'Invoices' },
+      { to: '/app/tax', icon: FileText, label: 'Tax & Compliance' },
+      { to: '/app/settings', icon: Settings, label: 'Settings' },
     ],
   },
 ];
@@ -112,7 +112,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       if (group.key === 'more') {
         return {
           ...group,
-          items: group.items.filter(item => item.to === '/invoices' || item.to === '/settings')
+          items: group.items.filter(item => item.to === '/app/invoices' || item.to === '/app/settings')
         };
       }
       return null;

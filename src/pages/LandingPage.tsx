@@ -124,11 +124,18 @@ export default function LandingPage() {
               ))}
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
-              <Link to="/login" style={{ textDecoration: 'none' }}>
-                <Button variant="ghost" style={{ fontSize: 14, fontWeight: 600 }}>Login</Button>
+              <Link to="/login" style={{ 
+                textDecoration: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
+                padding: '10px 20px', borderRadius: 10, transition: 'all 0.2s', display: 'flex', alignItems: 'center'
+              }}>
+                Login
               </Link>
-              <Link to="/signup" style={{ textDecoration: 'none' }}>
-                <Button variant="primary" style={{ fontSize: 14, fontWeight: 600, padding: '10px 20px', borderRadius: 10 }}>Get Started</Button>
+              <Link to="/signup" style={{ 
+                textDecoration: 'none', background: 'var(--accent-primary)', color: '#fff', fontSize: 14, fontWeight: 600, 
+                padding: '10px 24px', borderRadius: 10, display: 'flex', alignItems: 'center',
+                boxShadow: '0 4px 12px rgba(147,51,234,0.3)'
+              }}>
+                Get Started
               </Link>
             </div>
           </div>
@@ -178,14 +185,19 @@ export default function LandingPage() {
           </p>
 
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-            <Link to="/signup" style={{ textDecoration: 'none' }}>
-              <Button variant="primary" style={{ padding: '16px 32px', fontSize: 18, fontWeight: 700, borderRadius: 14 }}>
-                Get Started for Free <ArrowRight size={20} style={{ marginLeft: 12 }} />
-              </Button>
+            <Link to="/signup" style={{ 
+              textDecoration: 'none', background: 'var(--accent-primary)', color: '#fff', 
+              padding: '16px 32px', fontSize: 18, fontWeight: 700, borderRadius: 14,
+              display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 10px 30px rgba(147,51,234,0.3)'
+            }}>
+              Get Started for Free <ArrowRight size={20} />
             </Link>
-            <Button variant="outline" style={{ padding: '16px 32px', fontSize: 18, fontWeight: 700, borderRadius: 14 }}>
+            <button style={{ 
+              background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--bg-border)',
+              padding: '16px 32px', fontSize: 18, fontWeight: 700, borderRadius: 14, cursor: 'pointer'
+            }}>
               Book a Demo
-            </Button>
+            </button>
           </div>
 
           {/* Interactive Mockup Container */}
@@ -362,14 +374,19 @@ export default function LandingPage() {
               Join 5,000+ businesses and founders who trust ROVA to manage their financial operations. Start your 14-day free trial today.
             </p>
             <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <Link to="/signup" style={{ textDecoration: 'none' }}>
-                <Button style={{ background: '#fff', color: '#7c3aed', padding: '20px 56px', fontSize: 20, fontWeight: 800, borderRadius: 16, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-                  Start Free Trial
-                </Button>
+              <Link to="/signup" style={{ 
+                textDecoration: 'none', background: '#fff', color: '#7c3aed', 
+                padding: '20px 56px', fontSize: 20, fontWeight: 800, borderRadius: 16, 
+                boxShadow: '0 10px 30px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center'
+              }}>
+                Start Free Trial
               </Link>
-              <Button variant="ghost" style={{ color: '#fff', fontSize: 18, fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)', borderRadius: 16, padding: '18px 32px' }}>
+              <button style={{ 
+                background: 'transparent', color: '#fff', fontSize: 18, fontWeight: 700, 
+                border: '1px solid rgba(255,255,255,0.3)', borderRadius: 16, padding: '18px 32px', cursor: 'pointer'
+              }}>
                 View All Features
-              </Button>
+              </button>
             </div>
           </div>
         </div>
