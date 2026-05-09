@@ -26,39 +26,50 @@ export default function LoginPage() {
     if (error) {
       setError(error.message || 'Invalid email or password. Please try again.');
     } else {
-      navigate('/dashboard');
+      navigate('/app');
     }
   }
 
+  const isLight = theme === 'light';
+
   return (
     <div style={{
-      minHeight: '100vh', background: 'var(--bg-base)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      minHeight: '100vh', 
+      background: 'var(--bg-base)',
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
       padding: 16,
+      position: 'relative',
     }}>
+      {/* Background Subtle Glow */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-        background: 'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(147,51,234,0.15) 0%, transparent 60%)',
+        background: 'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(147,51,234,0.1) 0%, transparent 60%)',
         pointerEvents: 'none',
       }} />
 
       <div style={{
-        width: '100%', maxWidth: 400,
-        animation: 'fadeIn 0.4s ease',
+        width: '100%', maxWidth: 420,
+        animation: 'fadeIn 0.4s ease-out',
+        position: 'relative',
+        zIndex: 10
       }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{
-            width: 100, height: 'auto',
+            width: 140, height: 'auto',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
+            margin: '0 auto 32px',
           }}>
-            <img src={theme === 'light' ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+            <Link to="/">
+              <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+            </Link>
           </div>
-          <h1 style={{ fontSize: 24, marginBottom: 6 }}>Welcome back</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.5px' }}>Welcome back</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Sign in to your {loginType === 'admin' ? 'Admin' : 'Staff'} account</p>
         </div>
 
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 4 }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', padding: 4, border: '1px solid var(--bg-border)' }}>
           {[
             { id: 'admin', label: 'Admin Login', icon: Shield },
             { id: 'staff', label: 'Staff Login', icon: Users }
@@ -68,8 +79,8 @@ export default function LoginPage() {
               type="button"
               onClick={() => setLoginType(t.id as any)}
               style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '8px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 500,
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                padding: '10px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
                 background: loginType === t.id ? 'var(--bg-card)' : 'transparent',
                 color: loginType === t.id ? 'var(--text-primary)' : 'var(--text-muted)',
                 boxShadow: loginType === t.id ? 'var(--shadow-sm)' : 'none',
@@ -88,37 +99,38 @@ export default function LoginPage() {
           background: 'var(--bg-card)',
           border: '1px solid var(--bg-border)',
           borderRadius: 'var(--radius-xl)',
-          padding: 24,
+          padding: 32,
+          boxShadow: 'var(--shadow-lg)',
         }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <Input
               label="Email"
               type="email"
               placeholder="you@example.com"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              prefix={<Mail size={14} />}
+              prefix={<Mail size={16} />}
               required
             />
-            <Input
-              label="Password"
-              type={showPass ? 'text' : 'password'}
-              placeholder="Enter your password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              prefix={<Lock size={14} />}
-              suffix={
-                <button type="button" onClick={() => setShowPass(!showPass)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
-                  {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              }
-              required
-            />
+            <div style={{ position: 'relative' }}>
+              <Input
+                label="Password"
+                type={showPass ? 'text' : 'password'}
+                placeholder="Enter your password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                prefix={<Lock size={16} />}
+                required
+              />
+              <button type="button" onClick={() => setShowPass(!showPass)}
+                style={{ position: 'absolute', right: 12, top: 38, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
 
             {error && (
               <div style={{
-                padding: '10px 12px', background: 'var(--error-dim)',
+                padding: '12px', background: 'var(--error-dim)',
                 border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)',
                 color: 'var(--error)', fontSize: 13,
               }}>
@@ -126,24 +138,19 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button variant="primary" size="lg" loading={loading} style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>
+            <Button variant="primary" size="lg" loading={loading} style={{ width: '100%', justifyContent: 'center', marginTop: 4, height: 48, fontWeight: 700 }}>
               Sign In
             </Button>
           </form>
         </div>
 
-        {loginType === 'admin' && (
-          <p style={{ textAlign: 'center', marginTop: 20, color: 'var(--text-muted)', fontSize: 13 }}>
-            Don't have an account?{' '}
-            <Link to="/signup" style={{ color: 'var(--accent-light)', fontWeight: 500 }}>Create one</Link>
-          </p>
-        )}
-        {loginType === 'staff' && (
-          <p style={{ textAlign: 'center', marginTop: 20, color: 'var(--text-muted)', fontSize: 13 }}>
-            Don't have an account?{' '}
-            <span style={{ color: 'var(--text-secondary)' }}>Contact your admin for credentials</span>
-          </p>
-        )}
+        <p style={{ textAlign: 'center', marginTop: 32, color: 'var(--text-muted)', fontSize: 13 }}>
+          {loginType === 'admin' ? (
+            <>Don't have an account? <Link to="/signup" style={{ color: 'var(--accent-light)', fontWeight: 600 }}>Create one</Link></>
+          ) : (
+            <>Don't have an account? <span style={{ color: 'var(--text-secondary)' }}>Contact your admin</span></>
+          )}
+        </p>
       </div>
     </div>
   );

@@ -149,9 +149,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         overflowY: 'auto',
       }}>
-        <div style={{ padding: '4px 0', borderBottom: '1px solid var(--bg-border)', flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+        <div style={{ padding: '16px 0', borderBottom: '1px solid var(--bg-border)', flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
           <div style={{
-            width: 90, height: 'auto',
+            width: 140, height: 'auto',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
             <img src={theme === 'light' ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />

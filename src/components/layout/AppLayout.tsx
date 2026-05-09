@@ -69,7 +69,7 @@ export default function AppLayout() {
               >
                 <Menu size={20} />
               </button>
-              <img src={theme === 'light' ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ height: 20, objectFit: 'contain' }} />
+              <img src={theme === 'light' ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ height: 30, objectFit: 'contain' }} />
             </div>
           )}
           <button onClick={() => navigate('/notifications')}

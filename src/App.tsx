@@ -22,6 +22,7 @@ import InventoryPage from './pages/inventory/InventoryPage';
 import TeamPage from './pages/team/TeamPage';
 import OnboardingPage from './pages/team/OnboardingPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
+import LandingPage from './pages/LandingPage';
 import AcceptInvitePage from './pages/auth/AcceptInvitePage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -71,18 +72,19 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
           <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route
-            path="/"
+            path="/app"
             element={
               <ProtectedRoute>
                 <AppLayout />
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<Navigate to="/app/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
@@ -103,7 +105,7 @@ export default function App() {
             <Route path="team/onboard" element={<AdminRoute><OnboardingPage /></AdminRoute>} />
             <Route path="notifications" element={<AdminRoute><NotificationsPage /></AdminRoute>} />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, Trash2, User, CreditCard, Shield, Palette, Moon, Sun } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Trash2, User, CreditCard, Shield, Palette, Moon, Sun } from 'lucide-react';
 import { supabase, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -7,10 +7,7 @@ import { formatCurrency } from '../lib/format';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import Modal from '../components/ui/Modal';
-
-const ACCOUNT_TYPES = ['bank', 'wallet', 'cash', 'investment', 'credit'] as const;
-const ACCOUNT_COLORS = ['#9333ea', '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#8b5cf6'];
+import { MonoConnectButton } from '../components/MonoConnectButton';
 
 type Section = 'profile' | 'accounts' | 'security' | 'appearance';
 
@@ -20,17 +17,11 @@ export default function SettingsPage() {
   const [section, setSection] = useState<Section>('profile');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
-  const [showAccountModal, setShowAccountModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     full_name: '', business_name: '', phone: '', mode: 'business', currency: 'NGN', staff_visibility_limit: '500000',
-  });
-
-  const [accountForm, setAccountForm] = useState({
-    name: '', type: 'bank' as typeof ACCOUNT_TYPES[number],
-    institution: '', balance: '', color: ACCOUNT_COLORS[0],
   });
 
   useEffect(() => {
@@ -67,23 +58,6 @@ export default function SettingsPage() {
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  }
-
-  async function handleAddAccount(e: FormEvent) {
-    e.preventDefault();
-    const { error } = await supabase.from('accounts').insert({
-      user_id: user!.id,
-      name: accountForm.name,
-      type: accountForm.type,
-      institution: accountForm.institution,
-      balance: Number(accountForm.balance) || 0,
-      color: accountForm.color,
-    });
-    if (!error) {
-      setShowAccountModal(false);
-      setAccountForm({ name: '', type: 'bank', institution: '', balance: '', color: ACCOUNT_COLORS[0] });
-      loadAccounts();
-    }
   }
 
   async function deleteAccount(id: string) {
@@ -243,19 +217,17 @@ export default function SettingsPage() {
 
           {section === 'accounts' && (
             <Card>
-              <div className="mobile-col mobile-gap-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <h3 style={{ fontSize: 15 }}>Financial Accounts</h3>
-                <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowAccountModal(true)}>
-                  Add Account
-                </Button>
+              <div className="mobile-col mobile-gap-4" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                <h3 style={{ fontSize: 15, flex: 1 }}>Financial Accounts</h3>
+                <MonoConnectButton onSuccess={loadAccounts} size="sm" />
               </div>
               {loadingAccounts ? (
                 <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 60, marginBottom: 8 }} />)}</div>
               ) : accounts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '32px 0' }}>
                   <CreditCard size={32} color="var(--text-disabled)" style={{ margin: '0 auto 12px' }} />
-                  <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No accounts yet</p>
-                  <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 4 }}>Add your bank accounts, wallets, and cash</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No accounts connected yet</p>
+                  <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 4 }}>Use "Connect Bank" to link your bank account via Mono</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -330,45 +302,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Modal open={showAccountModal} onClose={() => setShowAccountModal(false)} title="Add Account" size="sm">
-        <form onSubmit={handleAddAccount} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Input label="Account Name" placeholder="e.g. Access Bank, OPay" value={accountForm.name} onChange={e => setAccountForm(p => ({ ...p, name: e.target.value }))} required />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Account Type</label>
-            <select
-              value={accountForm.type}
-              onChange={e => setAccountForm(p => ({ ...p, type: e.target.value as typeof ACCOUNT_TYPES[number] }))}
-              style={{ padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', outline: 'none' }}
-            >
-              {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-            </select>
-          </div>
-          <Input label="Institution (optional)" placeholder="e.g. GTBank, Opay" value={accountForm.institution} onChange={e => setAccountForm(p => ({ ...p, institution: e.target.value }))} />
-          <Input label="Current Balance (₦)" type="number" min="0" step="0.01" placeholder="0.00" value={accountForm.balance} onChange={e => setAccountForm(p => ({ ...p, balance: e.target.value }))} />
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>Color</label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {ACCOUNT_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setAccountForm(p => ({ ...p, color: c }))}
-                  style={{
-                    width: 28, height: 28, borderRadius: 'var(--radius-full)',
-                    background: c, border: accountForm.color === c ? '3px solid white' : '3px solid transparent',
-                    outline: accountForm.color === c ? `2px solid ${c}` : 'none',
-                    cursor: 'pointer', transition: 'all 0.1s',
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Button variant="secondary" type="button" onClick={() => setShowAccountModal(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Add Account</Button>
-          </div>
-        </form>
-      </Modal>
+
     </div>
   );
 }

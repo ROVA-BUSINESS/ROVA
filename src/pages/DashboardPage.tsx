@@ -7,6 +7,7 @@ import { formatCurrency, formatDate, formatTime } from '../lib/format';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import { MonoConnectButton } from '../components/MonoConnectButton';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -335,6 +336,10 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+              
+              <div style={{ marginTop: 16 }}>
+                <MonoConnectButton onSuccess={loadData} size="sm" className="w-full" />
+              </div>
             </Card>
           </div>
         </>

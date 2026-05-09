@@ -1,6 +1,6 @@
 import { type ButtonHTMLAttributes, type ReactNode } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'outline';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -17,6 +17,7 @@ const styles: Record<Variant, string> = {
   ghost: 'background: transparent; color: var(--text-secondary);',
   danger: 'background: var(--error-dim); color: var(--error); border: 1px solid rgba(239,68,68,0.2);',
   success: 'background: var(--success-dim); color: var(--success); border: 1px solid rgba(34,197,94,0.2);',
+  outline: 'background: transparent; color: var(--text-primary); border: 1px solid var(--bg-border);',
 };
 
 const sizes: Record<Size, string> = {
