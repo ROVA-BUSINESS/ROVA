@@ -492,6 +492,9 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
+        <div style={{ maxWidth: 1200, width: '100%', marginTop: 80, paddingTop: 40, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>© 2026 ROVA Business. All rights reserved.</p>
+        </div>
       </footer>
     </div>
   );

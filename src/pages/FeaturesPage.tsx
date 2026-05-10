@@ -1,10 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
-import { 
-  ShieldCheck, Globe, Calculator, Users2, 
-  Sparkles, CheckCircle2
+import {
+  BarChart3, ShieldCheck, Zap, Globe, Calculator, Users2,
+  TrendingUp, Activity, Sparkles, Layout, CreditCard,
+  ArrowRight, CheckCircle2, ChevronRight, MessageSquare, LineChart
 } from 'lucide-react';
+import Button from '../components/ui/Button';
 
 const FeatureCard = ({ icon, title, desc, details }: { icon: React.ReactNode, title: string, desc: string, details: string[] }) => (
   <div style={{
@@ -44,8 +46,8 @@ export default function FeaturesPage() {
           </Link>
           <div style={{ display: 'flex', gap: 12 }}>
             <Link to="/login" style={{ textDecoration: 'none', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600, padding: '10px 20px' }}>Login</Link>
-            <Link to="/signup" style={{ 
-              textDecoration: 'none', background: 'var(--accent-primary)', color: '#fff', fontSize: 14, fontWeight: 600, 
+            <Link to="/signup" style={{
+              textDecoration: 'none', background: 'var(--accent-primary)', color: '#fff', fontSize: 14, fontWeight: 600,
               padding: '10px 24px', borderRadius: 10, boxShadow: '0 4px 12px rgba(147,51,234,0.3)'
             }}>Get Started</Link>
           </div>
@@ -54,13 +56,13 @@ export default function FeaturesPage() {
 
       {/* Hero Header */}
       <header style={{ paddingTop: 160, paddingBottom: 80, textAlign: 'center', position: 'relative' }}>
-        <div style={{ 
+        <div style={{
           position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
           width: '100%', height: 600, background: 'radial-gradient(circle at 50% 20%, rgba(147,51,234,0.1) 0%, transparent 70%)',
           zIndex: 0, pointerEvents: 'none'
         }} />
         <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 1 }}>
-          <div style={{ 
+          <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 16px',
             background: 'rgba(147,51,234,0.1)', borderRadius: 100, marginBottom: 24, border: '1px solid rgba(147,51,234,0.2)'
           }}>
@@ -79,8 +81,8 @@ export default function FeaturesPage() {
       {/* Features Grid */}
       <section style={{ padding: '0 24px 100px', display: 'flex', justifyContent: 'center' }}>
         <div style={{ maxWidth: 1200, width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 32 }}>
-          
-          <FeatureCard 
+
+          <FeatureCard
             icon={<Sparkles size={24} color="#9333ea" />}
             title="Next-Gen AI Assistant"
             desc="Your personal financial controller that lives inside the app. Navigate, analyze, and predict with natural language."
@@ -93,7 +95,7 @@ export default function FeaturesPage() {
             ]}
           />
 
-          <FeatureCard 
+          <FeatureCard
             icon={<Globe size={24} color="#3b82f6" />}
             title="Unified Banking"
             desc="Connect all your corporate and personal bank accounts to see a single source of truth."
@@ -106,7 +108,7 @@ export default function FeaturesPage() {
             ]}
           />
 
-          <FeatureCard 
+          <FeatureCard
             icon={<Calculator size={24} color="#10b981" />}
             title="Smart Accounting"
             desc="Ditch the spreadsheets. ROVA automates your bookkeeping from the moment a transaction occurs."
@@ -119,7 +121,7 @@ export default function FeaturesPage() {
             ]}
           />
 
-          <FeatureCard 
+          <FeatureCard
             icon={<Receipt size={24} color="#f59e0b" />}
             title="Invoicing & Payments"
             desc="Get paid faster with professional invoicing and integrated payment collection."
@@ -132,7 +134,7 @@ export default function FeaturesPage() {
             ]}
           />
 
-          <FeatureCard 
+          <FeatureCard
             icon={<Users2 size={24} color="#ef4444" />}
             title="Payroll & Teams"
             desc="Manage your workforce and their access to sensitive financial data with surgical precision."
@@ -145,7 +147,7 @@ export default function FeaturesPage() {
             ]}
           />
 
-          <FeatureCard 
+          <FeatureCard
             icon={<ShieldCheck size={24} color="#10b981" />}
             title="Security & Compliance"
             desc="Your data is protected by the same security standards used by global financial institutions."
@@ -168,8 +170,8 @@ export default function FeaturesPage() {
             No monthly subscription fees. No setup costs. We only win when you grow. Pay a tiny commission only on what you process.
           </p>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-            <Link to="/signup" style={{ 
-              textDecoration: 'none', background: 'var(--accent-primary)', color: '#fff', 
+            <Link to="/signup" style={{
+              textDecoration: 'none', background: 'var(--accent-primary)', color: '#fff',
               padding: '16px 40px', fontSize: 18, fontWeight: 700, borderRadius: 14, boxShadow: '0 10px 30px rgba(147,51,234,0.3)'
             }}>Join ROVA Today</Link>
           </div>
@@ -179,7 +181,7 @@ export default function FeaturesPage() {
       {/* Simple Footer Re-used */}
       <footer style={{ padding: '80px 24px', borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
         <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 40, marginBottom: 24 }} />
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>© 2024 ROVA Fintech. All rights reserved.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>© 2026 ROVA Fintech. All rights reserved.</p>
       </footer>
     </div>
   );
