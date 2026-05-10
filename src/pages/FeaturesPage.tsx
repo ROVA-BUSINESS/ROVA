@@ -2,11 +2,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import {
-  BarChart3, ShieldCheck, Zap, Globe, Calculator, Users2,
-  TrendingUp, Activity, Sparkles, Layout, CreditCard,
-  ArrowRight, CheckCircle2, ChevronRight, MessageSquare, LineChart
+  ShieldCheck, Globe, Calculator, Users2,
+  Sparkles, CheckCircle2
 } from 'lucide-react';
-import Button from '../components/ui/Button';
 
 const FeatureCard = ({ icon, title, desc, details }: { icon: React.ReactNode, title: string, desc: string, details: string[] }) => (
   <div style={{
