@@ -23,6 +23,7 @@ import TeamPage from './pages/team/TeamPage';
 import OnboardingPage from './pages/team/OnboardingPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import LandingPage from './pages/LandingPage';
+import FeaturesPage from './pages/FeaturesPage';
 import AcceptInvitePage from './pages/auth/AcceptInvitePage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -73,6 +74,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
           <Route path="/accept-invite" element={<AcceptInvitePage />} />
