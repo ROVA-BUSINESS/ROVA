@@ -109,7 +109,7 @@ const FloatingMockups = ({ isLight }: { isLight: boolean }) => (
 
     {/* Floating Bits */}
     <div className="animate-float-delayed" style={{
-      position: 'absolute', top: '10%', right: '5%', width: 220, padding: 20,
+      position: 'absolute', top: '15%', right: '8%', width: 220, padding: 20,
       background: isLight ? '#fff' : 'rgba(147,51,234,0.1)',
       borderRadius: 20, border: '1px solid rgba(147,51,234,0.2)',
       boxShadow: '0 20px 40px rgba(0,0,0,0.1)', zIndex: 10
@@ -123,7 +123,7 @@ const FloatingMockups = ({ isLight }: { isLight: boolean }) => (
     </div>
 
     <div className="animate-float" style={{
-      position: 'absolute', bottom: '15%', left: '5%', width: 200, padding: 16,
+      position: 'absolute', bottom: '22%', left: '8%', width: 200, padding: 16,
       background: isLight ? '#fff' : 'rgba(34,197,94,0.1)',
       borderRadius: 20, border: '1px solid rgba(34,197,94,0.2)',
       boxShadow: '0 20px 40px rgba(0,0,0,0.1)', zIndex: 10
@@ -355,13 +355,13 @@ export default function LandingPage() {
                   <Activity size={48} color="#fff" />
                 </div>
 
-                {/* Orbital Metrics - Adjusted for better distribution */}
+                {/* Orbital Metrics - Condensed to prevent text overlap and screen bleed */}
                 {[
-                  { label: 'Bank Sync', icon: <Globe size={16} />, pos: { top: -60, left: -80 } },
-                  { label: 'Tax Auto', icon: <Calculator size={16} />, pos: { top: -60, right: -80 } },
-                  { label: 'Live P&L', icon: <TrendingUp size={16} />, pos: { bottom: -60, left: -80 } },
-                  { label: 'ROVA AI', icon: <Zap size={16} />, pos: { bottom: -60, right: -80 } },
-                  { label: 'Smart Insights', icon: <Activity size={16} />, pos: { top: 30, right: -120 } }
+                  { label: 'Bank Sync', icon: <Globe size={16} />, pos: { top: -40, left: -40 } },
+                  { label: 'Tax Auto', icon: <Calculator size={16} />, pos: { top: -40, right: -40 } },
+                  { label: 'Live P&L', icon: <TrendingUp size={16} />, pos: { bottom: -40, left: -40 } },
+                  { label: 'ROVA AI', icon: <Zap size={16} />, pos: { bottom: -40, right: -40 } },
+                  { label: 'Smart Insights', icon: <Activity size={16} />, pos: { top: 30, right: -40 } }
                 ].map((m, i) => (
                   <div key={i} className="animate-float-delayed" style={{
                     position: 'absolute', ...m.pos,
