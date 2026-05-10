@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, ChartBar as BarChart2, Download, ChevronDown } from 'lucide-react';
 import { downloadCSV } from '../lib/export';
 import {
@@ -15,6 +16,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'3m' | '6m' | '12m'>('6m');
@@ -118,6 +120,18 @@ export default function ReportsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+        <Card hoverable onClick={() => navigate('/app/profit-loss')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
+          <div style={{ padding: 10, background: 'var(--success-dim)', borderRadius: 10 }}>
+            <TrendingUp size={20} color="var(--success)" />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Profit & Loss</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Income vs Expenses</div>
+          </div>
+        </Card>
       </div>
 
       {loading ? (

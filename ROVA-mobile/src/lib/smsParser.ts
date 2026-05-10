@@ -85,15 +85,7 @@ const SMS_RULES: SmsRule[] = [
     balanceRegex: /balance[:\s]+([\d,]+\.?\d*)/i,
     narrationRegex: /(?:ref|narr)[:\s]+([^\n.]+)/i,
   },
-  // Fidelity Bank
-  {
-    institution: 'Fidelity Bank',
-    senderPatterns: [/fidelity/i],
-    amountRegex: /NGN\s?([\d,]+\.?\d*)/i,
-    typeRegex: { debit: /debit|dr/i, credit: /credit|cr/i },
-    balanceRegex: /balance[:\s]+([\d,]+\.?\d*)/i,
-    narrationRegex: /(?:for|desc)[:\s]+([^\n.]+)/i,
-  },
+
   // Polaris Bank
   {
     institution: 'Polaris Bank',
@@ -121,15 +113,7 @@ const SMS_RULES: SmsRule[] = [
     balanceRegex: /balance[:\s]+([\d,]+\.?\d*)/i,
     narrationRegex: /(?:desc|narr)[:\s]+([^\n.]+)/i,
   },
-  // FCMB
-  {
-    institution: 'FCMB',
-    senderPatterns: [/fcmb/i, /city micro/i],
-    amountRegex: /NGN\s?([\d,]+\.?\d*)/i,
-    typeRegex: { debit: /debit/i, credit: /credit/i },
-    balanceRegex: /balance[:\s]+([\d,]+\.?\d*)/i,
-    narrationRegex: /(?:for|narr)[:\s]+([^\n.]+)/i,
-  },
+
   // Kuda Bank
   {
     institution: 'Kuda Bank',

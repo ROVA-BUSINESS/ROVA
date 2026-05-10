@@ -12,19 +12,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
 }
 
-const styles: Record<Variant, string> = {
-  primary: 'background: var(--accent-primary); color: white;',
-  secondary: 'background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--bg-border);',
-  ghost: 'background: transparent; color: var(--text-secondary);',
-  danger: 'background: var(--error-dim); color: var(--error); border: 1px solid rgba(239,68,68,0.2);',
-  success: 'background: var(--success-dim); color: var(--success); border: 1px solid rgba(34,197,94,0.2);',
-  outline: 'background: transparent; color: var(--text-primary); border: 1px solid var(--bg-border);',
+const variantStyles: Record<Variant, React.CSSProperties> = {
+  primary: { background: 'var(--accent-primary)', color: 'white' },
+  secondary: { background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--bg-border)' },
+  ghost: { background: 'transparent', color: 'var(--text-secondary)' },
+  danger: { background: 'var(--error-dim)', color: 'var(--error)', border: '1px solid rgba(239,68,68,0.2)' },
+  success: { background: 'var(--success-dim)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' },
+  outline: { background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--bg-border)' },
 };
 
-const sizes: Record<Size, string> = {
-  sm: 'padding: 6px 12px; font-size: 12px; border-radius: var(--radius-sm);',
-  md: 'padding: 8px 16px; font-size: 13px; border-radius: var(--radius-md);',
-  lg: 'padding: 11px 22px; font-size: 14px; border-radius: var(--radius-md);',
+const sizeStyles: Record<Size, React.CSSProperties> = {
+  sm: { padding: '6px 12px', fontSize: '12px', borderRadius: 'var(--radius-sm)' },
+  md: { padding: '8px 16px', fontSize: '13px', borderRadius: 'var(--radius-md)' },
+  lg: { padding: '11px 22px', fontSize: '14px', borderRadius: 'var(--radius-md)' },
 };
 
 export default function Button({
@@ -53,23 +53,20 @@ export default function Button({
         opacity: props.disabled ? 0.5 : 1,
         whiteSpace: 'nowrap',
         border: 'none',
-        ...Object.fromEntries(
-          styles[variant].split(';').filter(Boolean).map(s => {
-            const [k, ...v] = s.split(':');
-            return [k.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase()), v.join(':').trim()];
-          })
-        ),
-        ...Object.fromEntries(
-          sizes[size].split(';').filter(Boolean).map(s => {
-            const [k, ...v] = s.split(':');
-            return [k.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase()), v.join(':').trim()];
-          })
-        ),
+        ...variantStyles[variant],
+        ...sizeStyles[size],
         ...style,
       }}
     >
       {loading ? (
-        <span style={{ width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+        <span style={{ 
+          width: 14, height: 14, 
+          border: '2px solid currentColor', 
+          borderTopColor: 'transparent', 
+          borderRadius: '50%', 
+          display: 'inline-block', 
+          animation: 'spin 0.8s linear infinite' 
+        }} />
       ) : icon}
       {children}
     </button>

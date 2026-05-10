@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ArrowLeftRight, ChartBar as BarChart2, FileText, Receipt,
-  Settings, LogOut, Plus, BookOpen, Layers, BookMarked,
-  Scale, TrendingUp, LayoutList, Banknote, ChevronDown, ChevronRight,
+  Settings, LogOut, Plus, BookOpen,
+  ChevronDown, ChevronRight, ChevronLeft,
   Sparkles, Users, Package, Shield, X
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
@@ -22,55 +22,43 @@ type NavGroup = {
 
 const navGroups: NavGroup[] = [
   {
-    label: 'Overview',
-    key: 'overview',
+    label: 'Workspace',
+    key: 'workspace',
     items: [
       { to: '/app/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/app/transactions', icon: ArrowLeftRight, label: 'Transactions' },
+      { to: '/app/invoices', icon: Receipt, label: 'Invoices' },
+      { to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
       { to: '/app/assistant', icon: Sparkles, label: 'AI Assistant' },
     ],
   },
   {
-    label: 'Transactions',
-    key: 'transactions',
+    label: 'Accounting',
+    key: 'accounting',
     items: [
-      { to: '/app/transactions', icon: ArrowLeftRight, label: 'All Transactions' },
+      { to: '/app/accounting', icon: BookOpen, label: 'Accounting Hub' },
     ],
   },
   {
-    label: 'Financial Records',
-    key: 'records',
+    label: 'Compliance',
+    key: 'compliance',
     items: [
-      { to: '/app/ledger', icon: BookOpen, label: 'General Ledger' },
-      { to: '/app/chart-of-accounts', icon: Layers, label: 'Chart of Accounts' },
-      { to: '/app/journal-entries', icon: BookMarked, label: 'Journal Entries' },
-      { to: '/app/trial-balance', icon: Scale, label: 'Trial Balance' },
-    ],
-  },
-  {
-    label: 'Financial Statements',
-    key: 'statements',
-    items: [
-      { to: '/app/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
-      { to: '/app/balance-sheet', icon: LayoutList, label: 'Balance Sheet' },
-      { to: '/app/cash-flow', icon: Banknote, label: 'Cash Flow' },
-    ],
-  },
-  {
-    label: 'People & Operations',
-    key: 'people',
-    items: [
-      { to: '/app/payroll', icon: Users, label: 'Payroll & Staff' },
-      { to: '/app/inventory', icon: Package, label: 'Inventory' },
-      { to: '/app/team', icon: Shield, label: 'Team & Access' },
-    ],
-  },
-  {
-    label: 'More',
-    key: 'more',
-    items: [
-      { to: '/app/reports', icon: BarChart2, label: 'Reports' },
-      { to: '/app/invoices', icon: Receipt, label: 'Invoices' },
       { to: '/app/tax', icon: FileText, label: 'Tax & Compliance' },
+    ],
+  },
+  {
+    label: 'Operations',
+    key: 'operations',
+    items: [
+      { to: '/app/team', icon: Shield, label: 'Team & Access' },
+      { to: '/app/payroll', icon: Users, label: 'Payroll' },
+      { to: '/app/inventory', icon: Package, label: 'Inventory' },
+    ],
+  },
+  {
+    label: 'System',
+    key: 'system',
+    items: [
       { to: '/app/settings', icon: Settings, label: 'Settings' },
     ],
   },
@@ -87,7 +75,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const isMobile = useMobile();
   const navigate = useNavigate();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set(['accounting', 'operations']));
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
   async function handleSignOut() {
     await signOut();
@@ -107,14 +96,13 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   const filteredNavGroups = navGroups.map(group => {
     if (isStaff) {
-      if (group.key === 'overview') return group;
-      if (group.key === 'transactions') return group;
-      if (group.key === 'more') {
+      if (group.key === 'workspace') {
         return {
           ...group,
-          items: group.items.filter(item => item.to === '/app/invoices' || item.to === '/app/settings')
+          items: group.items.filter(item => item.to !== '/app/reports') // Staff don't see reports
         };
       }
+      if (group.key === 'system') return group;
       return null;
     }
     return group;
@@ -133,9 +121,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         />
       )}
 
-      <aside style={{
-        width: 220,
-        minWidth: 220,
+    <aside style={{
+        width: isMobile ? 220 : (isDesktopCollapsed ? 68 : 220),
+        minWidth: isMobile ? 220 : (isDesktopCollapsed ? 68 : 220),
         height: '100vh',
         background: 'var(--bg-surface)',
         borderRight: '1px solid var(--bg-border)',
@@ -146,22 +134,50 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         left: 0,
         zIndex: 50,
         transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
-        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        overflowY: 'auto',
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         <div style={{ padding: '16px 0', borderBottom: '1px solid var(--bg-border)', flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-          <div style={{
-            width: 140, height: 'auto',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <img src={theme === 'light' ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
-          </div>
+          {!isDesktopCollapsed ? (
+            <div style={{
+              width: 140, height: 'auto',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <img src={theme === 'light' ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+            </div>
+          ) : (
+            <div style={{ height: 24 }} /> // Placeholder to maintain height
+          )}
           {isMobile && (
             <button onClick={onClose} style={{ position: 'absolute', right: 10, color: 'var(--text-muted)' }}>
               <X size={20} />
             </button>
           )}
         </div>
+
+        {!isMobile && (
+          <button
+            onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
+            style={{ 
+              position: 'absolute', right: -12, top: 24, 
+              background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', 
+              borderRadius: '50%', width: 24, height: 24, 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              cursor: 'pointer', zIndex: 100, color: 'var(--text-muted)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+            }}
+          >
+            {isDesktopCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        )}
 
 
       <div style={{ padding: '12px 10px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--bg-border)', margin: '0 6px', flexShrink: 0 }}>
@@ -174,10 +190,11 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           {initials}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {displayName}
-          </div>
-
+          {!isDesktopCollapsed && (
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {displayName}
+            </div>
+          )}
         </div>
       </div>
 
@@ -202,14 +219,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           }}
         >
           <Plus size={14} />
-          Add Transaction
+          {!isDesktopCollapsed && 'Add Transaction'}
         </button>
       </div>
 
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: '8px 8px' }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: '8px 8px', flex: 1, overflowY: 'auto' }}>
         {filteredNavGroups.map(group => (
           <div key={group.key} style={{ marginBottom: 2 }}>
-            {group.label !== 'Overview' && (
+            {(group.label !== 'Workspace' && group.label !== 'System' && !isDesktopCollapsed) && (
               <button
                 onClick={() => toggleGroup(group.key)}
                 style={{
@@ -229,7 +246,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               </button>
             )}
 
-            {!collapsed.has(group.key) && (
+            {(!collapsed.has(group.key) || isDesktopCollapsed) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {group.items.map(({ to, icon: Icon, label }) => (
                   <NavLink
@@ -264,8 +281,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                       }
                     }}
                   >
-                    <Icon size={13} />
-                    {label}
+                    <Icon size={13} style={{ flexShrink: 0 }} />
+                    {!isDesktopCollapsed && label}
                   </NavLink>
                 ))}
               </div>
@@ -295,8 +312,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
           }}
         >
-          <LogOut size={15} />
-          Sign out
+          <LogOut size={15} style={{ flexShrink: 0 }} />
+          {!isDesktopCollapsed && 'Sign out'}
         </button>
       </div>
     </aside>

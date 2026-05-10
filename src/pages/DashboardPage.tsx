@@ -57,8 +57,24 @@ export default function DashboardPage() {
   const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const netFlow = income - expenses;
 
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+  const currentMonthIncome = transactions.filter(t => new Date(t.date).getMonth() === currentMonth && new Date(t.date).getFullYear() === currentYear && t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const lastMonthIncome = transactions.filter(t => new Date(t.date).getMonth() === lastMonth && new Date(t.date).getFullYear() === lastMonthYear && t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const incomeChange = lastMonthIncome === 0 ? (currentMonthIncome > 0 ? 100 : 0) : ((currentMonthIncome - lastMonthIncome) / lastMonthIncome) * 100;
+
+  const currentMonthExpenses = transactions.filter(t => new Date(t.date).getMonth() === currentMonth && new Date(t.date).getFullYear() === currentYear && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const lastMonthExpenses = transactions.filter(t => new Date(t.date).getMonth() === lastMonth && new Date(t.date).getFullYear() === lastMonthYear && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const expenseChange = lastMonthExpenses === 0 ? (currentMonthExpenses > 0 ? 100 : 0) : ((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100;
+
   const chartData = MONTHS.slice(0, new Date().getMonth() + 1).map((month, i) => {
-    const monthTx = transactions.filter(t => new Date(t.date).getMonth() === i);
+    const monthTx = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === i && d.getFullYear() === currentYear;
+    });
     return {
       month,
       income: monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -105,8 +121,8 @@ export default function DashboardPage() {
               <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(income)}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <ArrowUpRight size={14} /> +12.5% from last month
+              <div style={{ fontSize: 12, color: incomeChange >= 0 ? 'var(--success)' : 'var(--error)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {incomeChange >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {incomeChange > 0 ? '+' : ''}{incomeChange.toFixed(1)}% from last month
               </div>
             </Card>
 
@@ -120,8 +136,8 @@ export default function DashboardPage() {
               <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(expenses)}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--error)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <ArrowUpRight size={14} /> +4.2% from last month
+              <div style={{ fontSize: 12, color: expenseChange <= 0 ? 'var(--success)' : 'var(--error)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {expenseChange >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {expenseChange > 0 ? '+' : ''}{expenseChange.toFixed(1)}% from last month
               </div>
             </Card>
 

@@ -13,11 +13,9 @@ interface EmailSyncSetupProps {
 }
 
 const NIGERIAN_BANKS = [
-  { name: 'Fidelity Bank', sender: 'alerts@fidelitybank.ng' },
   { name: 'Polaris Bank', sender: 'alerts@polarisbank.com' },
   { name: 'Sterling Bank', sender: 'noreply@sterling.ng' },
   { name: 'Wema Bank', sender: 'alerts@wemabank.com' },
-  { name: 'FCMB', sender: 'alerts@fcmb.com' },
 ];
 
 export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSyncSetupProps) {

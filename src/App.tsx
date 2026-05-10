@@ -9,6 +9,7 @@ import ReportsPage from './pages/ReportsPage';
 import TaxPage from './pages/TaxPage';
 import InvoicesPage from './pages/InvoicesPage';
 import SettingsPage from './pages/SettingsPage';
+import AccountingHubPage from './pages/accounting/AccountingHubPage';
 import GeneralLedgerPage from './pages/accounting/GeneralLedgerPage';
 import ChartOfAccountsPage from './pages/accounting/ChartOfAccountsPage';
 import JournalEntriesPage from './pages/accounting/JournalEntriesPage';
@@ -93,6 +94,7 @@ export default function App() {
             <Route path="invoices" element={<InvoicesPage />} />
             <Route path="tax" element={<AdminRoute><TaxPage /></AdminRoute>} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="accounting" element={<AdminRoute><AccountingHubPage /></AdminRoute>} />
             <Route path="ledger" element={<AdminRoute><GeneralLedgerPage /></AdminRoute>} />
             <Route path="chart-of-accounts" element={<AdminRoute><ChartOfAccountsPage /></AdminRoute>} />
             <Route path="journal-entries" element={<AdminRoute><JournalEntriesPage /></AdminRoute>} />
