@@ -181,7 +181,7 @@ export default function FeaturesPage() {
       {/* Simple Footer Re-used */}
       <footer style={{ padding: '80px 24px', borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
         <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 40, marginBottom: 24 }} />
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>© 2026 ROVA Fintech. All rights reserved.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>© 2026 ROVA Business. All rights reserved.</p>
       </footer>
     </div>
   );
