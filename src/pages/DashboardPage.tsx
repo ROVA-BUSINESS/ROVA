@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, ArrowUpRight, ArrowDownRight, Zap, Plus, ChevronRight, Wallet } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, ChevronRight, Wallet } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase, type Transaction, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, formatTime } from '../lib/format';
@@ -8,6 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { MonoConnectButton } from '../components/MonoConnectButton';
+import EmailSyncSetup from '../components/bank-sync/EmailSyncSetup';
+import QuickAddModal from '../components/QuickAddModal';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -18,6 +20,8 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [arBalance, setArBalance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isEmailSyncOpen, setIsEmailSyncOpen] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
   useEffect(() => {
     if (user) loadData();
@@ -62,212 +66,133 @@ export default function DashboardPage() {
     };
   });
 
-  const categoryMap = new Map<string, number>();
-  transactions.filter(t => t.type === 'expense').forEach(t => {
-    const cat = (t.category as any)?.name || 'Other';
-    categoryMap.set(cat, (categoryMap.get(cat) || 0) + t.amount);
-  });
-  const pieData = Array.from(categoryMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, value]) => ({ name, value }));
-
-  const PIE_COLORS = ['#9333ea', '#a855f7', '#c084fc', '#7e22ce', '#6b21a8'];
-
   const recentTx = transactions.slice(0, 5);
 
-  const displayName = profile?.full_name || profile?.business_name || user?.email?.split('@')[0] || 'there';
-
-  const statCards = [
-    {
-      label: 'Total Balance',
-      value: formatCurrency(totalBalance),
-      icon: Wallet,
-      iconColor: '#9333ea',
-      iconBg: 'var(--accent-dim)',
-      trend: null,
-    },
-    {
-      label: 'Total Income',
-      value: formatCurrency(income),
-      icon: TrendingUp,
-      iconColor: 'var(--success)',
-      iconBg: 'var(--success-dim)',
-      trend: 'up',
-    },
-    {
-      label: 'Total Expenses',
-      value: formatCurrency(expenses),
-      icon: TrendingDown,
-      iconColor: 'var(--error)',
-      iconBg: 'var(--error-dim)',
-      trend: 'down',
-    },
-    {
-      label: 'Net Cash Flow',
-      value: formatCurrency(Math.abs(netFlow)),
-      icon: DollarSign,
-      iconColor: netFlow >= 0 ? 'var(--success)' : 'var(--error)',
-      iconBg: netFlow >= 0 ? 'var(--success-dim)' : 'var(--error-dim)',
-      trend: netFlow >= 0 ? 'up' : 'down',
-    },
-  ];
-
   return (
-    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1200, animation: 'fadeIn 0.3s ease' }}>
-      <div className="mobile-col" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 12px 100px' }}>
+      <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 22, marginBottom: 4 }}>
-            Good {getGreeting()}, {displayName.split(' ')[0]} 👋
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-            Here's your financial overview for {new Date().toLocaleDateString('en-NG', { month: 'long', year: 'numeric' })}
-          </p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Good {getGreeting()}, {profile?.full_name?.split(' ')[0] || 'User'}!</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Here's what's happening with your business today.</p>
         </div>
-        <Button
-          variant="primary"
-          icon={<Plus size={14} />}
-          onClick={() => navigate('/transactions')}
-        >
-          Add Transaction
-        </Button>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <Button variant="secondary" size="sm" onClick={() => navigate('/app/transactions')}>
+            View History
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setIsQuickAddOpen(true)}>
+            <Plus size={16} /> Add Transaction
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => navigate('/app/invoices')}>
+            New Invoice
+          </Button>
+        </div>
       </div>
 
       {loading ? (
-        <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-          {[1,2,3,4].map(i => (
-            <div key={i} className="skeleton" style={{ height: 100 }} />
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+          {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 120, borderRadius: 20 }} />)}
         </div>
       ) : (
         <>
-          <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-            {statCards.map(card => (
-              <Card key={card.label} hoverable>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 'var(--radius-md)',
-                    background: card.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <card.icon size={17} color={card.iconColor} />
-                  </div>
-                  {card.trend && (
-                    <span style={{ color: card.trend === 'up' ? 'var(--success)' : 'var(--error)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
-                      {card.trend === 'up' ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-                    </span>
-                  )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginBottom: 32 }}>
+            <Card>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ padding: 10, background: 'var(--accent-dim)', borderRadius: 12 }}>
+                  <TrendingUp size={20} color="var(--accent-primary)" />
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  {card.label}
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Total Revenue</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
+                {formatCurrency(income)}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ArrowUpRight size={14} /> +12.5% from last month
+              </div>
+            </Card>
+
+            <Card>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ padding: 10, background: 'var(--error-dim)', borderRadius: 12 }}>
+                  <TrendingDown size={20} color="var(--error)" />
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>
-                  {card.value}
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Expenses</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
+                {formatCurrency(expenses)}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--error)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ArrowUpRight size={14} /> +4.2% from last month
+              </div>
+            </Card>
+
+            <Card>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ padding: 10, background: 'var(--success-dim)', borderRadius: 12 }}>
+                  <DollarSign size={20} color="var(--success)" />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Net Cashflow</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netFlow >= 0 ? 'var(--success)' : 'var(--error)' }}>
+                {formatCurrency(netFlow)}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                Current period profitability
+              </div>
+            </Card>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }} className="mobile-col">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <Card>
+                <div style={{ marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700 }}>Financial Performance</h3>
+                </div>
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--bg-border)" />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} tickFormatter={(v) => `₦${v/1000}k`} />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="income" stroke="var(--accent-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </Card>
-            ))}
-          </div>
 
-          <div className="mobile-grid-1 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 24 }}>
-            <Card>
-              <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h3 style={{ fontSize: 14 }}>Cash Flow Overview</h3>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date().getFullYear()}</span>
-              </div>
-              {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                    <defs>
-                      <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#9333ea" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#9333ea" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--bg-border)" />
-                    <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₦${(v/1000).toFixed(0)}k`} />
-                    <Tooltip
-                      contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 8, fontSize: 12 }}
-                      labelStyle={{ color: 'var(--text-primary)' }}
-                      formatter={(v) => formatCurrency(Number(v))}
-                    />
-                    <Area type="monotone" dataKey="income" stroke="#22c55e" fill="url(#incomeGrad)" strokeWidth={2} name="Income" />
-                    <Area type="monotone" dataKey="expenses" stroke="#9333ea" fill="url(#expenseGrad)" strokeWidth={2} name="Expenses" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyChart />
-              )}
-            </Card>
-
-            <Card>
-              <div style={{ marginBottom: 16 }}>
-                <h3 style={{ fontSize: 14, marginBottom: 2 }}>Expense Breakdown</h3>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Top categories</p>
-              </div>
-              {pieData.length > 0 ? (
-                <>
-                  <ResponsiveContainer width="100%" height={140}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value">
-                        {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 8, fontSize: 12 }}
-                        formatter={(v) => formatCurrency(Number(v))}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                    {pieData.map((d, i) => (
-                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i] }} />
-                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{d.name}</span>
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(d.value)}</span>
-                      </div>
+              <Card>
+                <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3 style={{ fontSize: 14 }}>Recent Transactions</h3>
+                  <button 
+                    onClick={() => navigate('/app/transactions')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent-light)', fontSize: 12, fontWeight: 500 }}
+                  >
+                    View all <ChevronRight size={12} />
+                  </button>
+                </div>
+                {recentTx.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {recentTx.map(tx => (
+                      <TransactionRow key={tx.id} tx={tx} />
                     ))}
                   </div>
-                </>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-                  No expense data yet
-                </div>
-              )}
-            </Card>
-          </div>
-
-          <div className="mobile-grid-1 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
-            <Card>
-              <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h3 style={{ fontSize: 14 }}>Recent Transactions</h3>
-                <button
-                  onClick={() => navigate('/transactions')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent-light)', fontSize: 12, fontWeight: 500 }}
-                >
-                  View all <ChevronRight size={12} />
-                </button>
-              </div>
-              {recentTx.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {recentTx.map(tx => (
-                    <TransactionRow key={tx.id} tx={tx} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState message="No transactions yet" sub="Add your first transaction to get started" />
-              )}
-            </Card>
+                ) : (
+                  <EmptyState message="No transactions yet" sub="Add your first transaction to get started" />
+                )}
+              </Card>
+            </div>
 
             <Card>
               <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: 14 }}>Accounts</h3>
-                <button
-                  onClick={() => navigate('/settings')}
+                <button 
+                  onClick={() => navigate('/app/settings')}
                   style={{ color: 'var(--accent-light)', fontSize: 12, fontWeight: 500 }}
                 >
                   Manage
@@ -284,15 +209,15 @@ export default function DashboardPage() {
                       <div style={{
                         width: 32, height: 32, borderRadius: 'var(--radius-md)',
                         background: acc.color || 'var(--accent-dim)',
-                        opacity: 0.85, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        <CreditCard size={14} color="white" />
+                        <Wallet size={14} color="white" />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acc.name}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{acc.type}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acc.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{acc.institution}</div>
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif' }}>
                         {formatCurrency(acc.balance)}
                       </div>
                     </div>
@@ -339,28 +264,35 @@ export default function DashboardPage() {
               
               <div style={{ marginTop: 16 }}>
                 <MonoConnectButton onSuccess={loadData} size="sm" className="w-full" />
+                <button
+                  onClick={() => setIsEmailSyncOpen(true)}
+                  style={{
+                    width: '100%', marginTop: 8, background: 'transparent',
+                    border: '1px dashed var(--bg-border)', borderRadius: 'var(--radius-md)',
+                    padding: '8px', fontSize: 11, color: 'var(--text-secondary)',
+                    cursor: 'pointer', transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
+                  onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--bg-border)'}
+                >
+                  Bank not on Mono? Use Email Sync
+                </button>
               </div>
             </Card>
           </div>
         </>
       )}
 
-      {!loading && transactions.length === 0 && accounts.length === 0 && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: 'linear-gradient(135deg, var(--accent-primary), #7e22ce)',
-          borderRadius: 'var(--radius-lg)', padding: '12px 16px',
-          display: 'flex', alignItems: 'center', gap: 10,
-          boxShadow: 'var(--shadow-glow)', animation: 'fadeIn 1s ease',
-          maxWidth: 300,
-        }}>
-          <Zap size={18} color="white" />
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'white' }}>Welcome to ROVA!</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Add transactions to get started</div>
-          </div>
-        </div>
-      )}
+      <EmailSyncSetup 
+        isOpen={isEmailSyncOpen}
+        onClose={() => setIsEmailSyncOpen(false)}
+        onSuccess={loadData}
+      />
+
+      <QuickAddModal 
+        open={isQuickAddOpen}
+        onClose={() => { setIsQuickAddOpen(false); loadData(); }}
+      />
     </div>
   );
 }
@@ -400,14 +332,6 @@ function EmptyState({ message, sub }: { message: string; sub?: string }) {
     <div style={{ textAlign: 'center', padding: '24px 0' }}>
       <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{message}</p>
       {sub && <p style={{ color: 'var(--text-disabled)', fontSize: 11, marginTop: 4 }}>{sub}</p>}
-    </div>
-  );
-}
-
-function EmptyChart() {
-  return (
-    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No data to display yet</p>
     </div>
   );
 }

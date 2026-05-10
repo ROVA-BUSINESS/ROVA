@@ -55,7 +55,7 @@ export default function AcceptInvitePage() {
     }
 
     setDone(true);
-    setTimeout(() => navigate('/dashboard'), 2000);
+    setTimeout(() => navigate('/app/dashboard'), 2000);
   }
 
   return (

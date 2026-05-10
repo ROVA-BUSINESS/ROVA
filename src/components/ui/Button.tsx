@@ -7,6 +7,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
+  fullWidth?: boolean;
   icon?: ReactNode;
   children?: ReactNode;
 }
@@ -30,6 +31,7 @@ export default function Button({
   variant = 'secondary',
   size = 'md',
   loading = false,
+  fullWidth = false,
   icon,
   children,
   style,
@@ -40,7 +42,9 @@ export default function Button({
       {...props}
       disabled={loading || props.disabled}
       style={{
-        display: 'inline-flex',
+        display: fullWidth ? 'flex' : 'inline-flex',
+        width: fullWidth ? '100%' : 'auto',
+        justifyContent: 'center',
         alignItems: 'center',
         gap: '6px',
         fontWeight: 500,
@@ -48,6 +52,7 @@ export default function Button({
         cursor: loading || props.disabled ? 'not-allowed' : 'pointer',
         opacity: props.disabled ? 0.5 : 1,
         whiteSpace: 'nowrap',
+        border: 'none',
         ...Object.fromEntries(
           styles[variant].split(';').filter(Boolean).map(s => {
             const [k, ...v] = s.split(':');

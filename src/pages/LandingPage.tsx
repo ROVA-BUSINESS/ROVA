@@ -355,13 +355,13 @@ export default function LandingPage() {
                   <Activity size={48} color="#fff" />
                 </div>
 
-                {/* Orbital Metrics - Condensed to prevent text overlap and screen bleed */}
+                {/* Orbital Metrics - Adjusted for better centering and overlap prevention */}
                 {[
-                  { label: 'Bank Sync', icon: <Globe size={16} />, pos: { top: -40, left: -40 } },
-                  { label: 'Tax Auto', icon: <Calculator size={16} />, pos: { top: -40, right: -40 } },
-                  { label: 'Live P&L', icon: <TrendingUp size={16} />, pos: { bottom: -40, left: -40 } },
-                  { label: 'ROVA AI', icon: <Zap size={16} />, pos: { bottom: -40, right: -40 } },
-                  { label: 'Smart Insights', icon: <Activity size={16} />, pos: { top: 30, right: -40 } }
+                  { label: 'Bank Sync', icon: <Globe size={16} />, pos: { top: -60, left: -60 } },
+                  { label: 'Tax Auto', icon: <Calculator size={16} />, pos: { top: -60, right: -60 } },
+                  { label: 'Live P&L', icon: <TrendingUp size={16} />, pos: { bottom: -60, left: -60 } },
+                  { label: 'ROVA AI', icon: <Zap size={16} />, pos: { bottom: -60, right: -60 } },
+                  { label: 'Smart Insights', icon: <Activity size={16} />, pos: { top: 10, right: -110 } }
                 ].map((m, i) => (
                   <div key={i} className="animate-float-delayed" style={{
                     position: 'absolute', ...m.pos,
@@ -446,50 +446,55 @@ export default function LandingPage() {
 
       {/* --- Footer --- */}
       <footer style={{ padding: '120px 24px', borderTop: '1px solid var(--bg-border)', display: 'flex', justifyContent: 'center', background: isLight ? '#ffffff' : '#000000' }}>
-        <div style={{ maxWidth: 1200, width: '100%', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 60 }}>
-          <div style={{ maxWidth: 380 }}>
-            <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 64, marginBottom: 24 }} />
-            <p style={{ color: 'var(--text-muted)', lineHeight: 1.8, fontSize: 16, marginBottom: 32 }}>
-              The unified operating system for African business finances. Built for founders, by founders.
-            </p>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <input
-                type="email"
-                placeholder="Join our newsletter"
-                style={{
-                  flex: 1, padding: '12px 16px', borderRadius: 10, border: '1px solid var(--bg-border)',
-                  background: isLight ? '#f9f9f9' : 'rgba(255,255,255,0.03)', color: 'var(--text-primary)'
-                }}
-              />
-              <Button variant="primary" style={{ padding: '12px 20px', borderRadius: 10 }}>Join</Button>
+        <div style={{ maxWidth: 1200, width: '100%', display: 'flex', flexDirection: 'column', gap: 80 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 60 }}>
+            <div style={{ maxWidth: 380 }}>
+              <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 64, marginBottom: 24 }} />
+              <p style={{ color: 'var(--text-muted)', lineHeight: 1.8, fontSize: 16, marginBottom: 32 }}>
+                The unified operating system for African business finances. Built for founders, by founders.
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <input
+                  type="email"
+                  placeholder="Join our newsletter"
+                  style={{
+                    flex: 1, padding: '12px 16px', borderRadius: 10, border: '1px solid var(--bg-border)',
+                    background: isLight ? '#f9f9f9' : 'rgba(255,255,255,0.03)', color: 'var(--text-primary)'
+                  }}
+                />
+                <Button variant="primary" style={{ padding: '12px 20px', borderRadius: 10 }}>Join</Button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 80, flexWrap: 'wrap' }}>
+              <div>
+                <h4 style={{ fontWeight: 800, marginBottom: 32, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Solutions</h4>
+                <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {['Banking', 'Accounting', 'Payroll', 'Invoicing', 'Tax Compliance'].map(item => (
+                    <li key={item}><a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a></li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h4 style={{ fontWeight: 800, marginBottom: 32, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Resources</h4>
+                <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {['Documentation', 'Help Center', 'Blog', 'API Status', 'Security'].map(item => (
+                    <li key={item}><a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a></li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h4 style={{ fontWeight: 800, marginBottom: 32, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Company</h4>
+                <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {['About Us', 'Contact', 'Privacy', 'Terms'].map(item => (
+                    <li key={item}><a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a></li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', gap: 80, flexWrap: 'wrap' }}>
-            <div>
-              <h4 style={{ fontWeight: 800, marginBottom: 32, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Solutions</h4>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {['Banking', 'Accounting', 'Payroll', 'Invoicing', 'Tax Compliance'].map(item => (
-                  <li key={item}><a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a></li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 style={{ fontWeight: 800, marginBottom: 32, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Resources</h4>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {['Documentation', 'Help Center', 'Blog', 'API Status', 'Security'].map(item => (
-                  <li key={item}><a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a></li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 style={{ fontWeight: 800, marginBottom: 32, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Company</h4>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {['About Us', 'Contact', 'Privacy', 'Terms'].map(item => (
-                  <li key={item}><a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a></li>
-                ))}
-              </ul>
-            </div>
+          <div style={{ paddingTop: 40, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>© 2026 ROVA Business. All rights reserved.</p>
           </div>
         </div>
       </footer>

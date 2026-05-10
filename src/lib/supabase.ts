@@ -29,6 +29,9 @@ export type Account = {
   currency: string;
   color: string;
   is_active: boolean;
+  sync_source: 'manual' | 'mono' | 'email';
+  sync_status: 'active' | 'error' | 'pending';
+  last_synced_at: string | null;
   created_at: string;
 };
 
