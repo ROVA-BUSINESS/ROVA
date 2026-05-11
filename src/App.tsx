@@ -26,6 +26,7 @@ import NotificationsPage from './pages/notifications/NotificationsPage';
 import LandingPage from './pages/LandingPage';
 import FeaturesPage from './pages/FeaturesPage';
 import AcceptInvitePage from './pages/auth/AcceptInvitePage';
+import GmailCallbackPage from './pages/auth/GmailCallbackPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
           <Route path="/accept-invite" element={<AcceptInvitePage />} />
+          <Route path="/auth/callback/gmail" element={<ProtectedRoute><GmailCallbackPage /></ProtectedRoute>} />
           <Route
             path="/app"
             element={

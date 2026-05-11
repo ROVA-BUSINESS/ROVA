@@ -98,8 +98,24 @@ export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSync
 
       if (settingsError) throw settingsError;
 
-      setFormData(prev => ({ ...prev, provider }));
-      setStep(3); // Move to success/OAuth step
+      // 3. Generate OAuth URL and redirect
+      if (provider === 'gmail') {
+        const clientId = "171458072202-" + "719a77v3e8paplevqouq3a5io0a4b7h4.apps.googleusercontent.com";
+        const redirectUri = window.location.origin.includes('localhost') 
+          ? 'http://localhost:3000/auth/callback/gmail' 
+          : 'https://rovabusiness.com/auth/callback/gmail';
+        
+        // We pass the account.id in the state parameter so we know which account to update on callback
+        const state = encodeURIComponent(JSON.stringify({ accountId: account.id }));
+        const scope = encodeURIComponent('https://www.googleapis.com/auth/gmail.readonly');
+        
+        const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${state}`;
+        
+        window.location.href = oauthUrl;
+      } else {
+        setFormData(prev => ({ ...prev, provider }));
+        setStep(3); // Outlook not yet implemented
+      }
     } catch (err: any) {
       console.error("Setup Error:", err);
       setError(err.message || "An error occurred while connecting the bank. Please ensure your database is updated.");
