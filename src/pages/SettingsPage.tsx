@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { 
   CreditCard, Shield, Sun, Moon, 
-  Check, Building
+  Check, Building, Trash2
 } from 'lucide-react';
 import { supabase, type Account } from '../lib/supabase';
 import Card from '../components/ui/Card';
@@ -60,6 +60,25 @@ export default function SettingsPage() {
       .eq('user_id', user!.id);
     setAccounts(data || []);
     setLoadingAccounts(false);
+  }
+
+  async function handleDeleteAccount(accountId: string) {
+    if (!window.confirm("Are you sure you want to remove this linked account? All associated settings will be deleted.")) return;
+    
+    // Optimistic UI update
+    setAccounts(prev => prev.filter(a => a.id !== accountId));
+    
+    const { error } = await supabase
+      .from('accounts')
+      .delete()
+      .eq('id', accountId)
+      .eq('user_id', user!.id);
+      
+    if (error) {
+      console.error("Failed to delete account:", error);
+      alert("Failed to delete account. Please try again.");
+      loadAccounts(); // Revert optimistic update
+    }
   }
 
   async function handleSaveProfile() {
@@ -249,12 +268,26 @@ export default function SettingsPage() {
                         <div style={{ fontSize: 14, fontWeight: 700 }}>{acc.name}</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{acc.institution} • {acc.currency}</div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                         <div style={{ fontSize: 14, fontWeight: 700 }}>{acc.balance.toLocaleString()}</div>
                         <div style={{ fontSize: 10, color: acc.sync_source === 'email' ? 'var(--accent-primary)' : 'var(--text-muted)' }}>
                           {acc.sync_source === 'email' ? 'Email Synced' : acc.sync_source === 'mono' ? 'Mono Synced' : 'Manual'}
                         </div>
                       </div>
+                      <button 
+                        onClick={() => handleDeleteAccount(acc.id)}
+                        style={{ 
+                          background: 'none', border: 'none', padding: 8, 
+                          color: 'var(--text-muted)', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: 8, transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.background = 'var(--error-dim)'; e.currentTarget.style.color = 'var(--error)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        title="Remove Account"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   ))}
                 </div>
