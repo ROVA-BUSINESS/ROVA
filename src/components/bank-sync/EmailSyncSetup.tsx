@@ -227,7 +227,11 @@ export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSync
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg/512px-Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg.png" alt="Outlook" style={{ width: 20 }} />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="20" height="20">
+                    <path fill="#0078d4" d="M12.5,8.5L34,4v40l-21.5-4.5V8.5z"/>
+                    <path fill="#28a8ea" d="M34,4h9.5c1.4,0,2.5,1.1,2.5,2.5v35c0,1.4-1.1,2.5-2.5,2.5H34V4z"/>
+                    <path fill="#fff" d="M22.2,28.8c-2.3,0-4-1.3-4-3.5c0-2.2,1.7-3.6,4-3.6s4,1.4,4,3.6C26.2,27.5,24.5,28.8,22.2,28.8z M22.2,23.3 c-1,0-1.7,0.7-1.7,2c0,1.3,0.6,2,1.7,2s1.7-0.7,1.7-2C23.9,24,23.2,23.3,22.2,23.3z"/>
+                  </svg>
                   <span style={{ fontWeight: 600 }}>Outlook / Office 365</span>
                 </div>
                 {loading && formData.provider === 'outlook' ? (
