@@ -40,7 +40,7 @@ export default function DashboardPage() {
 
     const [txRes, accRes, invRes] = await Promise.all([
       txQuery,
-      supabase.from('accounts').select('*').eq('user_id', user!.id).eq('is_active', true),
+      supabase.from('accounts').select('*').eq('user_id', user!.id),
       invQuery
     ]);
     setTransactions(txRes.data || []);

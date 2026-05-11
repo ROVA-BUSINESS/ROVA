@@ -34,7 +34,13 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    if (user && profile) {
+    if (user) {
+      loadAccounts();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (profile) {
       setProfileForm({
         full_name: profile.full_name || '',
         business_name: profile.business_name || '',
@@ -43,17 +49,15 @@ export default function SettingsPage() {
         currency: profile.currency || 'NGN',
         staff_visibility_limit: String(profile.staff_visibility_limit || 500000)
       });
-      loadAccounts();
     }
-  }, [user, profile]);
+  }, [profile]);
 
   async function loadAccounts() {
     setLoadingAccounts(true);
     const { data } = await supabase
       .from('accounts')
       .select('*')
-      .eq('user_id', user!.id)
-      .eq('is_active', true);
+      .eq('user_id', user!.id);
     setAccounts(data || []);
     setLoadingAccounts(false);
   }
