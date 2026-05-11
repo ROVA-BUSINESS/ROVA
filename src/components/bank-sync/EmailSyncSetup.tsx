@@ -55,7 +55,7 @@ export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSync
     provider: 'gmail' as 'gmail' | 'outlook'
   });
 
-  async function handleSetup() {
+  async function handleSetup(provider: 'gmail' | 'outlook') {
     if (!formData.bankName || !formData.accountNumber || !formData.emailAddress) {
       setError('Please fill all fields');
       return;
@@ -92,15 +92,17 @@ export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSync
           bank_name: formData.bankName,
           account_number: formData.accountNumber,
           email_address: formData.emailAddress,
-          provider: formData.provider,
+          provider: provider,
           bank_sender_address: bank?.sender || 'alerts@bank.com'
         });
 
       if (settingsError) throw settingsError;
 
+      setFormData(prev => ({ ...prev, provider }));
       setStep(3); // Move to success/OAuth step
     } catch (err: any) {
-      setError(err.message);
+      console.error("Setup Error:", err);
+      setError(err.message || "An error occurred while connecting the bank. Please ensure your database is updated.");
     } finally {
       setLoading(false);
     }
@@ -194,42 +196,60 @@ export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSync
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <button 
-                onClick={() => { setFormData({ ...formData, provider: 'gmail' }); handleSetup(); }}
+                onClick={() => handleSetup('gmail')}
+                disabled={loading}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: 16, borderRadius: 12, border: '1px solid var(--bg-border)',
-                  background: 'var(--bg-card)', cursor: 'pointer', transition: 'all 0.2s'
+                  background: 'var(--bg-card)', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                  opacity: loading ? 0.7 : 1
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg" alt="Gmail" style={{ width: 20 }} />
                   <span style={{ fontWeight: 600 }}>Gmail / G-Suite</span>
                 </div>
-                <ChevronRight size={18} color="var(--text-muted)" />
+                {loading && formData.provider === 'gmail' ? (
+                  <span style={{ fontSize: 12, color: 'var(--accent-primary)' }}>Connecting...</span>
+                ) : (
+                  <ChevronRight size={18} color="var(--text-muted)" />
+                )}
               </button>
 
               <button 
-                onClick={() => { setFormData({ ...formData, provider: 'outlook' }); handleSetup(); }}
+                onClick={() => handleSetup('outlook')}
+                disabled={loading}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: 16, borderRadius: 12, border: '1px solid var(--bg-border)',
-                  background: 'var(--bg-card)', cursor: 'pointer', transition: 'all 0.2s'
+                  background: 'var(--bg-card)', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                  opacity: loading ? 0.7 : 1
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg" alt="Outlook" style={{ width: 20 }} />
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg/512px-Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg.png" alt="Outlook" style={{ width: 20 }} />
                   <span style={{ fontWeight: 600 }}>Outlook / Office 365</span>
                 </div>
-                <ChevronRight size={18} color="var(--text-muted)" />
+                {loading && formData.provider === 'outlook' ? (
+                  <span style={{ fontSize: 12, color: 'var(--accent-primary)' }}>Connecting...</span>
+                ) : (
+                  <ChevronRight size={18} color="var(--text-muted)" />
+                )}
               </button>
             </div>
+
+            {error && (
+              <div style={{ display: 'flex', gap: 8, padding: 12, background: 'rgba(239,68,68,0.1)', borderRadius: 8, color: '#ef4444', fontSize: 12, textAlign: 'left' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} /> {error}
+              </div>
+            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', color: 'var(--text-muted)', fontSize: 11 }}>
               <Lock size={12} />
               <span>ROVA only reads bank alert emails. We never see personal mail.</span>
             </div>
             
-            <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: 13, cursor: 'pointer' }}>
+            <button onClick={() => { setError(''); setStep(1); }} style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: 13, cursor: 'pointer' }}>
               Go Back
             </button>
           </div>
