@@ -13,9 +13,33 @@ interface EmailSyncSetupProps {
 }
 
 const NIGERIAN_BANKS = [
-  { name: 'Polaris Bank', sender: 'alerts@polarisbank.com' },
-  { name: 'Sterling Bank', sender: 'noreply@sterling.ng' },
+  { name: 'Access Bank', sender: 'alerts@accessbankplc.com' },
+  { name: 'Citibank Nigeria', sender: 'alerts@citi.com' },
+  { name: 'Ecobank Nigeria', sender: 'alerts@ecobank.com' },
+  { name: 'Fidelity Bank', sender: 'alerts@fidelitybank.ng' },
+  { name: 'First Bank of Nigeria', sender: 'firstcontact@firstbanknigeria.com' },
+  { name: 'First City Monument Bank (FCMB)', sender: 'alerts@fcmb.com' },
+  { name: 'Globus Bank', sender: 'alerts@globusbank.com' },
+  { name: 'Guaranty Trust Bank (GTB)', sender: 'geonea@gtbank.com' },
+  { name: 'Heritage Bank', sender: 'alerts@hbng.com' },
+  { name: 'Keystone Bank', sender: 'alerts@keystonebankng.com' },
+  { name: 'Kuda Bank', sender: 'alerts@kudabank.com' },
+  { name: 'Moniepoint', sender: 'alerts@moniepoint.com' },
+  { name: 'Opay', sender: 'alerts@opayweb.com' },
+  { name: 'Palmpay', sender: 'alerts@palmpay.com' },
+  { name: 'Polaris Bank', sender: 'alerts@polarisbanklimited.com' },
+  { name: 'Providus Bank', sender: 'alerts@providusbank.com' },
+  { name: 'Stanbic IBTC Bank', sender: 'alerts@stanbicibtc.com' },
+  { name: 'Standard Chartered Bank', sender: 'alerts@sc.com' },
+  { name: 'Sterling Bank', sender: 'alerts@sterling.ng' },
+  { name: 'SunTrust Bank', sender: 'alerts@suntrustng.com' },
+  { name: 'Titan Trust Bank', sender: 'alerts@titantrustbank.com' },
+  { name: 'Union Bank of Nigeria', sender: 'alerts@unionbankng.com' },
+  { name: 'United Bank for Africa (UBA)', sender: 'cfc@ubagroup.com' },
+  { name: 'Unity Bank', sender: 'alerts@unitybankng.com' },
+  { name: 'VFD Microfinance Bank', sender: 'alerts@vfd.com' },
   { name: 'Wema Bank', sender: 'alerts@wemabank.com' },
+  { name: 'Zenith Bank', sender: 'alertz@zenithbank.com' },
 ];
 
 export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSyncSetupProps) {
