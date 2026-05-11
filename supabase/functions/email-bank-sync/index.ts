@@ -197,24 +197,36 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
 function parseEmailBody(body: string, bank: string) {
   const patterns = {
     amount: /Amount:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
-    balance: /Balance:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
-    type: /(Credit|Debit)/i,
-    ref: /Ref:\s*([^\n\r]+)/i,
+    balance: /(?:Current |Available )?Balance:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
+    type: /(?:Type|Credit\/Debit|Transaction Type|Txn Type):\s*(Credit|Debit)/i,
+    ref: /(?:Ref|Reference|Trace ID|Receipt No):\s*([^\n\r]+)/i,
+    desc: /(?:Description|Remarks|Narration|Details):\s*([^\n\r]+)/i,
+    date: /(?:Date\/time|Date|Time):\s*([^\n\r]+)/i
   };
 
   const amountMatch = body.match(patterns.amount);
   const balanceMatch = body.match(patterns.balance);
   const typeMatch = body.match(patterns.type);
   const refMatch = body.match(patterns.ref);
+  const descMatch = body.match(patterns.desc);
+  const dateMatch = body.match(patterns.date);
 
   if (!amountMatch || !typeMatch) return null;
+
+  let txDate = new Date().toISOString();
+  if (dateMatch) {
+    const parsedDate = new Date(dateMatch[1].trim());
+    if (!isNaN(parsedDate.getTime())) {
+      txDate = parsedDate.toISOString();
+    }
+  }
 
   return {
     amount: parseFloat(amountMatch[1].replace(/,/g, "")),
     balanceAfter: balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, "")) : 0,
     type: typeMatch[1].toLowerCase() === 'credit' ? 'income' : 'expense',
     reference: refMatch ? refMatch[1].trim() : `EMAIL-${Date.now()}`,
-    description: `Transaction via ${bank}`,
-    date: new Date().toISOString()
+    description: descMatch ? descMatch[1].trim() : `Transaction via ${bank}`,
+    date: txDate
   };
 }
