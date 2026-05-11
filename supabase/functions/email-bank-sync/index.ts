@@ -197,7 +197,8 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
 function parseEmailBody(body: string, bank: string) {
   const patterns = {
     amount: /Amount:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
-    balance: /(?:Current |Available )?Balance:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
+    availableBalance: /Available Balance:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
+    currentBalance: /(?:Current )?Balance:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
     type: /(?:Type|Credit\/Debit|Transaction Type|Txn Type):\s*(Credit|Debit)/i,
     ref: /(?:Ref|Reference|Trace ID|Receipt No):\s*([^\n\r]+)/i,
     desc: /(?:Description|Remarks|Narration|Details):\s*([^\n\r]+)/i,
@@ -205,7 +206,9 @@ function parseEmailBody(body: string, bank: string) {
   };
 
   const amountMatch = body.match(patterns.amount);
-  const balanceMatch = body.match(patterns.balance);
+  const availableBalanceMatch = body.match(patterns.availableBalance);
+  const currentBalanceMatch = body.match(patterns.currentBalance);
+  const balanceMatch = availableBalanceMatch || currentBalanceMatch;
   const typeMatch = body.match(patterns.type);
   const refMatch = body.match(patterns.ref);
   const descMatch = body.match(patterns.desc);
