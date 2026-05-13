@@ -271,7 +271,7 @@ export default function DashboardPage() {
                   marginTop: 16, padding: '12px', background: 'var(--accent-dim)',
                   borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-border)',
                 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Total Net Worth</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Total Balance</div>
                   <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)' }}>
                     {formatCurrency(totalBalance)}
                   </div>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { 
-  CreditCard, Shield, Sun, Moon, 
+import {
+  CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2
 } from 'lucide-react';
 import { supabase, type Account } from '../lib/supabase';
@@ -64,16 +64,16 @@ export default function SettingsPage() {
 
   async function handleDeleteAccount(accountId: string) {
     if (!window.confirm("Are you sure you want to remove this linked account? All associated settings will be deleted.")) return;
-    
+
     // Optimistic UI update
     setAccounts(prev => prev.filter(a => a.id !== accountId));
-    
+
     const { error } = await supabase
       .from('accounts')
       .delete()
       .eq('id', accountId)
       .eq('user_id', user!.id);
-      
+
     if (error) {
       console.error("Failed to delete account:", error);
       alert("Failed to delete account. Please try again.");
@@ -181,9 +181,9 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <Button 
-                  variant="primary" 
-                  onClick={handleSaveProfile} 
+                <Button
+                  variant="primary"
+                  onClick={handleSaveProfile}
                   loading={saving}
                   style={{ alignSelf: 'flex-start', marginTop: 12 }}
                 >
@@ -240,7 +240,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               {loadingAccounts ? (
-                <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 60, marginBottom: 8 }} />)}</div>
+                <div>{[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 60, marginBottom: 8 }} />)}</div>
               ) : accounts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '32px 0' }}>
                   <CreditCard size={32} color="var(--text-disabled)" style={{ margin: '0 auto 12px' }} />
@@ -274,10 +274,10 @@ export default function SettingsPage() {
                           {acc.sync_source === 'email' ? 'Email Synced' : acc.sync_source === 'mono' ? 'Mono Synced' : 'Manual'}
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={() => handleDeleteAccount(acc.id)}
-                        style={{ 
-                          background: 'none', border: 'none', padding: 8, 
+                        style={{
+                          background: 'none', border: 'none', padding: 8,
                           color: 'var(--text-muted)', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           borderRadius: 8, transition: 'all 0.2s'
@@ -310,7 +310,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <EmailSyncSetup 
+      <EmailSyncSetup
         isOpen={isEmailSyncOpen}
         onClose={() => setIsEmailSyncOpen(false)}
         onSuccess={loadAccounts}

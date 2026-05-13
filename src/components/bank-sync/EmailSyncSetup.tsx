@@ -18,7 +18,7 @@ const NIGERIAN_BANKS = [
   { name: 'Ecobank Nigeria', sender: 'alerts@ecobank.com' },
   { name: 'Fidelity Bank', sender: 'alerts@fidelitybank.ng' },
   { name: 'First Bank of Nigeria', sender: 'firstcontact@firstbanknigeria.com' },
-  { name: 'First City Monument Bank (FCMB)', sender: 'alerts@fcmb.com' },
+  { name: 'First City Monument Bank (FCMB)', sender: 'ebusiness@fcmb.com' },
   { name: 'Globus Bank', sender: 'alerts@globusbank.com' },
   { name: 'Guaranty Trust Bank (GTB)', sender: 'geonea@gtbank.com' },
   { name: 'Heritage Bank', sender: 'alerts@hbng.com' },

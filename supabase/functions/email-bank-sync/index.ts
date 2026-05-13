@@ -22,10 +22,10 @@ serve(async (req) => {
     // -------------------------------------------------------------
     if (body.action === 'exchange_token') {
       const { code, accountId, redirectUri } = body;
-      
+
       const clientId = Deno.env.get("GMAIL_CLIENT_ID");
       const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET");
-      
+
       if (!clientId || !clientSecret) {
         throw new Error("Missing GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET in edge function environment");
       }
@@ -58,11 +58,83 @@ serve(async (req) => {
       if (updateError) throw updateError;
 
       // 3. Trigger an immediate initial sync for this account
-      await syncAccount(supabaseClient, accountId, tokenData.access_token);
+      const syncResult = await syncAccount(supabaseClient, accountId, tokenData.access_token);
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, syncResult }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: DEBUG EMAIL (Returns raw email body for inspection)
+    // No accessToken needed — uses stored refresh token automatically
+    // -------------------------------------------------------------
+    if (body.action === 'debug_email') {
+      const { accountId } = body;
+
+      const { data: setting } = await supabaseClient
+        .from("bank_email_sync_settings")
+        .select("*")
+        .eq("account_id", accountId)
+        .single();
+
+      if (!setting) throw new Error("Settings not found for account: " + accountId);
+      if (!setting.refresh_token) throw new Error("No refresh token stored — please re-link Gmail");
+
+      // Get a fresh access token using the stored refresh token
+      const clientId = Deno.env.get("GMAIL_CLIENT_ID");
+      const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET");
+      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: clientId!,
+          client_secret: clientSecret!,
+          refresh_token: setting.refresh_token,
+          grant_type: "refresh_token"
+        })
+      });
+      const tokenData = await tokenResponse.json();
+      if (tokenData.error) throw new Error(`Token refresh failed: ${tokenData.error_description || tokenData.error}`);
+
+      const accessToken = tokenData.access_token;
+      const query = encodeURIComponent(`from:${setting.bank_sender_address}`);
+      const listResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=3`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const listData = await listResponse.json();
+
+      if (listData.error) {
+        return new Response(JSON.stringify({ error: `Gmail API: ${listData.error.message}`, senderQueried: setting.bank_sender_address }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!listData.messages || listData.messages.length === 0) {
+        return new Response(JSON.stringify({ error: "No emails found from this sender", senderQueried: setting.bank_sender_address }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const msgResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${listData.messages[0].id}?format=full`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const msgData = await msgResponse.json();
+      const { plainText, htmlText } = extractEmailBody(msgData.payload);
+      const cleanedText = htmlText ? stripHtml(htmlText) : plainText;
+
+      return new Response(JSON.stringify({
+        senderQueried: setting.bank_sender_address,
+        emailCount: listData.messages.length,
+        subject: msgData.payload.headers?.find((h: any) => h.name === 'Subject')?.value,
+        rawPlainText: plainText.substring(0, 3000),
+        rawHtmlStripped: cleanedText.substring(0, 3000),
+        parseResult: parseEmailBody(cleanedText, setting.bank_name),
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -71,8 +143,7 @@ serve(async (req) => {
     // -------------------------------------------------------------
     const { data: syncSettings, error: fetchError } = await supabaseClient
       .from("bank_email_sync_settings")
-      .select("*, accounts(*)")
-      .eq("accounts.sync_status", "active")
+      .select("*")
       .not("refresh_token", "is", null);
 
     if (fetchError) throw fetchError;
@@ -80,12 +151,12 @@ serve(async (req) => {
     const results = [];
     const clientId = Deno.env.get("GMAIL_CLIENT_ID");
     const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET");
-    
+
     if (!clientId || !clientSecret) {
       throw new Error("Missing GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET in edge function environment");
     }
 
-    for (const setting of syncSettings) {
+    for (const setting of syncSettings || []) {
       try {
         // Exchange refresh token for fresh access token
         const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -99,10 +170,14 @@ serve(async (req) => {
           })
         });
         const tokenData = await tokenResponse.json();
-        
-        await syncAccount(supabaseClient, setting.account_id, tokenData.access_token);
-        results.push({ accountId: setting.account_id, status: "success" });
-      } catch (err) {
+
+        if (tokenData.error) {
+          throw new Error(`Token refresh failed: ${tokenData.error_description || tokenData.error}`);
+        }
+
+        const syncResult = await syncAccount(supabaseClient, setting.account_id, tokenData.access_token);
+        results.push({ accountId: setting.account_id, status: "success", ...syncResult });
+      } catch (err: any) {
         console.error(`Sync failed for account ${setting.account_id}:`, err);
         results.push({ accountId: setting.account_id, status: "failed", error: err.message });
       }
@@ -112,7 +187,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error) {
+  } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
@@ -120,102 +195,282 @@ serve(async (req) => {
   }
 });
 
+// ------------------------------------------------------------------
+// Recursively extract plain text and HTML from a MIME payload
+// ------------------------------------------------------------------
+function extractEmailBody(payload: any): { plainText: string; htmlText: string } {
+  let plainText = "";
+  let htmlText = "";
+
+  function decodeBase64(data: string): string {
+    try {
+      const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+      const binString = atob(base64);
+      return new TextDecoder().decode(Uint8Array.from(binString, (m) => m.codePointAt(0)!));
+    } catch {
+      return "";
+    }
+  }
+
+  function traverse(part: any) {
+    if (!part) return;
+
+    if (part.mimeType === "text/plain" && part.body?.data) {
+      plainText += decodeBase64(part.body.data);
+    } else if (part.mimeType === "text/html" && part.body?.data) {
+      htmlText += decodeBase64(part.body.data);
+    } else if (part.body?.data && !part.mimeType?.startsWith("multipart")) {
+      // Fallback for unknown single-part
+      plainText += decodeBase64(part.body.data);
+    }
+
+    if (part.parts && Array.isArray(part.parts)) {
+      for (const subPart of part.parts) {
+        traverse(subPart);
+      }
+    }
+  }
+
+  traverse(payload);
+  return { plainText, htmlText };
+}
+
+// ------------------------------------------------------------------
+// Strip HTML tags and decode HTML entities for plain text parsing
+// ------------------------------------------------------------------
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(td|th|tr|div|p|li|h[1-6])[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#8358;/gi, '₦')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// ------------------------------------------------------------------
+// Sync a single account: fetch emails → parse → update DB
+// ------------------------------------------------------------------
 async function syncAccount(supabaseClient: any, accountId: string, accessToken: string) {
-  // 1. Fetch settings
+  // 1. Fetch settings and account info
   const { data: setting } = await supabaseClient
     .from("bank_email_sync_settings")
-    .select("*")
+    .select("*, accounts(last_synced_at)")
     .eq("account_id", accountId)
     .single();
 
+  const isInitialSync = !setting?.accounts?.last_synced_at;
+
   if (!setting) throw new Error("Settings not found");
 
-  // 2. Query Gmail API
+  // 2. Query Gmail API — get last 10 emails from the bank
   const query = encodeURIComponent(`from:${setting.bank_sender_address}`);
-  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=5`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  
+  const listResponse = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=10`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
   const listData = await listResponse.json();
-  if (!listData.messages || listData.messages.length === 0) return;
 
-  // Process the most recent message
-  const msgResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${listData.messages[0].id}?format=full`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const msgData = await msgResponse.json();
-  
-  // Extract body
-  let bodyData = "";
-  if (msgData.payload.parts) {
-    const part = msgData.payload.parts.find((p: any) => p.mimeType === "text/plain") || msgData.payload.parts[0];
-    if (part?.body?.data) {
-      const base64Url = part.body.data;
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const binString = atob(base64);
-      bodyData = new TextDecoder().decode(Uint8Array.from(binString, (m) => m.codePointAt(0)!));
-    }
-  } else if (msgData.payload.body.data) {
-    const base64Url = msgData.payload.body.data;
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const binString = atob(base64);
-    bodyData = new TextDecoder().decode(Uint8Array.from(binString, (m) => m.codePointAt(0)!));
+  // Surface any Gmail API errors (e.g. expired token, bad scope)
+  if (listData.error) {
+    throw new Error(`Gmail API error: ${listData.error.code} ${listData.error.message}`);
   }
 
-  const parsed = parseEmailBody(bodyData, setting.bank_name);
+  console.log(`Gmail query: from:${setting.bank_sender_address} → found ${listData.messages?.length ?? 0} messages`);
 
-  if (parsed) {
-    // 3. Record transaction
-    const { error: txError } = await supabaseClient
-      .from("transactions")
-      .insert({
-        user_id: setting.user_id,
-        account_id: setting.account_id,
-        amount: parsed.amount,
-        type: parsed.type,
-        description: `Email Sync: ${parsed.description}`,
-        date: parsed.date,
-        reference: parsed.reference,
-        source: 'email',
-        is_verified: true
-      });
+  if (!listData.messages || listData.messages.length === 0) {
+    return { emailsFound: 0, transactionsSaved: 0, gmailQuery: `from:${setting.bank_sender_address}` };
+  }
 
-    // 4. Update account balance
-    if (!txError || txError.code === '23505') { // Ignore duplicate reference error
-      await supabaseClient
-        .from("accounts")
-        .update({ 
-          balance: parsed.balanceAfter,
-          last_synced_at: new Date().toISOString(),
-          sync_status: 'active'
-        })
-        .eq("id", setting.account_id);
+  let latestBalance: number | null = null;
+  let transactionsSaved = 0;
+
+  // Process emails from newest to oldest — stop after first successful parse
+  for (const msg of listData.messages) {
+    const msgResponse = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const msgData = await msgResponse.json();
+
+    const { plainText, htmlText } = extractEmailBody(msgData.payload);
+
+    // Prefer HTML stripped version since most bank emails are HTML
+    const textToparse = htmlText ? stripHtml(htmlText) : plainText;
+
+    console.log(`Parsing email ${msg.id}, text length: ${textToparse.length}`);
+
+    const parsed = parseEmailBody(textToparse, setting.bank_name);
+
+    if (parsed) {
+      console.log(`Parsed successfully:`, JSON.stringify(parsed));
+
+      // Track the most recent balance
+      if (latestBalance === null && parsed.balanceAfter > 0) {
+        latestBalance = parsed.balanceAfter;
+      }
+
+      // 3. Record transaction (only if email was received AFTER the account was linked)
+      const emailDate = new Date(parsed.date);
+      const linkDate = new Date(setting.created_at);
+      
+      if (emailDate >= linkDate) {
+        const { error: txError } = await supabaseClient
+          .from("transactions")
+          .insert({
+            user_id: setting.user_id,
+            account_id: setting.account_id,
+            amount: parsed.amount,
+            type: parsed.type,
+            description: `Email Sync: ${parsed.description}`,
+            date: parsed.date,
+            reference: parsed.reference,
+            source: 'email',
+            is_verified: true
+          });
+
+        if (!txError || txError.code === '23505') {
+          transactionsSaved++;
+        }
+      } else {
+        console.log(`Skipping transaction ${parsed.reference} because it predates the account link time.`);
+      }
+    } else {
+      console.log(`Could not parse email ${msg.id}`);
     }
   }
+
+  // 4. Update account balance with the most recent balance we found
+  if (latestBalance !== null) {
+    await supabaseClient
+      .from("accounts")
+      .update({
+        balance: latestBalance,
+        last_synced_at: new Date().toISOString(),
+        sync_status: 'active'
+      })
+      .eq("id", setting.account_id);
+  } else {
+    // Still update last_synced_at even if no balance was parsed
+    await supabaseClient
+      .from("accounts")
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq("id", setting.account_id);
+  }
+
+  return { emailsFound: listData.messages.length, transactionsSaved, latestBalance };
 }
 
+// ------------------------------------------------------------------
+// Parse email text for Nigerian bank transaction data
+// ------------------------------------------------------------------
 function parseEmailBody(body: string, bank: string) {
-  const patterns = {
-    amount: /Amount:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
-    availableBalance: /Available Balance:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
-    currentBalance: /(?:Current )?Balance:\s*(?:NGN|₦)?\s*([\d,]+\.\d{2})/i,
-    type: /(?:Type|Credit\/Debit|Transaction Type|Txn Type):\s*(Credit|Debit)/i,
-    ref: /(?:Ref|Reference|Trace ID|Receipt No):\s*([^\n\r]+)/i,
-    desc: /(?:Description|Remarks|Narration|Details):\s*([^\n\r]+)/i,
-    date: /(?:Date\/time|Date|Time):\s*([^\n\r]+)/i
-  };
+  // Normalize: remove excess whitespace but keep newlines
+  const text = body.replace(/[ \t]+/g, ' ').trim();
 
-  const amountMatch = body.match(patterns.amount);
-  const availableBalanceMatch = body.match(patterns.availableBalance);
-  const currentBalanceMatch = body.match(patterns.currentBalance);
-  const balanceMatch = availableBalanceMatch || currentBalanceMatch;
-  const typeMatch = body.match(patterns.type);
-  const refMatch = body.match(patterns.ref);
-  const descMatch = body.match(patterns.desc);
-  const dateMatch = body.match(patterns.date);
+  // ---- AMOUNT ----
+  // FCMB format: "Amount: \n 1,000.00 (NGN)"
+  const amountPatterns = [
+    /(?:amount|transaction amount|txn amount)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*\(NGN\)|\s*NGN)?/i,
+    /(?:NGN|₦)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /([\d,]+(?:\.\d{2}))\s*(?:NGN|₦|\(NGN\))/i,
+  ];
 
-  if (!amountMatch || !typeMatch) return null;
+  // ---- BALANCE ----
+  // FCMB format: "Available Balance: \n 9,349.81 (NGN)"
+  const availableBalancePatterns = [
+    /(?:available balance)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*\(NGN\)|\s*NGN)?/i,
+  ];
+  
+  const otherBalancePatterns = [
+    /(?:new balance|current balance|account balance|balance after|bal)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*\(NGN\)|\s*NGN)?/i,
+    /(?:NGN|₦)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:available|balance)/i,
+  ];
 
+  // ---- TYPE ----
+  // FCMB format: "Credit/Debit: \n Debit"
+  const typePatterns = [
+    /(?:transaction type|txn type|type|credit\/debit)[:\s]*(credit|debit)/i,
+    /\b(credited|debited)\b/i,
+    /\b(credit|debit)\s+(?:alert|notification|transaction)/i,
+    /your account (?:has been )?(credited|debited)/i,
+  ];
+
+  // ---- REFERENCE ----
+  const refPatterns = [
+    /(?:reference|ref no|ref|receipt no|trace id|session id)[:\s#]*([A-Z0-9\/\-]{5,30})/i,
+    /(?:tran id|transaction id|trans id)[:\s]*([A-Z0-9\/\-]{5,30})/i,
+  ];
+
+  // ---- DESCRIPTION / NARRATION ----
+  const descPatterns = [
+    /(?:description|narration|remarks|details|info)[:\s]*([^\n\r]{3,80})/i,
+    /(?:payment for|transfer to|transfer from|from)[:\s]*([^\n\r]{3,60})/i,
+  ];
+
+  // ---- DATE ----
+  const datePatterns = [
+    /(?:date[\/\s]?time|date|time|transaction date)[:\s]*([^\n\r]{5,30})/i,
+    /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
+    /(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)/i,
+  ];
+
+  // Find first match across multiple patterns
+  function findMatch(patterns: RegExp[]): RegExpMatchArray | null {
+    for (const p of patterns) {
+      const m = text.match(p);
+      if (m) return m;
+    }
+    return null;
+  }
+
+  const amountMatch = findMatch(amountPatterns);
+  let balanceMatch = findMatch(availableBalancePatterns);
+  if (!balanceMatch) {
+    balanceMatch = findMatch(otherBalancePatterns);
+  }
+  const typeMatch = findMatch(typePatterns);
+  const refMatch = findMatch(refPatterns);
+  const descMatch = findMatch(descPatterns);
+  const dateMatch = findMatch(datePatterns);
+
+  // Amount is required; type is required
+  if (!amountMatch) {
+    console.log("Parse failed: no amount found");
+    return null;
+  }
+  if (!typeMatch) {
+    console.log("Parse failed: no transaction type found");
+    return null;
+  }
+
+  // Parse amount
+  const amountStr = amountMatch[1].replace(/,/g, '');
+  const amount = parseFloat(amountStr);
+  if (isNaN(amount) || amount <= 0) return null;
+
+  // Parse balance
+  let balanceAfter = 0;
+  if (balanceMatch) {
+    balanceAfter = parseFloat(balanceMatch[1].replace(/,/g, ''));
+    if (isNaN(balanceAfter)) balanceAfter = 0;
+  }
+
+  // Parse transaction type
+  const typeRaw = typeMatch[1].toLowerCase();
+  const isCredit = typeRaw.includes('credit');
+  const txType = isCredit ? 'income' : 'expense';
+
+  // Parse date
   let txDate = new Date().toISOString();
   if (dateMatch) {
     const parsedDate = new Date(dateMatch[1].trim());
@@ -225,11 +480,11 @@ function parseEmailBody(body: string, bank: string) {
   }
 
   return {
-    amount: parseFloat(amountMatch[1].replace(/,/g, "")),
-    balanceAfter: balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, "")) : 0,
-    type: typeMatch[1].toLowerCase() === 'credit' ? 'income' : 'expense',
+    amount,
+    balanceAfter,
+    type: txType,
     reference: refMatch ? refMatch[1].trim() : `EMAIL-${Date.now()}`,
-    description: descMatch ? descMatch[1].trim() : `Transaction via ${bank}`,
+    description: descMatch ? descMatch[1].trim() : `${isCredit ? 'Credit' : 'Debit'} via ${bank}`,
     date: txDate
   };
 }
