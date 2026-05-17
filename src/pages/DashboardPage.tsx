@@ -97,11 +97,11 @@ export default function DashboardPage() {
           <Button variant="secondary" size="sm" onClick={() => navigate('/app/transactions')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             View History
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => setIsQuickAddOpen(true)} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
-            <Plus size={16} /> Add Transaction
-          </Button>
-          <Button variant="primary" size="sm" onClick={() => navigate('/app/invoices')} style={{ flex: isMobile ? '100%' : 'none', minWidth: 'fit-content' }}>
+          <Button variant="secondary" size="sm" onClick={() => navigate('/app/invoices')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             New Invoice
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => setIsQuickAddOpen(true)} style={{ flex: isMobile ? '100%' : 'none', minWidth: 'fit-content' }}>
+            <Plus size={16} /> Add Transaction
           </Button>
         </div>
       </div>
