@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Sparkles, Download } from 'lucide-react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Sparkles, Download, Edit2 } from 'lucide-react';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, formatTime } from '../lib/format';
@@ -16,7 +16,7 @@ import Input from '../components/ui/Input';
 type FilterType = 'all' | 'income' | 'expense';
 
 export default function TransactionsPage() {
-  const { user, isStaff, profile } = useAuth();
+  const { user, isStaff, profile, isAdmin } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -24,6 +24,9 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'description' | 'category' | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   const [form, setForm] = useState({
     description: '', amount: '', type: 'expense' as 'income' | 'expense',
@@ -80,6 +83,25 @@ export default function TransactionsPage() {
     setShowModal(false);
     resetForm();
     loadData();
+  }
+
+  async function handleSaveEdit(txId: string, field: 'description' | 'category_id', value: string) {
+    if (field === 'description' && !value.trim()) {
+      setEditingId(null);
+      setEditingField(null);
+      return;
+    }
+    const { error } = await supabase.from('transactions').update({ [field]: value || null }).eq('id', txId);
+    if (!error) {
+      if (field === 'category_id') {
+        const category = categories.find(c => c.id === value) || null;
+        setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category_id: value || null, category } : t));
+      } else {
+        setTransactions(prev => prev.map(t => t.id === txId ? { ...t, [field]: value } : t));
+      }
+    }
+    setEditingId(null);
+    setEditingField(null);
   }
 
   async function handleDelete(id: string) {
@@ -256,13 +278,65 @@ export default function TransactionsPage() {
                       }}>
                         {tx.type === 'income' ? <ArrowUpRight size={13} color="var(--success)" /> : <ArrowDownRight size={13} color="var(--error)" />}
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }} className="mobile-desc-text">
-                        {tx.description || 'No description'}
-                      </div>
+                      {editingId === tx.id && editingField === 'description' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+                          <input 
+                            autoFocus
+                            value={editValue} 
+                            onChange={e => setEditValue(e.target.value)}
+                            onBlur={() => handleSaveEdit(tx.id, 'description', editValue)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(tx.id, 'description', editValue); if (e.key === 'Escape') setEditingId(null); }}
+                            style={{ width: '100%', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--accent-primary)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }} className="mobile-desc-text">
+                            {tx.description || 'No description'}
+                          </div>
+                          <button 
+                            onClick={() => { setEditingId(tx.id); setEditingField('description'); setEditValue(tx.description || ''); }}
+                            style={{ padding: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                            title="Edit Description"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="mobile-hide" style={{ padding: '12px 16px' }}>
-                    <Badge variant="default">{(tx.category as any)?.name || '—'}</Badge>
+                    {editingId === tx.id && editingField === 'category' ? (
+                      <select
+                        autoFocus
+                        value={editValue}
+                        onChange={e => handleSaveEdit(tx.id, 'category_id', e.target.value)}
+                        onBlur={() => setEditingId(null)}
+                        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--accent-primary)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', outline: 'none', fontSize: 12, maxWidth: 120 }}
+                      >
+                        <option value="">No Category</option>
+                        {categories.filter(c => c.type === tx.type || c.type === 'both').map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Badge variant="default">{(tx.category as any)?.name || '—'}</Badge>
+                        {isAdmin && (
+                          <button 
+                            onClick={() => { setEditingId(tx.id); setEditingField('category'); setEditValue(tx.category_id || ''); }}
+                            style={{ padding: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                            title="Edit Category"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)' }}>
                     {(tx.account as any)?.name || '—'}
