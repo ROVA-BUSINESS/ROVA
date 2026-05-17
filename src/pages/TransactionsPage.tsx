@@ -94,7 +94,7 @@ export default function TransactionsPage() {
     const { error } = await supabase.from('transactions').update({ [field]: value || null }).eq('id', txId);
     if (!error) {
       if (field === 'category_id') {
-        const category = categories.find(c => c.id === value) || null;
+        const category = categories.find(c => c.id === value) || undefined;
         setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category_id: value || null, category } : t));
       } else {
         setTransactions(prev => prev.map(t => t.id === txId ? { ...t, [field]: value } : t));
