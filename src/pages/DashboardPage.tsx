@@ -10,6 +10,7 @@ import Button from '../components/ui/Button';
 import { MonoConnectButton } from '../components/MonoConnectButton';
 import EmailSyncSetup from '../components/bank-sync/EmailSyncSetup';
 import QuickAddModal from '../components/QuickAddModal';
+import { useMobile } from '../hooks/useMobile';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [isEmailSyncOpen, setIsEmailSyncOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const isMobile = useMobile(1024);
 
   useEffect(() => {
     if (user) loadData();
@@ -85,20 +87,20 @@ export default function DashboardPage() {
   const recentTx = transactions.slice(0, 5);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 12px 100px' }}>
-      <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div className="mobile-p-4" style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 12px 100px' }}>
+      <div style={{ marginBottom: 32, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: isMobile ? 16 : 24 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Good {getGreeting()}, {profile?.full_name?.split(' ')[0] || 'User'}!</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Here's what's happening with your business today.</p>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Button variant="secondary" size="sm" onClick={() => navigate('/app/transactions')}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+          <Button variant="secondary" size="sm" onClick={() => navigate('/app/transactions')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             View History
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => setIsQuickAddOpen(true)}>
+          <Button variant="secondary" size="sm" onClick={() => setIsQuickAddOpen(true)} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             <Plus size={16} /> Add Transaction
           </Button>
-          <Button variant="primary" size="sm" onClick={() => navigate('/app/invoices')}>
+          <Button variant="primary" size="sm" onClick={() => navigate('/app/invoices')} style={{ flex: isMobile ? '100%' : 'none', minWidth: 'fit-content' }}>
             New Invoice
           </Button>
         </div>
@@ -157,8 +159,8 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }} className="mobile-col">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div className="mobile-col" style={{ display: 'flex', gap: 24 }}>
+            <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
               <Card>
                 <div style={{ marginBottom: 24 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700 }}>Financial Performance</h3>
@@ -204,7 +206,8 @@ export default function DashboardPage() {
               </Card>
             </div>
 
-            <Card>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Card>
               <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: 14 }}>Accounts</h3>
                 <button 
@@ -296,7 +299,8 @@ export default function DashboardPage() {
               </div>
             </Card>
           </div>
-        </>
+        </div>
+      </>
       )}
 
       <EmailSyncSetup 

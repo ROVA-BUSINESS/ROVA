@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { useMobile } from '../../hooks/useMobile';
 
 const TYPE_COLORS: Record<ChartOfAccount['account_type'], 'default' | 'success' | 'warning' | 'error' | 'info'> = {
   asset: 'success', liability: 'error', equity: 'warning', income: 'info', expense: 'default',
@@ -27,6 +28,7 @@ export default function ChartOfAccountsPage() {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMobile = useMobile(1024);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<ChartOfAccount | null>(null);
   const [saving, setSaving] = useState(false);
@@ -186,11 +188,11 @@ export default function ChartOfAccountsPage() {
 
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditing(null); resetForm(); }} title={editing ? 'Edit Account' : 'Add Account'}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: 10 }}>
             <Input label="Code" placeholder="1000" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} required />
             <Input label="Account Name" placeholder="Cash & Bank" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Account Type</label>
               <select value={form.account_type} onChange={e => setForm(p => ({ ...p, account_type: e.target.value as ChartOfAccount['account_type'] }))}

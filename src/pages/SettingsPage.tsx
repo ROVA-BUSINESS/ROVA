@@ -101,6 +101,24 @@ export default function SettingsPage() {
         <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Manage your account, financial connections, and app preferences.</p>
       </div>
 
+      {/* Mobile & Tablet Horizontal Scrollable Pills */}
+      <div className="mobile-nav-tabs mobile-only" style={{ display: 'none' }}>
+        {[
+          { id: 'profile', label: 'Profile' },
+          { id: 'accounts', label: 'Linked Accounts' },
+          { id: 'security', label: 'Security' },
+          { id: 'appearance', label: 'Appearance' }
+        ].map(item => (
+          <button
+            key={item.id}
+            onClick={() => setSection(item.id as Section)}
+            data-active={section === item.id}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       <div className="mobile-col" style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
         <div style={{
           width: 240, background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',

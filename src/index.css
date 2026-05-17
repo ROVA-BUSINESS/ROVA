@@ -125,9 +125,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   border-radius: var(--radius-sm);
 }
 
-/* --- Mobile Responsiveness Utilities --- */
-
-@media (max-width: 768px) {
+/* --- Mobile & Tablet Responsiveness Utilities --- */
+@media (max-width: 1024px) {
   .mobile-hide {
     display: none !important;
   }
@@ -146,26 +145,38 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   }
   
   .mobile-nav-tabs {
+    display: flex !important;
     flex-direction: row !important;
     overflow-x: auto !important;
-    gap: 12px !important;
-    padding-bottom: 4px;
+    gap: 8px !important;
+    padding: 8px 4px !important;
+    margin-bottom: 20px;
     -webkit-overflow-scrolling: touch;
     width: 100%;
+    scrollbar-width: none; /* Hide standard Firefox scrollbar */
+  }
+  
+  .mobile-nav-tabs::-webkit-scrollbar {
+    display: none; /* Hide Webkit scrollbar */
   }
   
   .mobile-nav-tabs button {
     flex-shrink: 0;
     white-space: nowrap;
-    border-left: none !important;
-    border-bottom: 2px solid transparent;
-    border-radius: 0 !important;
-    background: transparent !important;
+    padding: 8px 16px !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--bg-card) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--bg-border) !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease;
   }
   
   .mobile-nav-tabs button[data-active="true"] {
-    border-bottom-color: var(--accent-primary) !important;
-    color: var(--accent-primary) !important;
+    background: var(--accent-dim) !important;
+    border-color: var(--accent-border) !important;
+    color: var(--accent-light) !important;
   }
   
   .mobile-grid-2 {

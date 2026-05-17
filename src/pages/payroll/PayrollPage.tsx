@@ -35,7 +35,7 @@ export default function PayrollPage() {
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, animation: 'fadeIn 0.3s ease' }}>
+    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1100, animation: 'fadeIn 0.3s ease' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, marginBottom: 4 }}>Payroll & Staff</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Manage employees, process salaries, and track deductions</p>

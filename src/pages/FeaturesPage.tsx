@@ -78,7 +78,7 @@ export default function FeaturesPage() {
 
       {/* Features Grid */}
       <section style={{ padding: '0 24px 100px', display: 'flex', justifyContent: 'center' }}>
-        <div style={{ maxWidth: 1200, width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 32 }}>
+        <div style={{ maxWidth: 1200, width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 32 }}>
 
           <FeatureCard
             icon={<Sparkles size={24} color="#9333ea" />}

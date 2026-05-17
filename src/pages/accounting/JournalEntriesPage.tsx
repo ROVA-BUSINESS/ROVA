@@ -8,12 +8,14 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { useMobile } from '../../hooks/useMobile';
 
 export default function JournalEntriesPage() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [coa, setCoa] = useState<ChartOfAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMobile = useMobile(1024);
   const [showModal, setShowModal] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -210,7 +212,7 @@ export default function JournalEntriesPage() {
 
       <Modal open={showModal} onClose={() => { setShowModal(false); resetForm(); }} title="New Journal Entry" size="lg">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr 1fr', gap: 10 }}>
             <Input label="Date" type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} required />
             <Input label="Description" placeholder="Journal entry description..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} required />
             <Input label="Reference" placeholder="Ref #..." value={form.reference} onChange={e => setForm(p => ({ ...p, reference: e.target.value }))} />

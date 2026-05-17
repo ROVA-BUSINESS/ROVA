@@ -6,6 +6,7 @@ import { downloadCSV, printStatementHTML } from '../../lib/export';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { Download, Printer, ChevronDown } from 'lucide-react';
+import { useMobile } from '../../hooks/useMobile';
 
 export default function BalanceSheetPage() {
   const { user, profile } = useAuth();
@@ -13,6 +14,7 @@ export default function BalanceSheetPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const isMobile = useMobile(1024);
 
   useEffect(() => {
     if (user) loadData();
@@ -130,8 +132,8 @@ export default function BalanceSheetPage() {
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Balance Sheet · As of {today}</div>
           </div>
 
-          <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderBottom: '1px solid var(--bg-border)' }}>
-            <div style={{ borderRight: '1px solid var(--bg-border)' }}>
+          <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 0, borderBottom: '1px solid var(--bg-border)' }}>
+            <div style={{ borderRight: isMobile ? 'none' : '1px solid var(--bg-border)', borderBottom: isMobile ? '1px solid var(--bg-border)' : 'none' }}>
               <div style={{ padding: '10px 20px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--bg-border)' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--success)' }}>Assets</span>
               </div>

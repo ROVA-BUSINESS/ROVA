@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { useMobile } from '../../hooks/useMobile';
 
 const EMPTY_FORM = {
   full_name: '', email: '', phone: '', role: '', department: '',
@@ -28,6 +29,7 @@ interface Props {
 
 export default function EmployeesTab({ employees, onRefresh }: Props) {
   const { user } = useAuth();
+  const isMobile = useMobile(1024);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -191,16 +193,16 @@ export default function EmployeesTab({ employees, onRefresh }: Props) {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit Employee' : 'Add Employee'} size="lg">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <Input label="Full Name" placeholder="John Doe" value={form.full_name} onChange={f('full_name')} required />
             <Input label="Email" type="email" placeholder="john@company.com" value={form.email} onChange={f('email')} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10 }}>
             <Input label="Phone" placeholder="+234..." value={form.phone} onChange={f('phone')} />
             <Input label="Role / Title" placeholder="Software Engineer" value={form.role} onChange={f('role')} />
             <Input label="Department" placeholder="Engineering" value={form.department} onChange={f('department')} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Employment Type</label>
               <select value={form.employment_type} onChange={f('employment_type')}
@@ -213,11 +215,11 @@ export default function EmployeesTab({ employees, onRefresh }: Props) {
             <Input label="Start Date" type="date" value={form.start_date} onChange={f('start_date')} required />
             <Input label="Gross Monthly Salary (₦)" type="number" min="0" step="0.01" placeholder="0.00" value={form.gross_salary} onChange={f('gross_salary')} required />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <Input label="PAYE Rate (%)" type="number" min="0" max="100" step="0.1" value={form.paye_rate} onChange={f('paye_rate')} />
             <Input label="Pension Rate (%)" type="number" min="0" max="100" step="0.1" value={form.pension_rate} onChange={f('pension_rate')} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <Input label="Bank Name" placeholder="First Bank" value={form.bank_name} onChange={f('bank_name')} />
             <Input label="Bank Account Number" placeholder="0123456789" value={form.bank_account} onChange={f('bank_account')} />
           </div>

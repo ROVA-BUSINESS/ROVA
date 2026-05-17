@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { useMobile } from '../../hooks/useMobile';
 
 type StockMovement = {
   itemId: string;
@@ -32,6 +33,7 @@ interface Props {
 
 export default function StockTab({ items, suppliers, onRefresh }: Props) {
   const { user } = useAuth();
+  const isMobile = useMobile(1024);
   const [showItemModal, setShowItemModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [editing, setEditing] = useState<InventoryItem | null>(null);
@@ -136,7 +138,7 @@ export default function StockTab({ items, suppliers, onRefresh }: Props) {
 
   return (
     <div>
-      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <Card>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total SKUs</div>
           <div className="mobile-stat-value" style={{ fontSize: 24, fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--text-primary)' }}>{items.length}</div>
@@ -278,11 +280,11 @@ export default function StockTab({ items, suppliers, onRefresh }: Props) {
 
       <Modal open={showItemModal} onClose={() => setShowItemModal(false)} title={editing ? 'Edit Item' : 'Add Inventory Item'} size="lg">
         <form onSubmit={handleItemSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <Input label="Item Name" placeholder="Product name" value={form.name} onChange={f('name')} required />
             <Input label="SKU / Code" placeholder="SKU-001" value={form.sku} onChange={f('sku')} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10 }}>
             <Input label="Category" placeholder="Electronics, Food..." value={form.category} onChange={f('category')} />
             <Input label="Unit" placeholder="unit, kg, litre..." value={form.unit} onChange={f('unit')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -294,11 +296,11 @@ export default function StockTab({ items, suppliers, onRefresh }: Props) {
               </select>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <Input label="Cost Price (₦)" type="number" min="0" step="0.01" placeholder="0.00" value={form.cost_price} onChange={f('cost_price')} required />
             <Input label="Selling Price (₦)" type="number" min="0" step="0.01" placeholder="0.00" value={form.selling_price} onChange={f('selling_price')} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <Input label="Current Stock" type="number" min="0" step="0.001" placeholder="0" value={form.current_stock} onChange={f('current_stock')} required />
             <Input label="Reorder Level (Low Stock Alert)" type="number" min="0" step="0.001" placeholder="0" value={form.reorder_level} onChange={f('reorder_level')} />
           </div>

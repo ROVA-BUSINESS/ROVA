@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { useMobile } from '../../hooks/useMobile';
 
 interface Props {
   employees: Employee[];
@@ -17,6 +18,7 @@ interface Props {
 
 export default function PayrollRunTab({ employees, runs, onRefresh }: Props) {
   const { user } = useAuth();
+  const isMobile = useMobile(1024);
   const [showModal, setShowModal] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [runPayslips, setRunPayslips] = useState<Record<string, Payslip[]>>({});
@@ -216,7 +218,7 @@ export default function PayrollRunTab({ employees, runs, onRefresh }: Props) {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Run Payroll" size="lg">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10 }}>
             <Input label="Period Label" placeholder="January 2026" value={period.label} onChange={e => setPeriod(p => ({ ...p, label: e.target.value }))} required />
             <Input label="Period Start" type="date" value={period.start} onChange={e => setPeriod(p => ({ ...p, start: e.target.value }))} required />
             <Input label="Period End" type="date" value={period.end} onChange={e => setPeriod(p => ({ ...p, end: e.target.value }))} required />

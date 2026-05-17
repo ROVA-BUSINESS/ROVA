@@ -7,6 +7,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { Download, Printer, ChevronDown, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useMobile } from '../../hooks/useMobile';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -16,6 +17,7 @@ export default function CashFlowPage() {
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const isMobile = useMobile(1024);
 
   useEffect(() => {
     if (user) loadData();
@@ -138,7 +140,7 @@ export default function CashFlowPage() {
         </div>
       </div>
 
-      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
         {[
           { label: 'Operating', value: netOperating, icon: RefreshCw },
           { label: 'Investing', value: netInvesting, icon: ArrowUpRight },

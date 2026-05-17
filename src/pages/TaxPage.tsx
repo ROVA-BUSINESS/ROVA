@@ -9,6 +9,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
+import { useMobile } from '../hooks/useMobile';
 
 const NGN_TAX_TYPES = [
   {
@@ -124,6 +125,7 @@ export default function TaxPage() {
   const [showModal, setShowModal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [saving, setSaving] = useState(false);
+  const isMobile = useMobile(1024);
   const [form, setForm] = useState({
     tax_type: 'VAT' as TaxRecord['tax_type'],
     period_start: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
@@ -190,28 +192,28 @@ export default function TaxPage() {
 
   return (
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1000, animation: 'fadeIn 0.3s ease' }}>
-      <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: isMobile ? 16 : 24 }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Tax & Compliance</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nigerian business tax calculations — FIRS compliant</p>
         </div>
-        <div className="mobile-overflow-x" style={{ display: 'flex', gap: 10, maxWidth: '100%' }}>
-          <Button variant="secondary" icon={<Info size={14} />} onClick={() => setShowGuide(true)}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+          <Button variant="secondary" icon={<Info size={14} />} onClick={() => setShowGuide(true)} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             Tax Guide
           </Button>
           <Button variant="secondary" icon={<Download size={14} />} onClick={() => {
             const rows = records.map(r => [r.period_start, r.period_end, r.tax_type, r.gross_income, r.deductions, r.taxable_income, r.calculated_tax, r.paid_tax, r.status, r.due_date || '']);
             downloadCSV(`tax-records-${new Date().getFullYear()}.csv`, ['Period Start', 'Period End', 'Tax Type', 'Gross Income', 'Deductions', 'Taxable Income', 'Calculated Tax', 'Paid Tax', 'Status', 'Due Date'], rows);
-          }}>
+          }} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             Export CSV
           </Button>
-          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowModal(true)}>
+          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowModal(true)} style={{ flex: isMobile ? '100%' : 'none', minWidth: 'fit-content' }}>
             New Tax Record
           </Button>
         </div>
       </div>
 
-      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <Card style={{ border: '1px solid var(--accent-border)', background: 'var(--accent-dim)' }}>
           <div style={{ fontSize: 11, color: 'var(--accent-light)', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Revenue</div>
           <div className="mobile-stat-value" style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
@@ -268,7 +270,7 @@ export default function TaxPage() {
             const taxInfo = NGN_TAX_TYPES.find(t => t.value === r.tax_type);
             return (
               <Card key={r.id} hoverable>
-                <div className="mobile-hide" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                <div className="mobile-hide" style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
                   <div style={{
                     width: 44, height: 44, borderRadius: 'var(--radius-md)',
                     background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -335,7 +337,7 @@ export default function TaxPage() {
                   </div>
                 </div>
 
-                <div className="mobile-only" style={{ display: 'none' }}>
+                <div className="mobile-only" style={{ display: isMobile ? 'block' : 'none' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -410,7 +412,7 @@ export default function TaxPage() {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <Input label="Period Start" type="date" value={form.period_start} onChange={e => setForm(p => ({ ...p, period_start: e.target.value }))} required />
             <Input label="Period End" type="date" value={form.period_end} onChange={e => setForm(p => ({ ...p, period_end: e.target.value }))} required />
           </div>

@@ -4,6 +4,7 @@ import { supabase, type Transaction, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { generateInsights, answerQuestion, type Insight, type ChatMessage } from '../lib/aiEngine';
 import Card from '../components/ui/Card';
+import { useMobile } from '../hooks/useMobile';
 
 const SEVERITY_STYLES: Record<Insight['severity'], { bg: string; border: string; icon: React.ElementType; color: string }> = {
   info: { bg: 'var(--info-dim)', border: 'rgba(59,130,246,0.2)', icon: Info, color: 'var(--info)' },
@@ -23,6 +24,7 @@ const STARTERS = [
 
 export default function AssistantPage() {
   const { user, isStaff } = useAuth();
+  const isMobile = useMobile(1024);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,7 @@ export default function AssistantPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, animation: 'fadeIn 0.3s ease' }}>
+    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1100, animation: 'fadeIn 0.3s ease' }}>
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -119,7 +121,7 @@ export default function AssistantPage() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>

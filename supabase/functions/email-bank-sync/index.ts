@@ -132,7 +132,7 @@ serve(async (req) => {
         subject: msgData.payload.headers?.find((h: any) => h.name === 'Subject')?.value,
         rawPlainText: plainText.substring(0, 3000),
         rawHtmlStripped: cleanedText.substring(0, 3000),
-        parseResult: parseEmailBody(cleanedText, setting.bank_name),
+        parseResult: parseEmailBody(cleanedText, setting.bank_name, listData.messages[0].id, msgData.internalDate),
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -309,7 +309,7 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
 
     console.log(`Parsing email ${msg.id}, text length: ${textToparse.length}`);
 
-    const parsed = parseEmailBody(textToparse, setting.bank_name);
+    const parsed = parseEmailBody(textToparse, setting.bank_name, msg.id, msgData.internalDate);
 
     if (parsed) {
       console.log(`Parsed successfully:`, JSON.stringify(parsed));
@@ -324,6 +324,21 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
       const linkDate = new Date(setting.created_at);
       
       if (emailDate >= linkDate) {
+        // Explicitly check for duplicate reference to avoid inserting multiple times
+        // especially if the DB lacks a strict unique constraint on reference
+        const { data: existingTx } = await supabaseClient
+          .from("transactions")
+          .select("id")
+          .eq("account_id", setting.account_id)
+          .eq("reference", parsed.reference)
+          .maybeSingle();
+
+        if (existingTx) {
+          console.log(`Transaction ${parsed.reference} already exists, skipping.`);
+          transactionsSaved++; // Count as successfully processed
+          continue;
+        }
+
         const { error: txError } = await supabaseClient
           .from("transactions")
           .insert({
@@ -333,6 +348,7 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
             type: parsed.type,
             description: `Email Sync: ${parsed.description}`,
             date: parsed.date,
+            created_at: parsed.date,
             reference: parsed.reference,
             source: 'email',
             is_verified: true
@@ -373,7 +389,7 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
 // ------------------------------------------------------------------
 // Parse email text for Nigerian bank transaction data
 // ------------------------------------------------------------------
-function parseEmailBody(body: string, bank: string) {
+function parseEmailBody(body: string, bank: string, msgId: string, internalDate?: string) {
   // Normalize: remove excess whitespace but keep newlines
   const text = body.replace(/[ \t]+/g, ' ').trim();
 
@@ -470,20 +486,14 @@ function parseEmailBody(body: string, bank: string) {
   const isCredit = typeRaw.includes('credit');
   const txType = isCredit ? 'income' : 'expense';
 
-  // Parse date
-  let txDate = new Date().toISOString();
-  if (dateMatch) {
-    const parsedDate = new Date(dateMatch[1].trim());
-    if (!isNaN(parsedDate.getTime())) {
-      txDate = parsedDate.toISOString();
-    }
-  }
+  // Parse date using the exact time Gmail received the email (most reliable)
+  let txDate = internalDate ? new Date(parseInt(internalDate)).toISOString() : new Date().toISOString();
 
   return {
     amount,
     balanceAfter,
     type: txType,
-    reference: refMatch ? refMatch[1].trim() : `EMAIL-${Date.now()}`,
+    reference: refMatch ? refMatch[1].trim() : `EMAIL-${msgId}`,
     description: descMatch ? descMatch[1].trim() : `${isCredit ? 'Credit' : 'Debit'} via ${bank}`,
     date: txDate
   };

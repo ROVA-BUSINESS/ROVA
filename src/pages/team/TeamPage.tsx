@@ -171,17 +171,19 @@ export default function TeamPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {members.map(member => (
                 <Card key={member.id} style={{ padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Users size={15} color="var(--text-muted)" />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{member.invite_email}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
-                        Invited {formatDate(member.invited_at)}
+                  <div className="mobile-col" style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Users size={15} color="var(--text-muted)" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.invite_email}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
+                          Invited {formatDate(member.invited_at)}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} className="mobile-gap-4">
                       <select value={member.role} onChange={e => updateRole(member.id, e.target.value as TeamMember['role'])}
                         style={{ padding: '5px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }}>
                         <option value="admin">Admin</option>

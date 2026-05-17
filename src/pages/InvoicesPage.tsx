@@ -564,46 +564,69 @@ export default function InvoicesPage() {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Create Invoice" size="lg">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <Input label="Client Name" placeholder="Acme Corp" value={form.client_name} onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))} required />
             <Input label="Client Email" type="email" placeholder="client@example.com" value={form.client_email} onChange={e => setForm(p => ({ ...p, client_email: e.target.value }))} />
           </div>
           <Input label="Client Address" placeholder="123 Main St, Lagos" value={form.client_address} onChange={e => setForm(p => ({ ...p, client_address: e.target.value }))} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <Input label="Due Date" type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} required />
             <Input label="Tax Rate (%)" type="number" min="0" max="100" step="0.1" value={form.tax_rate} onChange={e => setForm(p => ({ ...p, tax_rate: e.target.value }))} />
           </div>
 
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Line Items</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {items.map((item, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1.5fr auto', gap: 8, alignItems: 'end' }}>
-                  <select
-                    value={item.inventory_item_id}
-                    onChange={e => {
-                      const selectedId = e.target.value;
-                      const invItem = inventoryItems.find(x => x.id === selectedId);
-                      setItems(p => p.map((x, j) => j === i ? {
-                        ...x,
-                        inventory_item_id: selectedId,
-                        description: invItem ? invItem.name : x.description,
-                        unit_price: invItem ? String(invItem.selling_price) : x.unit_price
-                      } : x));
-                    }}
-                    style={{ padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', outline: 'none' }}
-                  >
-                    <option value="">Custom Item...</option>
-                    {inventoryItems.map(inv => (
-                      <option key={inv.id} value={inv.id}>{inv.name} ({inv.current_stock} in stock)</option>
-                    ))}
-                  </select>
-                  <Input placeholder="Description" value={item.description} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
-                  <Input placeholder="Qty" type="number" min="0" step="0.01" value={item.quantity} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
-                  <Input placeholder="Unit Price (₦)" type="number" min="0" step="0.01" value={item.unit_price} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))} />
+                <div key={i} style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr 1fr 1.5fr auto', 
+                  gap: 12, 
+                  alignItems: isMobile ? 'stretch' : 'end',
+                  borderBottom: isMobile ? '1px dashed var(--bg-border)' : 'none',
+                  paddingBottom: isMobile ? 16 : 0,
+                  marginBottom: isMobile ? 8 : 0
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {isMobile && <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Inventory Item</label>}
+                    <select
+                      value={item.inventory_item_id}
+                      onChange={e => {
+                        const selectedId = e.target.value;
+                        const invItem = inventoryItems.find(x => x.id === selectedId);
+                        setItems(p => p.map((x, j) => j === i ? {
+                          ...x,
+                          inventory_item_id: selectedId,
+                          description: invItem ? invItem.name : x.description,
+                          unit_price: invItem ? String(invItem.selling_price) : x.unit_price
+                        } : x));
+                      }}
+                      style={{ padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', outline: 'none', height: 40, fontSize: 14 }}
+                    >
+                      <option value="">Custom Item...</option>
+                      {inventoryItems.map(inv => (
+                        <option key={inv.id} value={inv.id}>{inv.name} ({inv.current_stock} in stock)</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Input label={isMobile ? "Description" : undefined} placeholder="Description" value={item.description} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
+                  <Input label={isMobile ? "Quantity" : undefined} placeholder="Qty" type="number" min="0" step="0.01" value={item.quantity} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
+                  <Input label={isMobile ? "Unit Price (₦)" : undefined} placeholder="Unit Price (₦)" type="number" min="0" step="0.01" value={item.unit_price} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))} />
                   <button type="button" onClick={() => removeItem(i)}
-                    style={{ padding: '9px 8px', background: 'var(--error-dim)', borderRadius: 'var(--radius-md)', color: 'var(--error)', display: 'flex', alignItems: 'center' }}>
-                    <X size={13} />
+                    style={{ 
+                      padding: '10px 12px', 
+                      background: 'var(--error-dim)', 
+                      borderRadius: 'var(--radius-md)', 
+                      color: 'var(--error)', 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      marginTop: isMobile ? 8 : 0,
+                      width: isMobile ? '100%' : 'auto',
+                      height: isMobile ? 40 : 'auto'
+                    }}>
+                    <X size={14} /> {isMobile && "Remove Item"}
                   </button>
                 </div>
               ))}

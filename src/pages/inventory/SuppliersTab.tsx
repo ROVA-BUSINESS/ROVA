@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { useMobile } from '../../hooks/useMobile';
 
 const EMPTY: Omit<Supplier, 'id' | 'user_id' | 'created_at'> = {
   name: '', contact_person: '', email: '', phone: '',
@@ -20,6 +21,7 @@ interface Props {
 
 export default function SuppliersTab({ suppliers, onRefresh }: Props) {
   const { user } = useAuth();
+  const isMobile = useMobile(1024);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [form, setForm] = useState(EMPTY);
@@ -110,7 +112,7 @@ export default function SuppliersTab({ suppliers, onRefresh }: Props) {
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit Supplier' : 'Add Supplier'}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Input label="Supplier Name" placeholder="ABC Distributors" value={form.name} onChange={f('name')} required />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <Input label="Contact Person" placeholder="John Doe" value={form.contact_person} onChange={f('contact_person')} />
             <Input label="Phone" placeholder="+234..." value={form.phone} onChange={f('phone')} />
           </div>
