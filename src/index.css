@@ -265,6 +265,16 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   .mobile-grid-2 > div > div:last-child {
     font-size: 18px !important;
   }
+
+  .mobile-visibility-hub {
+    transform: scale(0.6);
+  }
+}
+
+@media (max-width: 768px) and (min-width: 481px) {
+  .mobile-visibility-hub {
+    transform: scale(0.75);
+  }
 }
 
 /* --- Premium Motion Graphics --- */

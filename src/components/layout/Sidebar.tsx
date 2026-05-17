@@ -124,7 +124,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     <aside style={{
         width: isMobile ? 220 : (isDesktopCollapsed ? 68 : 220),
         minWidth: isMobile ? 220 : (isDesktopCollapsed ? 68 : 220),
-        height: '100vh',
+        height: '100dvh',
         background: 'var(--bg-surface)',
         borderRight: '1px solid var(--bg-border)',
         display: 'flex',

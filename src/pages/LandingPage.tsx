@@ -345,7 +345,7 @@ export default function LandingPage() {
               }} />
 
               {/* Central Visibility Hub Graphic */}
-              <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center' }}>
+              <div className="mobile-visibility-hub" style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center' }}>
                 <div style={{
                   width: 120, height: 120, borderRadius: 32, background: 'var(--accent-primary)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
