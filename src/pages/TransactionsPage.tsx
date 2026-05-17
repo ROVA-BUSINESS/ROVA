@@ -27,6 +27,8 @@ export default function TransactionsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'description' | 'category' | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [expandedDescId, setExpandedDescId] = useState<string | null>(null);
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     description: '', amount: '', type: 'expense' as 'income' | 'expense',
@@ -290,8 +292,22 @@ export default function TransactionsPage() {
                           />
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }} className="mobile-desc-text">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                          <div 
+                            title={tx.description || ''}
+                            onClick={() => setExpandedDescId(expandedDescId === tx.id ? null : tx.id)}
+                            style={{ 
+                              fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', 
+                              overflow: expandedDescId === tx.id ? 'visible' : 'hidden', 
+                              textOverflow: expandedDescId === tx.id ? 'clip' : 'ellipsis', 
+                              whiteSpace: expandedDescId === tx.id ? 'normal' : 'nowrap', 
+                              maxWidth: expandedDescId === tx.id ? 'none' : '160px',
+                              cursor: 'pointer',
+                              wordBreak: expandedDescId === tx.id ? 'break-word' : 'normal',
+                              lineHeight: 1.4
+                            }} 
+                            className={expandedDescId === tx.id ? "" : "mobile-desc-text"}
+                          >
                             {tx.description || 'No description'}
                           </div>
                           <button 
@@ -323,7 +339,22 @@ export default function TransactionsPage() {
                       </select>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Badge variant="default">{(tx.category as any)?.name || '—'}</Badge>
+                        <Badge 
+                          variant="default"
+                          title={(tx.category as any)?.name || ''}
+                          onClick={() => setExpandedCatId(expandedCatId === tx.id ? null : tx.id)}
+                          style={{
+                            cursor: 'pointer',
+                            overflow: expandedCatId === tx.id ? 'visible' : 'hidden',
+                            textOverflow: expandedCatId === tx.id ? 'clip' : 'ellipsis',
+                            whiteSpace: expandedCatId === tx.id ? 'normal' : 'nowrap',
+                            maxWidth: expandedCatId === tx.id ? 'none' : 120,
+                            wordBreak: expandedCatId === tx.id ? 'break-word' : 'normal',
+                            lineHeight: 1.4
+                          }}
+                        >
+                          {(tx.category as any)?.name || '—'}
+                        </Badge>
                         {isAdmin && (
                           <button 
                             onClick={() => { setEditingId(tx.id); setEditingField('category'); setEditValue(tx.category_id || ''); }}
