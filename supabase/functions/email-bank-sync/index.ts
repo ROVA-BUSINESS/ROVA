@@ -99,7 +99,9 @@ serve(async (req) => {
       if (tokenData.error) throw new Error(`Token refresh failed: ${tokenData.error_description || tokenData.error}`);
 
       const accessToken = tokenData.access_token;
-      const query = encodeURIComponent(`from:${setting.bank_sender_address}`);
+      const senders = setting.bank_sender_address.split(/,| OR /i).map((s: string) => s.trim()).filter(Boolean);
+      const fromQuery = senders.map((s: string) => `from:${s}`).join(' OR ');
+      const query = encodeURIComponent(`(${fromQuery})`);
       const listResponse = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=3`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -272,7 +274,9 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
   if (!setting) throw new Error("Settings not found");
 
   // 2. Query Gmail API — get last 10 emails from the bank
-  const query = encodeURIComponent(`from:${setting.bank_sender_address}`);
+  const senders = setting.bank_sender_address.split(/,| OR /i).map((s: string) => s.trim()).filter(Boolean);
+  const fromQuery = senders.map((s: string) => `from:${s}`).join(' OR ');
+  const query = encodeURIComponent(`(${fromQuery})`);
   const listResponse = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=10`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -285,10 +289,10 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
     throw new Error(`Gmail API error: ${listData.error.code} ${listData.error.message}`);
   }
 
-  console.log(`Gmail query: from:${setting.bank_sender_address} → found ${listData.messages?.length ?? 0} messages`);
+  console.log(`Gmail query: ${fromQuery} → found ${listData.messages?.length ?? 0} messages`);
 
   if (!listData.messages || listData.messages.length === 0) {
-    return { emailsFound: 0, transactionsSaved: 0, gmailQuery: `from:${setting.bank_sender_address}` };
+    return { emailsFound: 0, transactionsSaved: 0, gmailQuery: fromQuery };
   }
 
   let latestBalance: number | null = null;
