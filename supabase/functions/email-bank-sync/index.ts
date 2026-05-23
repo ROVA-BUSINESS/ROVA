@@ -456,9 +456,14 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
 
   // ---- DESCRIPTION / NARRATION ----
   const descPatterns = [
-    /(?:description|narration|remarks|details|info)[:\s]*([^\n\r]{3,80})/i,
+    // Same line match (requires colon, prefers same-line value)
+    /(?:description|narration|remarks|details|info)\s*:\s*((?!(?:date|time|amount|balance|reference|ref|type|account|credit|debit|ledger|cleared|available|value|post|status|channel|source|terminal|location)\b)[^\n\r]{3,80})/i,
+    // Next line match (requires colon, matches next-line value if not a header)
+    /(?:description|narration|remarks|details|info)\s*:\s*\r?\n\s*((?!(?:date|time|amount|balance|reference|ref|type|account|credit|debit|ledger|cleared|available|value|post|status|channel|source|terminal|location)\b)[^\n\r]{3,80})/i,
+    // Fallback: general "payment for" / "transfer to" patterns
     /(?:payment for|transfer to|transfer from|from)[:\s]*([^\n\r]{3,60})/i,
   ];
+
 
   // ---- DATE ----
   const datePatterns = [
