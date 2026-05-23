@@ -400,37 +400,58 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   const text = body.replace(/[ \t]+/g, ' ').trim();
 
   // ---- AMOUNT ----
-  // FCMB format: "Amount: \n 1,000.00 (NGN)"
+  // First Bank format: "Amount  30,000.00 CR" (CR = credit, DR = debit as suffix)
+  // FCMB format:       "Amount: 1,000.00 (NGN)"
+  // GTBank/Zenith:     "NGN 5,000.00"
   const amountPatterns = [
+    // First Bank: "Amount  30,000.00 CR" or "Amount 30,000.00 DR"
+    /(?:amount|transaction amount|txn amount)[:\s]*([,\d]+(?:\.\d{1,2})?)\s*(CR|DR)\b/i,
+    // Standard: "Amount: NGN 1,000.00"
     /(?:amount|transaction amount|txn amount)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*\(NGN\)|\s*NGN)?/i,
+    // Prefix NGN/₦ e.g. "₦5,000.00"
     /(?:NGN|₦)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    // Suffix NGN/₦ e.g. "5,000.00 NGN"
     /([\d,]+(?:\.\d{2}))\s*(?:NGN|₦|\(NGN\))/i,
   ];
 
   // ---- BALANCE ----
-  // FCMB format: "Available Balance: \n 9,349.81 (NGN)"
+  // First Bank: "Cleared Balance  NGN57,744.27 CR"
+  // FCMB:       "Available Balance: 9,349.81 (NGN)"
   const availableBalancePatterns = [
-    /(?:available balance)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*\(NGN\)|\s*NGN)?/i,
+    /(?:available balance)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*\(NGN\)|\s*NGN|\s*CR|\s*DR)?/i,
   ];
-  
+
   const otherBalancePatterns = [
+    // First Bank: "Cleared Balance  NGN57,744.27 CR"
+    /(?:cleared balance|ledger balance)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*CR|\s*DR)?/i,
     /(?:new balance|current balance|account balance|balance after|bal)[:\s]*(?:NGN|₦|ngn)?\s*([\d,]+(?:\.\d{1,2})?)(?:\s*\(NGN\)|\s*NGN)?/i,
     /(?:NGN|₦)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:available|balance)/i,
   ];
 
   // ---- TYPE ----
-  // FCMB format: "Credit/Debit: \n Debit"
+  // First Bank: amount ends with "CR" (credit) or "DR" (debit)
+  // FCMB:       "Credit/Debit: Debit"
+  // Others:     "your account has been credited"
   const typePatterns = [
+    // First Bank CR/DR suffix on the amount line
+    /(?:amount|transaction amount|txn amount)[:\s]*[\d,]+(?:\.\d{1,2})?\s*(CR|DR)\b/i,
+    // Labeled credit/debit field
     /(?:transaction type|txn type|type|credit\/debit)[:\s]*(credit|debit)/i,
     /\b(credited|debited)\b/i,
     /\b(credit|debit)\s+(?:alert|notification|transaction)/i,
     /your account (?:has been )?(credited|debited)/i,
+    // Standalone CR/DR near balance line (fallback)
+    /\bNGN[\d,]+(?:\.\d{1,2})?\s*(CR|DR)\b/i,
   ];
 
   // ---- REFERENCE ----
+  // First Bank narration: "CPWInward: 100004260517135717160126116469 /MAYOKUN V"
+  //   → extract the long numeric string as reference
   const refPatterns = [
     /(?:reference|ref no|ref|receipt no|trace id|session id)[:\s#]*([A-Z0-9\/\-]{5,30})/i,
     /(?:tran id|transaction id|trans id)[:\s]*([A-Z0-9\/\-]{5,30})/i,
+    // First Bank / inward transfer narration: long digit string
+    /(?:CPWInward|NIPInward|NIPOutward|Transfer)[:\s]*(\d{10,30})/i,
   ];
 
   // ---- DESCRIPTION / NARRATION ----
@@ -441,8 +462,9 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
 
   // ---- DATE ----
   const datePatterns = [
-    /(?:date[\/\s]?time|date|time|transaction date)[:\s]*([^\n\r]{5,30})/i,
-    /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
+    /(?:date[\\/\s]?time|date|time|transaction date)[:\s]*([^\n\r]{5,30})/i,
+    /(\d{1,2}[\\/\-]\\w{3}[\\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
+    /(\d{1,2}[\\/\-]\d{1,2}[\\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
     /(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)/i,
   ];
 
@@ -463,7 +485,6 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   const typeMatch = findMatch(typePatterns);
   const refMatch = findMatch(refPatterns);
   const descMatch = findMatch(descPatterns);
-  const dateMatch = findMatch(datePatterns);
 
   // Amount is required; type is required
   if (!amountMatch) {
@@ -475,7 +496,7 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
     return null;
   }
 
-  // Parse amount
+  // Parse amount — group 1 is always the numeric string
   const amountStr = amountMatch[1].replace(/,/g, '');
   const amount = parseFloat(amountStr);
   if (isNaN(amount) || amount <= 0) return null;
@@ -488,12 +509,13 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   }
 
   // Parse transaction type
+  // typeMatch[1] can be "credit", "debit", "credited", "debited", "CR", or "DR"
   const typeRaw = typeMatch[1].toLowerCase();
-  const isCredit = typeRaw.includes('credit');
+  const isCredit = typeRaw === 'cr' || typeRaw.includes('credit');
   const txType = isCredit ? 'income' : 'expense';
 
   // Parse date using the exact time Gmail received the email (most reliable)
-  let txDate = internalDate ? new Date(parseInt(internalDate)).toISOString() : new Date().toISOString();
+  const txDate = internalDate ? new Date(parseInt(internalDate)).toISOString() : new Date().toISOString();
 
   return {
     amount,
@@ -504,3 +526,4 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
     date: txDate
   };
 }
+
