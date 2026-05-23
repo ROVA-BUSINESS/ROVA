@@ -486,9 +486,19 @@ export default function LandingPage() {
               <div>
                 <h4 style={{ fontWeight: 800, marginBottom: 32, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>Company</h4>
                 <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {['About Us', 'Contact', 'Privacy', 'Terms'].map(item => (
-                    <li key={item}><a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a></li>
-                  ))}
+                  {['About Us', 'Contact', 'Privacy', 'Terms'].map(item => {
+                    const isRouterLink = item === 'Privacy' || item === 'Terms';
+                    const targetPath = item === 'Privacy' ? '/privacy' : '/terms';
+                    return (
+                      <li key={item}>
+                        {isRouterLink ? (
+                          <Link to={targetPath} style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</Link>
+                        ) : (
+                          <a href="#" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>{item}</a>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </div>
