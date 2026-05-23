@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Sparkles, CheckCircle } from 'lucide-react';
 import { supabase, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { autoClassify } from '../lib/categorise';
+import { classifyTransaction, applyInventoryIntent, applyPayrollIntent, type ClassifyResult } from '../lib/deepseekClient';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -20,6 +21,11 @@ export default function QuickAddModal({ open, onClose }: Props) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [autoSuggestion, setAutoSuggestion] = useState('');
+  const [aiResult, setAiResult] = useState<ClassifyResult | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [intentPrompt, setIntentPrompt] = useState<string | null>(null);
+  const [intentConfirmed, setIntentConfirmed] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [form, setForm] = useState({
     description: '',
@@ -45,10 +51,14 @@ export default function QuickAddModal({ open, onClose }: Props) {
       setError('');
       setAutoSuggestion('');
       setSuccess(false);
+      setAiResult(null);
+      setIntentPrompt(null);
+      setIntentConfirmed(false);
     }
   }, [open, user]);
 
   function handleDescriptionChange(desc: string) {
+    // Instant keyword fallback
     setForm(prev => {
       const updated = { ...prev, description: desc };
       if (desc.length >= 3) {
@@ -65,6 +75,51 @@ export default function QuickAddModal({ open, onClose }: Props) {
       setAutoSuggestion('');
       return updated;
     });
+
+    // Debounced AI classification (500 ms)
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (desc.trim().length < 6) { setAiResult(null); setIntentPrompt(null); return; }
+
+    debounceRef.current = setTimeout(async () => {
+      if (!user) return;
+      setAiLoading(true);
+      try {
+        const result = await classifyTransaction(
+          { description: desc, type: form.type },
+          user.id,
+          'preview' // preview mode = no notifications created
+        );
+        setAiResult(result);
+
+        // Update category if AI is confident
+        if (result.confidence > 0.75 && result.category) {
+          const matched = categories.find(c =>
+            c.name.toLowerCase() === result.category.toLowerCase() &&
+            (c.type === result.type || c.type === 'both')
+          );
+          setAutoSuggestion(result.category);
+          if (matched) {
+            setForm(prev => ({ ...prev, type: result.type as 'income' | 'expense', category_id: matched.id }));
+          }
+        }
+
+        // Show intent prompt for special intents
+        if (result.intent === 'inventory_purchase') {
+          const qty = result.quantity ? ` (${result.quantity} units)` : '';
+          const item = result.inventory_item ? ` of ${result.inventory_item}` : '';
+          setIntentPrompt(`📦 Looks like an inventory purchase${item}${qty}. Confirm to update stock automatically after saving.`);
+        } else if (result.intent === 'salary_payment') {
+          const name = result.employee_name ? ` for ${result.employee_name}` : '';
+          setIntentPrompt(`👤 Looks like a salary payment${name}. Confirm to link this to payroll after saving.`);
+        } else {
+          setIntentPrompt(null);
+        }
+      } catch {
+        // AI classification failed silently — keyword fallback already applied
+      } finally {
+        setAiLoading(false);
+      }
+    }, 500);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -75,7 +130,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
     }
     setSaving(true);
     setError('');
-    const { error: err } = await supabase.from('transactions').insert({
+    const { data: txData, error: err } = await supabase.from('transactions').insert({
       user_id: user!.id,
       description: form.description,
       amount: Number(form.amount),
@@ -83,9 +138,48 @@ export default function QuickAddModal({ open, onClose }: Props) {
       date: form.date,
       category_id: form.category_id || null,
       account_id: form.account_id || null,
-    });
+    }).select().single();
+
+    if (err) {
+      setSaving(false);
+      setError('Failed to save. Please try again.');
+      return;
+    }
+
+    // Apply intents if confirmed
+    if (intentConfirmed && aiResult && txData) {
+      try {
+        if (aiResult.intent === 'inventory_purchase') {
+          const qty = aiResult.quantity || 1;
+          const itemName = aiResult.inventory_item || 'Inventory Item';
+          const unitCost = aiResult.unit_price || (Number(form.amount) / qty);
+
+          await applyInventoryIntent({
+            userId: user!.id,
+            itemName,
+            quantity: qty,
+            unitCost,
+            transactionId: txData.id,
+            date: form.date,
+          });
+        } else if (aiResult.intent === 'salary_payment') {
+          const employeeName = aiResult.employee_name || '';
+          if (employeeName) {
+            await applyPayrollIntent({
+              userId: user!.id,
+              employeeName,
+              amount: Number(form.amount),
+              transactionId: txData.id,
+              date: form.date,
+            });
+          }
+        }
+      } catch (intentErr) {
+        console.error('Failed to apply intent:', intentErr);
+      }
+    }
+
     setSaving(false);
-    if (err) { setError('Failed to save. Please try again.'); return; }
     setSuccess(true);
     setTimeout(() => { onClose(); }, 900);
   }
@@ -116,17 +210,50 @@ export default function QuickAddModal({ open, onClose }: Props) {
             value={form.description}
             onChange={e => handleDescriptionChange(e.target.value)}
           />
-          {autoSuggestion && (
+          {(autoSuggestion || aiLoading) && (
             <div style={{
               marginTop: 6, padding: '7px 10px', borderRadius: 'var(--radius-md)',
               background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
             }}>
-              <Sparkles size={11} color="var(--accent-light)" />
-              <span style={{ color: 'var(--text-muted)' }}>Auto-detected:</span>
-              <strong style={{ color: 'var(--accent-light)', textTransform: 'capitalize' }}>{form.type}</strong>
-              <span style={{ color: 'var(--text-muted)' }}>·</span>
-              <span style={{ color: 'var(--text-secondary)' }}>{autoSuggestion}</span>
+              <Sparkles size={11} color="var(--accent-light)" style={{ animation: aiLoading ? 'spin 1s linear infinite' : 'none' }} />
+              {aiLoading ? (
+                <span style={{ color: 'var(--text-muted)' }}>AI is classifying…</span>
+              ) : (
+                <>
+                  <span style={{ color: 'var(--text-muted)' }}>AI detected:</span>
+                  <strong style={{ color: 'var(--accent-light)', textTransform: 'capitalize' }}>{form.type}</strong>
+                  <span style={{ color: 'var(--text-muted)' }}>·</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{autoSuggestion}</span>
+                  {aiResult && (
+                    <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
+                      {Math.round(aiResult.confidence * 100)}% confident
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          {intentPrompt && (
+            <div style={{
+              marginTop: 6, padding: '9px 12px', borderRadius: 'var(--radius-md)',
+              background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, fontSize: 12,
+            }}>
+              <span style={{ color: 'var(--text-secondary)', lineHeight: 1.45 }}>{intentPrompt}</span>
+              <button
+                type="button"
+                onClick={() => setIntentConfirmed(p => !p)}
+                style={{
+                  flexShrink: 0, padding: '4px 10px', borderRadius: 'var(--radius-md)',
+                  background: intentConfirmed ? '#f59e0b' : 'var(--bg-elevated)',
+                  color: intentConfirmed ? 'white' : 'var(--text-muted)',
+                  border: '1px solid rgba(245,158,11,0.3)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {intentConfirmed ? '✓ Confirmed' : 'Confirm'}
+              </button>
             </div>
           )}
         </div>

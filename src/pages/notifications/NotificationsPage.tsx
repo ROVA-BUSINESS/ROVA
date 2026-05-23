@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, Info, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, Info, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw, Sparkles, MessageCircle } from 'lucide-react';
 import { supabase, type Notification, type Transaction, type InventoryItem, type Invoice } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate, formatCurrency } from '../../lib/format';
@@ -17,6 +17,7 @@ const TYPE_META: Record<Notification['type'], { icon: React.ElementType; color: 
   info: { icon: Info, color: 'var(--info)', label: 'Info' },
   success: { icon: CheckCircle, color: 'var(--success)', label: 'Success' },
   error: { icon: XCircle, color: 'var(--error)', label: 'Error' },
+  ai_clarification: { icon: Sparkles, color: '#a855f7', label: 'AI Clarification' },
 };
 
 const SEVERITY_BG: Record<Notification['severity'], string> = {
@@ -237,15 +238,21 @@ export default function NotificationsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtered.map(notif => {
-            const meta = TYPE_META[notif.type];
+            const meta = TYPE_META[notif.type] ?? TYPE_META['info'];
             const Icon = meta.icon;
+            const isAiClarification = notif.type === 'ai_clarification';
+
             return (
               <div key={notif.id}
                 onClick={() => !notif.is_read && markRead(notif.id)}
                 style={{
                   padding: '14px 16px', borderRadius: 'var(--radius-md)',
-                  background: notif.is_read ? 'var(--bg-card)' : SEVERITY_BG[notif.severity],
-                  border: `1px solid ${notif.is_read ? 'var(--bg-border)' : SEVERITY_BORDER[notif.severity]}`,
+                  background: isAiClarification
+                    ? 'rgba(168,85,247,0.06)'
+                    : notif.is_read ? 'var(--bg-card)' : SEVERITY_BG[notif.severity],
+                  border: isAiClarification
+                    ? '1px solid rgba(168,85,247,0.25)'
+                    : `1px solid ${notif.is_read ? 'var(--bg-border)' : SEVERITY_BORDER[notif.severity]}`,
                   display: 'flex', gap: 12, alignItems: 'flex-start',
                   cursor: notif.is_read ? 'default' : 'pointer',
                   transition: 'all 0.2s ease',
@@ -254,22 +261,49 @@ export default function NotificationsPage() {
                 }}
               >
                 {!notif.is_read && (
-                  <div style={{ position: 'absolute', top: 14, right: 14, width: 7, height: 7, borderRadius: '50%', background: meta.color }} />
+                  <div style={{ position: 'absolute', top: 14, right: 40, width: 7, height: 7, borderRadius: '50%', background: meta.color }} />
                 )}
-                <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: notif.is_read ? 'var(--bg-elevated)' : 'transparent', border: `1px solid ${notif.is_read ? 'var(--bg-border)' : 'transparent'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+
+                {/* Icon */}
+                <div style={{
+                  width: 32, height: 32, borderRadius: 'var(--radius-sm)', flexShrink: 0,
+                  background: isAiClarification ? 'linear-gradient(135deg, #9333ea22, #7e22ce22)' : notif.is_read ? 'var(--bg-elevated)' : 'transparent',
+                  border: isAiClarification ? '1px solid rgba(168,85,247,0.3)' : `1px solid ${notif.is_read ? 'var(--bg-border)' : 'transparent'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
                   <Icon size={15} color={meta.color} />
                 </div>
+
+                {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                    <span style={{ fontSize: 13, fontWeight: notif.is_read ? 500 : 700, color: 'var(--text-primary)' }}>{notif.title}</span>
-                    <Badge variant={notif.severity === 'critical' ? 'error' : notif.severity === 'warning' ? 'warning' : notif.severity === 'success' ? 'success' : 'info'}>
+                    <span style={{ fontSize: 13, fontWeight: notif.is_read ? 500 : 700, color: 'var(--text-primary)' }}>
+                      {notif.title}
+                    </span>
+                    <Badge variant={isAiClarification ? 'info' : notif.severity === 'critical' ? 'error' : notif.severity === 'warning' ? 'warning' : notif.severity === 'success' ? 'success' : 'info'}>
                       {meta.label}
                     </Badge>
                   </div>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{notif.body}</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{new Date(notif.created_at).toLocaleString('en-NG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                    {notif.action_label && notif.action_url && (
+                    <span style={{ fontSize: 11, color: 'var(--text-disabled)' }}>
+                      {new Date(notif.created_at).toLocaleString('en-NG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {isAiClarification ? (
+                      <a
+                        href="/app/assistant"
+                        onClick={e => { e.stopPropagation(); markRead(notif.id); }}
+                        style={{
+                          fontSize: 12, color: '#a855f7', fontWeight: 600,
+                          textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
+                        }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration = 'underline'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration = 'none'}
+                      >
+                        <MessageCircle size={11} />
+                        Clarify in Assistant →
+                      </a>
+                    ) : notif.action_label && notif.action_url ? (
                       <a href={notif.action_url} onClick={e => e.stopPropagation()}
                         style={{ fontSize: 12, color: meta.color, fontWeight: 500, textDecoration: 'none' }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration = 'underline'}
@@ -277,9 +311,11 @@ export default function NotificationsPage() {
                       >
                         {notif.action_label} →
                       </a>
-                    )}
+                    ) : null}
                   </div>
                 </div>
+
+                {/* Dismiss */}
                 <button onClick={e => { e.stopPropagation(); dismiss(notif.id); }}
                   style={{ padding: 4, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s', flexShrink: 0 }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}

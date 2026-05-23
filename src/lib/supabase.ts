@@ -311,7 +311,7 @@ export type ActivityLog = {
 export type Notification = {
   id: string;
   user_id: string;
-  type: 'payment_reminder' | 'tax_deadline' | 'low_stock' | 'cash_warning' | 'invoice_due' | 'payroll' | 'info' | 'success' | 'error';
+  type: 'payment_reminder' | 'tax_deadline' | 'low_stock' | 'cash_warning' | 'invoice_due' | 'payroll' | 'info' | 'success' | 'error' | 'ai_clarification';
   severity: 'info' | 'warning' | 'critical' | 'success';
   title: string;
   body: string;

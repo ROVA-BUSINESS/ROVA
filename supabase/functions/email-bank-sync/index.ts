@@ -345,7 +345,7 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
           continue;
         }
 
-        const { error: txError } = await supabaseClient
+        const { data: txData, error: txError } = await supabaseClient
           .from("transactions")
           .insert({
             user_id: setting.user_id,
@@ -358,10 +358,41 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
             reference: parsed.reference,
             source: 'email',
             is_verified: true
-          });
+          })
+          .select()
+          .single();
 
         if (!txError || txError.code === '23505') {
           transactionsSaved++;
+
+          // ── Call ai-classify to classify and detect intents ──────────────
+          if (txData?.id) {
+            try {
+              await fetch(
+                `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-classify`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify({
+                    transaction: {
+                      id: txData.id,
+                      description: parsed.description,
+                      amount: parsed.amount,
+                      type: parsed.type,
+                      date: parsed.date,
+                    },
+                    userId: setting.user_id,
+                    mode: "full",
+                  }),
+                }
+              );
+            } catch (classifyErr) {
+              console.error("ai-classify call failed (non-fatal):", classifyErr);
+            }
+          }
         }
       } else {
         console.log(`Skipping transaction ${parsed.reference} because it predates the account link time.`);
