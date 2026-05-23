@@ -100,7 +100,8 @@ serve(async (req) => {
 
       const accessToken = tokenData.access_token;
       const senders = setting.bank_sender_address.split(/,| OR /i).map((s: string) => s.trim()).filter(Boolean);
-      const fromQuery = senders.map((s: string) => `from:${s}`).join(' OR ');
+      // If entry is a full email address use as-is; if it's domain-only prefix with @ for Gmail search
+      const fromQuery = senders.map((s: string) => s.includes('@') ? `from:${s}` : `from:@${s}`).join(' OR ');
       const query = encodeURIComponent(`(${fromQuery})`);
       const listResponse = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=3`,
@@ -275,7 +276,8 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
 
   // 2. Query Gmail API — get last 10 emails from the bank
   const senders = setting.bank_sender_address.split(/,| OR /i).map((s: string) => s.trim()).filter(Boolean);
-  const fromQuery = senders.map((s: string) => `from:${s}`).join(' OR ');
+  // If entry is a full email address use as-is; if it's domain-only prefix with @ for Gmail search
+  const fromQuery = senders.map((s: string) => s.includes('@') ? `from:${s}` : `from:@${s}`).join(' OR ');
   const query = encodeURIComponent(`(${fromQuery})`);
   const listResponse = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=10`,
