@@ -319,7 +319,7 @@ export default function PrivacyPolicyPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Email Privacy Desk</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>privacy@rova.co</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>privacy@rovabusiness.com</div>
                 </div>
               </div>
             </div>
