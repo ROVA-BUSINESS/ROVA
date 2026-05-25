@@ -95,7 +95,7 @@ export default function PrivacyPolicyPage() {
           display: 'grid', gridTemplateColumns: '280px 1fr', gap: 48,
           alignItems: 'start'
         }} className="mobile-grid-1">
-          
+
           {/* Quick Index Sidebar (Sticky) */}
           <aside className="mobile-hide" style={{
             position: 'sticky', top: 110,
@@ -128,7 +128,7 @@ export default function PrivacyPolicyPage() {
             borderRadius: 28, padding: '48px 40px',
             boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column', gap: 40
           }} className="mobile-p-4">
-            
+
             {/* Section 1: Introduction */}
             <div id="introduction" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <h2 style={{ fontSize: 22, fontWeight: 800, borderBottom: '1px solid var(--bg-border)', paddingBottom: 12 }}>

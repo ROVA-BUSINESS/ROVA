@@ -25,13 +25,16 @@ const EMPTY_ITEM = {
   supplier_id: '', notes: '', status: 'active' as InventoryItem['status'],
 };
 
+import { useEffect } from 'react';
+
 interface Props {
   items: InventoryItem[];
   suppliers: Supplier[];
   onRefresh: () => void;
+  locationState?: any;
 }
 
-export default function StockTab({ items, suppliers, onRefresh }: Props) {
+export default function StockTab({ items, suppliers, onRefresh, locationState }: Props) {
   const { user } = useAuth();
   const isMobile = useMobile(1024);
   const [showItemModal, setShowItemModal] = useState(false);
@@ -41,6 +44,51 @@ export default function StockTab({ items, suppliers, onRefresh }: Props) {
   const [movement, setMovement] = useState<StockMovement>({ itemId: '', type: 'purchase', quantity: '', unit_cost: '', notes: '', date: new Date().toISOString().split('T')[0] });
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<'all' | 'low_stock' | 'out_of_stock'>('all');
+
+  useEffect(() => {
+    if (locationState?.openCreateModal) {
+      const payload = locationState.payload || {};
+      const itemName = payload.item_name || payload.name || '';
+      
+      // Try to find an existing item by name (case-insensitive match)
+      const existingItem = items.find(
+        i => i.name.toLowerCase().includes(itemName.toLowerCase()) || 
+             itemName.toLowerCase().includes(i.name.toLowerCase())
+      );
+      
+      if (existingItem) {
+        // Open Record Stock Movement modal
+        setMovement({
+          itemId: existingItem.id,
+          type: 'purchase',
+          quantity: String(payload.quantity || '1'),
+          unit_cost: String(payload.cost_price || payload.unit_cost || existingItem.cost_price || ''),
+          notes: payload.notes || 'Stock update from ROVA AI Assistant',
+          date: new Date().toISOString().split('T')[0]
+        });
+        setShowMoveModal(true);
+      } else if (itemName) {
+        // Open Add Item modal
+        setEditing(null);
+        setForm({
+          sku: payload.sku || `SKU-${Date.now().toString().slice(-6)}`,
+          name: itemName,
+          description: payload.description || '',
+          category: payload.category || '',
+          unit: payload.unit || 'unit',
+          cost_price: String(payload.cost_price || payload.unit_cost || ''),
+          selling_price: String(payload.selling_price || ''),
+          current_stock: String(payload.quantity || payload.current_stock || '0'),
+          reorder_level: String(payload.reorder_level || '5'),
+          supplier_id: payload.supplier_id || '',
+          notes: payload.notes || 'Added from ROVA AI Assistant',
+          status: 'active',
+        });
+        setShowItemModal(true);
+      }
+      window.history.replaceState({}, document.title);
+    }
+  }, [locationState, items]);
 
   const lowStock = items.filter(i => i.current_stock <= i.reorder_level && i.current_stock > 0);
   const outOfStock = items.filter(i => i.current_stock === 0);

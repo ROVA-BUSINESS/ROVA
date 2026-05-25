@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Package, Building2 } from 'lucide-react';
 import { supabase, type InventoryItem, type Supplier } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,6 +10,7 @@ type Tab = 'stock' | 'suppliers';
 
 export default function InventoryPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const [tab, setTab] = useState<Tab>('stock');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -62,7 +64,7 @@ export default function InventoryPage() {
       {loading ? (
         <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 56, marginBottom: 10 }} />)}</div>
       ) : tab === 'stock' ? (
-        <StockTab items={items} suppliers={suppliers} onRefresh={loadData} />
+        <StockTab items={items} suppliers={suppliers} onRefresh={loadData} locationState={location.state} />
       ) : (
         <SuppliersTab suppliers={suppliers} onRefresh={loadData} />
       )}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Send, Sparkles, RefreshCw, AlertTriangle, Info, CheckCircle,
   Zap, Bell, ChevronRight, Package, Users, FileText, X,
@@ -15,9 +16,10 @@ import {
   dismissClarification,
   type PendingClarification,
   type ChatAction,
-} from '../lib/deepseekClient';
+} from '../lib/geminiClient';
 import Card from '../components/ui/Card';
 import { useMobile } from '../hooks/useMobile';
+import { createInvoice } from '../lib/invoiceService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -198,6 +200,7 @@ function ActionButton({
 export default function AssistantPage() {
   const { user, isStaff } = useAuth();
   const isMobile = useMobile(1024);
+  const navigate = useNavigate();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -308,17 +311,83 @@ export default function AssistantPage() {
 
   function handleAction(action: ChatAction) {
     switch (action.type) {
-      case 'create_invoice':
-        sendMessage('I want to create an invoice. Please ask me for the details.');
+      case 'create_invoice': {
+        const payload = action.payload || {};
+        if (payload.client_name) {
+          // Direct creation!
+          setTyping(true);
+          const loadingMsgId = `loading-${Date.now()}`;
+          setMessages(prev => [...prev, {
+            id: loadingMsgId,
+            role: 'assistant',
+            content: `Creating invoice for ${payload.client_name}...`,
+            timestamp: new Date()
+          }]);
+
+          createInvoice({
+            userId: user!.id,
+            client_name: payload.client_name,
+            client_email: payload.client_email,
+            client_address: payload.client_address,
+            due_date: payload.due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            tax_rate: Number(payload.tax_rate) || 0,
+            notes: payload.notes || 'Created via ROVA AI Assistant',
+            payment_status: payload.payment_status || 'unpaid',
+            amount_paid: Number(payload.amount_paid) || 0,
+            items: (payload.items && Array.isArray(payload.items)) ? payload.items.map((item: any) => ({
+              description: item.description || 'Service',
+              quantity: Number(item.quantity) || 1,
+              unit_price: Number(item.unit_price) || 0,
+              inventory_item_id: item.inventory_item_id || null,
+            })) : [{
+              description: payload.item_description || payload.description || 'Service',
+              quantity: 1,
+              unit_price: Number(payload.amount) || 0,
+              inventory_item_id: null,
+            }]
+          }).then(newInv => {
+            // Remove the loading message, add success message
+            setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
+              id: `success-${Date.now()}`,
+              role: 'assistant',
+              content: `🎉 I have successfully created invoice **${newInv.invoice_number}** for **${newInv.client_name}** totaling **₦${newInv.total.toLocaleString()}**!`,
+              timestamp: new Date(),
+              actions: [
+                {
+                  type: 'view_invoice',
+                  label: 'View Invoice',
+                  payload: { invoice_id: newInv.id }
+                }
+              ]
+            }));
+          }).catch(err => {
+            console.error(err);
+            setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
+              id: `err-${Date.now()}`,
+              role: 'assistant',
+              content: `Sorry, I couldn't create the invoice: ${err.message || err}`,
+              timestamp: new Date()
+            }));
+          }).finally(() => {
+            setTyping(false);
+          });
+        } else {
+          // Fallback to manual creation modal prefill
+          navigate('/app/invoices', { state: { openCreateModal: true, payload } });
+        }
+        break;
+      }
+      case 'view_invoice':
+        navigate('/app/invoices', { state: { viewInvoiceId: action.payload?.invoice_id || action.payload?.id } });
         break;
       case 'add_inventory':
-        sendMessage('I want to add items to my inventory. Please guide me.');
+        navigate('/app/inventory', { state: { openCreateModal: true, payload: action.payload } });
         break;
       case 'record_payroll':
-        sendMessage('I want to record a payroll payment. Please ask me for the details.');
+        navigate('/app/payroll', { state: { openCreateModal: true, payload: action.payload } });
         break;
       case 'view_report':
-        sendMessage('Give me a detailed financial summary.');
+        navigate('/app/reports');
         break;
       default:
         break;

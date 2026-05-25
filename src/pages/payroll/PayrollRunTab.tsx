@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, ChevronDown, ChevronRight, FileText, AlertCircle } from 'lucide-react';
 import { supabase, type Employee, type PayrollRun, type Payslip } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,9 +14,10 @@ interface Props {
   employees: Employee[];
   runs: PayrollRun[];
   onRefresh: () => void;
+  locationState?: any;
 }
 
-export default function PayrollRunTab({ employees, runs, onRefresh }: Props) {
+export default function PayrollRunTab({ employees, runs, onRefresh, locationState }: Props) {
   const { user } = useAuth();
   const isMobile = useMobile(1024);
   const [showModal, setShowModal] = useState(false);
@@ -26,6 +27,29 @@ export default function PayrollRunTab({ employees, runs, onRefresh }: Props) {
   const [period, setPeriod] = useState({
     label: '', start: '', end: '', notes: '',
   });
+
+  useEffect(() => {
+    if (locationState?.openCreateModal) {
+      const payload = locationState.payload || {};
+      const now = new Date();
+      const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const monthLabel = payload.month_label || `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      setPeriod({
+        label: monthLabel,
+        start: payload.start_date || firstDay,
+        end: payload.end_date || lastDay,
+        notes: payload.notes || 'Run generated via ROVA AI Assistant',
+      });
+      setShowModal(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [locationState]);
 
   const activeEmployees = employees.filter(e => e.status === 'active');
 

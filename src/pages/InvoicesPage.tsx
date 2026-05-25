@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download } from 'lucide-react';
 import { supabase, type Invoice, type InventoryItem } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +11,7 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import { useMobile } from '../hooks/useMobile';
+import { createInvoice } from '../lib/invoiceService';
 
 type InvoiceStatus = Invoice['status'];
 
@@ -157,6 +159,7 @@ function downloadInvoicePDF(inv: Invoice, businessName: string) {
 export default function InvoicesPage() {
   const isMobile = useMobile();
   const { user, profile, isStaff } = useAuth();
+  const location = useLocation();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -179,6 +182,47 @@ export default function InvoicesPage() {
   useEffect(() => {
     if (user) loadInvoices();
   }, [user]);
+
+  useEffect(() => {
+    if (location.state?.openCreateModal) {
+      const payload = location.state.payload || {};
+      setForm(p => ({
+        ...p,
+        client_name: payload.client_name || '',
+        client_email: payload.client_email || '',
+        client_address: payload.client_address || '',
+        due_date: payload.due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        tax_rate: String(payload.tax_rate ?? '0'),
+        notes: payload.notes || '',
+        payment_status: payload.payment_status || 'unpaid',
+        amount_paid: String(payload.amount_paid ?? ''),
+      }));
+      if (payload.items && Array.isArray(payload.items)) {
+        setItems(payload.items.map((item: any) => ({
+          description: item.description || '',
+          quantity: String(item.quantity ?? '1'),
+          unit_price: String(item.unit_price ?? ''),
+          inventory_item_id: item.inventory_item_id || '',
+        })));
+      } else if (payload.amount) {
+        setItems([{
+          description: payload.item_description || payload.description || 'Service',
+          quantity: '1',
+          unit_price: String(payload.amount),
+          inventory_item_id: '',
+        }]);
+      }
+      setShowModal(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (location.state?.viewInvoiceId && user) {
+      loadInvoiceWithItems(location.state.viewInvoiceId);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, user]);
 
   async function loadInvoices() {
     setLoading(true);
@@ -213,104 +257,38 @@ export default function InvoicesPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const { subtotal, taxAmount, total } = calcTotals();
-    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-    
-    let initialAmountPaid = 0;
-    let status: InvoiceStatus = 'sent';
-
-    if (form.payment_status === 'paid_in_full') {
-      initialAmountPaid = total;
-      status = 'paid';
-    } else if (form.payment_status === 'part_payment') {
-      initialAmountPaid = Number(form.amount_paid) || 0;
-      if (initialAmountPaid >= total) status = 'paid';
-    }
-
-    const { data: inv, error } = await supabase.from('invoices').insert({
-      user_id: user!.id,
-      invoice_number: invoiceNumber,
-      client_name: form.client_name,
-      client_email: form.client_email,
-      client_address: form.client_address,
-      issue_date: new Date().toISOString().split('T')[0],
-      due_date: form.payment_status === 'paid_in_full' ? new Date().toISOString().split('T')[0] : form.due_date,
-      tax_rate: Number(form.tax_rate) || 0,
-      tax_amount: taxAmount,
-      subtotal,
-      total,
-      amount_paid: initialAmountPaid,
-      notes: form.notes,
-      status,
-    }).select().maybeSingle();
-
-    if (!error && inv) {
-      const validItems = items.filter(i => i.description && Number(i.unit_price) > 0);
-
-      // 1. Insert invoice items
-      await supabase.from('invoice_items').insert(
-        validItems.map(i => ({
-          invoice_id: inv.id,
+    try {
+      const validItems = items
+        .filter(i => i.description && Number(i.unit_price) > 0)
+        .map(i => ({
           description: i.description,
-          inventory_item_id: i.inventory_item_id || null,
           quantity: Number(i.quantity),
           unit_price: Number(i.unit_price),
-          amount: Number(i.quantity) * Number(i.unit_price),
-        }))
-      );
+          inventory_item_id: i.inventory_item_id || null,
+        }));
 
-      // 2. Reduce inventory & create inventory transactions for linked items
-      for (const item of validItems) {
-        if (item.inventory_item_id) {
-          const invItem = inventoryItems.find(x => x.id === item.inventory_item_id);
-          if (invItem) {
-            const qty = Number(item.quantity);
-            await supabase.from('inventory_items').update({
-              current_stock: invItem.current_stock - qty
-            }).eq('id', item.inventory_item_id);
-
-            await supabase.from('inventory_transactions').insert({
-              user_id: user!.id,
-              item_id: item.inventory_item_id,
-              type: 'sale',
-              quantity: qty,
-              unit_cost: invItem.cost_price,
-              total_cost: qty * invItem.cost_price,
-              reference: invoiceNumber,
-              notes: `Sold to ${form.client_name}`,
-              date: new Date().toISOString().split('T')[0],
-            });
-
-            // Record COGS
-            if (invItem.cost_price > 0) {
-              await supabase.from('transactions').insert({
-                user_id: user!.id, amount: qty * invItem.cost_price,
-                type: 'expense', description: `COGS — ${invItem.name}`,
-                date: new Date().toISOString().split('T')[0], notes: `Cost of goods sold for ${invoiceNumber}`,
-              });
-            }
-          }
-        }
-      }
-
-      // 3. Record income transaction if paid immediately or part payment
-      if (initialAmountPaid > 0) {
-        await supabase.from('transactions').insert({
-          user_id: user!.id,
-          amount: initialAmountPaid,
-          type: 'income',
-          description: `Payment for ${invoiceNumber}`,
-          reference: invoiceNumber,
-          date: new Date().toISOString().split('T')[0],
-          notes: form.payment_status === 'paid_in_full' ? `Full immediate payment from ${form.client_name}` : `Initial part payment from ${form.client_name}`,
-        });
-      }
+      await createInvoice({
+        userId: user!.id,
+        client_name: form.client_name,
+        client_email: form.client_email,
+        client_address: form.client_address,
+        due_date: form.due_date,
+        tax_rate: Number(form.tax_rate) || 0,
+        notes: form.notes,
+        payment_status: form.payment_status,
+        amount_paid: Number(form.amount_paid) || 0,
+        items: validItems,
+      });
 
       setShowModal(false);
       resetForm();
       loadInvoices();
+    } catch (err) {
+      console.error('Failed to create invoice:', err);
+      alert('Error creating invoice. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function updateStatus(id: string, status: InvoiceStatus) {

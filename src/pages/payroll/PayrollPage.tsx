@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Users, Play } from 'lucide-react';
 import { supabase, type Employee, type PayrollRun } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,7 +10,8 @@ type Tab = 'employees' | 'payroll';
 
 export default function PayrollPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>('employees');
+  const location = useLocation();
+  const [tab, setTab] = useState<Tab>(location.state?.openCreateModal ? 'payroll' : 'employees');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ export default function PayrollPage() {
       ) : tab === 'employees' ? (
         <EmployeesTab employees={employees} onRefresh={loadData} />
       ) : (
-        <PayrollRunTab employees={employees} runs={runs} onRefresh={loadData} />
+        <PayrollRunTab employees={employees} runs={runs} onRefresh={loadData} locationState={location.state} />
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -6,32 +7,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-export type ClassifyResult = {
-  category: string;
-  type: "income" | "expense" | "transfer";
-  intent:
-    | "salary_payment"
-    | "inventory_purchase"
-    | "invoice_payment"
-    | "general_expense"
-    | "general_income"
-    | "transfer"
-    | "unknown";
-  employee_name: string | null;
-  inventory_item: string | null;
-  quantity: number | null;
-  unit_price: number | null;
-  client_name: string | null;
-  clarification_needed: boolean;
-  ai_question: string | null;
-  confidence: number;
-};
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -44,7 +24,7 @@ serve(async (req) => {
       throw new Error("Missing transaction or userId");
     }
 
-    // ── Fetch business context ────────────────────────────────────────────────
+    // ── Fetch business context ─────────────────────────────────────────────────
     const [inventoryRes, employeesRes, categoriesRes] = await Promise.all([
       supabaseClient
         .from("inventory_items")
@@ -71,17 +51,17 @@ serve(async (req) => {
 
     const inventoryContext =
       inventoryItems.length > 0
-        ? `Known inventory items: ${inventoryItems.map((i: any) => `"${i.name}" (unit: ${i.unit})`).join(", ")}`
+        ? `Known inventory items: ${inventoryItems.map((i) => `"${i.name}" (unit: ${i.unit})`).join(", ")}`
         : "No inventory items on record yet.";
 
     const employeeContext =
       employees.length > 0
-        ? `Known employees: ${employees.map((e: any) => `"${e.full_name}" (${e.role})`).join(", ")}`
+        ? `Known employees: ${employees.map((e) => `"${e.full_name}" (${e.role})`).join(", ")}`
         : "No employees on record yet.";
 
-    const categoryContext = categories.map((c: any) => c.name).join(", ");
+    const categoryContext = categories.map((c) => c.name).join(", ");
 
-    // ── Build prompt ──────────────────────────────────────────────────────────
+    // ── Build prompt ───────────────────────────────────────────────────────────
     const systemPrompt = `You are ROVA, an intelligent business financial assistant for Nigerian SMEs.
 Your task is to classify a financial transaction and detect special business intents.
 
@@ -120,47 +100,44 @@ Amount: ₦${transaction.amount?.toLocaleString() ?? "unknown"}
 Type hint: ${transaction.type ?? "unknown"}
 Date: ${transaction.date ?? "unknown"}`;
 
-    // ── Call DeepSeek (or fallback to keyword classify) ───────────────────────
-    let result: ClassifyResult;
+    // ── Call Gemini (or fallback to keyword classify) ──────────────────────────
+    let result;
 
-    if (DEEPSEEK_API_KEY) {
+    if (GEMINI_API_KEY) {
       try {
-        const dsResponse = await fetch("https://api.deepseek.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "deepseek-chat",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.1,
-            max_tokens: 400,
-            response_format: { type: "json_object" },
-          }),
-        });
+        const geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.1,
+              },
+            }),
+          }
+        );
 
-        if (!dsResponse.ok) {
-          const errText = await dsResponse.text();
-          throw new Error(`DeepSeek API error: ${dsResponse.status} ${errText}`);
+        if (!geminiResponse.ok) {
+          const errText = await geminiResponse.text();
+          throw new Error(`Gemini API error: ${geminiResponse.status} ${errText}`);
         }
 
-        const dsData = await dsResponse.json();
-        const raw = dsData.choices?.[0]?.message?.content ?? "{}";
-        result = JSON.parse(raw) as ClassifyResult;
-      } catch (dsError) {
-        console.error("DeepSeek API call failed. Using keywordFallback classifier.", dsError);
+        const geminiData = await geminiResponse.json();
+        const raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+        result = JSON.parse(raw);
+      } catch (geminiError) {
+        console.error("Gemini API call failed. Using keywordFallback classifier.", geminiError);
         result = keywordFallback(transaction.description ?? "", transaction.type ?? "expense");
       }
     } else {
-      // ── Fallback: keyword-based classify (no API key yet) ────────────────
       result = keywordFallback(transaction.description ?? "", transaction.type ?? "expense");
     }
 
-    // ── Handle DB updates and notifications ──────────────────────────────────
+    // ── Handle DB updates and notifications ───────────────────────────────────
     if (transaction.id && mode !== "preview") {
       if (result.clarification_needed) {
         // Insert notification
@@ -215,9 +192,8 @@ Date: ${transaction.date ?? "unknown"}`;
         if (result.intent === "inventory_purchase") {
           const itemName = result.inventory_item || "Inventory Item";
           const qty = result.quantity || 1;
-          const unitCost = result.unit_price || ((transaction.amount || 0) / qty);
+          const unitCost = result.unit_price || (transaction.amount || 0) / qty;
 
-          // Find existing item
           const { data: existing } = await supabaseClient
             .from("inventory_items")
             .select("id, current_stock")
@@ -225,7 +201,7 @@ Date: ${transaction.date ?? "unknown"}`;
             .ilike("name", `%${itemName}%`)
             .maybeSingle();
 
-          let itemId: string;
+          let itemId;
 
           if (existing) {
             await supabaseClient
@@ -253,7 +229,6 @@ Date: ${transaction.date ?? "unknown"}`;
           }
 
           if (itemId) {
-            // Record inventory transaction
             await supabaseClient.from("inventory_transactions").insert({
               user_id: userId,
               item_id: itemId,
@@ -267,7 +242,6 @@ Date: ${transaction.date ?? "unknown"}`;
             });
           }
         } else if (result.intent === "salary_payment" && result.employee_name) {
-          // Find employee
           const { data: employee } = await supabaseClient
             .from("employees")
             .select("*")
@@ -281,13 +255,12 @@ Date: ${transaction.date ?? "unknown"}`;
             const month = txDate.getMonth();
             const monthNames = [
               "January", "February", "March", "April", "May", "June",
-              "July", "August", "September", "October", "November", "December"
+              "July", "August", "September", "October", "November", "December",
             ];
             const monthLabel = `${monthNames[month]} ${year}`;
 
             const firstDay = new Date(year, month, 1);
             const lastDay = new Date(year, month + 1, 0);
-
             const periodStart = firstDay.toISOString().split("T")[0];
             const periodEnd = lastDay.toISOString().split("T")[0];
 
@@ -296,8 +269,7 @@ Date: ${transaction.date ?? "unknown"}`;
             const pension = amount * ((employee.pension_rate || 8.0) / 100);
             const net = amount - paye - pension;
 
-            // Find or create payroll run
-            let runId: string;
+            let runId;
             const { data: existingRun } = await supabaseClient
               .from("payroll_runs")
               .select("*")
@@ -340,21 +312,18 @@ Date: ${transaction.date ?? "unknown"}`;
             }
 
             if (runId) {
-              // Create payslip
-              await supabaseClient
-                .from("payslips")
-                .insert({
-                  payroll_run_id: runId,
-                  employee_id: employee.id,
-                  user_id: userId,
-                  gross_salary: amount,
-                  paye_deduction: paye,
-                  pension_deduction: pension,
-                  other_deductions: 0,
-                  net_pay: net,
-                  transaction_id: transaction.id,
-                  notes: "Auto-linked by ROVA AI",
-                });
+              await supabaseClient.from("payslips").insert({
+                payroll_run_id: runId,
+                employee_id: employee.id,
+                user_id: userId,
+                gross_salary: amount,
+                paye_deduction: paye,
+                pension_deduction: pension,
+                other_deductions: 0,
+                net_pay: net,
+                transaction_id: transaction.id,
+                notes: "Auto-linked by ROVA AI",
+              });
             }
           }
         }
@@ -365,7 +334,7 @@ Date: ${transaction.date ?? "unknown"}`;
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("ai-classify error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -374,8 +343,8 @@ Date: ${transaction.date ?? "unknown"}`;
   }
 });
 
-// ── Keyword fallback (used when no DeepSeek key is set) ──────────────────────
-function keywordFallback(description: string, typeHint: string): ClassifyResult {
+// ── Keyword fallback (used when no Gemini key is set) ─────────────────────────
+function keywordFallback(description, typeHint) {
   const d = description.toLowerCase();
 
   if (/salary|salari|wage|payroll|monthly pay|staff pay|worker pay/.test(d)) {
@@ -390,9 +359,7 @@ function keywordFallback(description: string, typeHint: string): ClassifyResult 
       unit_price: null,
       client_name: null,
       clarification_needed: !nameMatch,
-      ai_question: !nameMatch
-        ? "This looks like a salary payment. Who is it for?"
-        : null,
+      ai_question: !nameMatch ? "This looks like a salary payment. Who is it for?" : null,
       confidence: nameMatch ? 0.82 : 0.65,
     };
   }
@@ -445,9 +412,7 @@ function keywordFallback(description: string, typeHint: string): ClassifyResult 
     unit_price: null,
     client_name: null,
     clarification_needed: !isClear,
-    ai_question: !isClear
-      ? `What was this transaction of "${description}" for?`
-      : null,
+    ai_question: !isClear ? `What was this transaction of "${description}" for?` : null,
     confidence: isClear ? 0.6 : 0.3,
   };
 }

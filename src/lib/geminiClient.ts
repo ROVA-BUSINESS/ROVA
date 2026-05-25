@@ -65,7 +65,7 @@ export async function classifyTransaction(
   return data.result as ClassifyResult;
 }
 
-// ── Chat with DeepSeek via edge function ──────────────────────────────────────
+// ── Chat with Gemini via edge function ────────────────────────────────────────
 
 export type ChatPayload = {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
@@ -83,7 +83,7 @@ export type ChatResponse = {
 };
 
 export type ChatAction = {
-  type: 'create_invoice' | 'add_inventory' | 'record_payroll' | 'clarify_transaction' | 'view_report';
+  type: 'create_invoice' | 'add_inventory' | 'record_payroll' | 'clarify_transaction' | 'view_report' | 'view_invoice';
   label: string;
   payload?: Record<string, any>;
 };
@@ -345,4 +345,3 @@ export async function applyPayrollIntent(params: {
 
   return { success: true, payslipId: payslip.id };
 }
-

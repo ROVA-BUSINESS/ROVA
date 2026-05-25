@@ -3,7 +3,7 @@ import { Sparkles, CheckCircle } from 'lucide-react';
 import { supabase, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { autoClassify } from '../lib/categorise';
-import { classifyTransaction, applyInventoryIntent, applyPayrollIntent, type ClassifyResult } from '../lib/deepseekClient';
+import { classifyTransaction, applyInventoryIntent, applyPayrollIntent, type ClassifyResult } from '../lib/geminiClient';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input from './ui/Input';
