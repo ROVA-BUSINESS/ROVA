@@ -16,7 +16,7 @@ import {
   dismissClarification,
   type PendingClarification,
   type ChatAction,
-} from '../lib/geminiClient';
+} from '../lib/deepseekClient';
 import Card from '../components/ui/Card';
 import { useMobile } from '../hooks/useMobile';
 import { createInvoice } from '../lib/invoiceService';

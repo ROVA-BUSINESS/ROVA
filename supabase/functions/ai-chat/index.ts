@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY");
 
     const body = await req.json();
     const { messages, context } = body;
@@ -94,40 +94,46 @@ Rules:
 - Always include an action button where it makes sense.
 - Reply ONLY with valid JSON.`;
 
-    // ── Call Gemini (or fallback) ──────────────────────────────────────────────
+    // ── Call DeepSeek (or fallback) ─────────────────────────────────────────────
     let reply = "";
     let actions = [];
 
-    if (GEMINI_API_KEY) {
+    if (DEEPSEEK_API_KEY) {
       try {
-        const geminiContents = messages.map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }],
-        }));
+        const deepseekMessages = [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.content,
+          })),
+        ];
 
-        const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        const deepseekResponse = await fetch(
+          "https://api.deepseek.com/chat/completions",
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${DEEPSEEK_API_KEY}`,
+            },
             body: JSON.stringify({
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              contents: geminiContents,
-              generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.3,
+              model: "deepseek-chat",
+              messages: deepseekMessages,
+              temperature: 0.3,
+              response_format: {
+                type: "json_object",
               },
             }),
           }
         );
 
-        if (!geminiResponse.ok) {
-          const errText = await geminiResponse.text();
-          throw new Error(`Gemini API error: ${geminiResponse.status} ${errText}`);
+        if (!deepseekResponse.ok) {
+          const errText = await deepseekResponse.text();
+          throw new Error(`DeepSeek API error: ${deepseekResponse.status} ${errText}`);
         }
 
-        const geminiData = await geminiResponse.json();
-        const raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+        const deepseekData = await deepseekResponse.json();
+        const raw = deepseekData.choices?.[0]?.message?.content ?? "{}";
 
         try {
           const parsed = JSON.parse(raw);
@@ -136,8 +142,8 @@ Rules:
         } catch {
           reply = raw;
         }
-      } catch (geminiError) {
-        console.error("Gemini API call failed. Using keyword fallback chat.", geminiError);
+      } catch (deepseekError) {
+        console.error("DeepSeek API call failed. Using keyword fallback chat.", deepseekError);
         const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() ?? "";
         reply = keywordFallbackChat(lastMsg, totalBalance, thisIncome, thisExpense, net, txs.length);
         actions = detectActions(lastMsg);
@@ -162,7 +168,7 @@ Rules:
   }
 });
 
-// ── Keyword fallback chat (no Gemini key) ─────────────────────────────────────
+// ── Keyword fallback chat (no DeepSeek key) ───────────────────────────────────
 function fmt(n) {
   return `₦${n.toLocaleString("en-NG")}`;
 }

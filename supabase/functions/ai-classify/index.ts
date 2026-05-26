@@ -11,7 +11,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY");
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -100,37 +100,43 @@ Amount: ₦${transaction.amount?.toLocaleString() ?? "unknown"}
 Type hint: ${transaction.type ?? "unknown"}
 Date: ${transaction.date ?? "unknown"}`;
 
-    // ── Call Gemini (or fallback to keyword classify) ──────────────────────────
+    // ── Call DeepSeek (or fallback to keyword classify) ────────────────────────
     let result;
 
-    if (GEMINI_API_KEY) {
+    if (DEEPSEEK_API_KEY) {
       try {
-        const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        const deepseekResponse = await fetch(
+          "https://api.deepseek.com/chat/completions",
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${DEEPSEEK_API_KEY}`,
+            },
             body: JSON.stringify({
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-              generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.1,
+              model: "deepseek-chat",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              temperature: 0.1,
+              response_format: {
+                type: "json_object",
               },
             }),
           }
         );
 
-        if (!geminiResponse.ok) {
-          const errText = await geminiResponse.text();
-          throw new Error(`Gemini API error: ${geminiResponse.status} ${errText}`);
+        if (!deepseekResponse.ok) {
+          const errText = await deepseekResponse.text();
+          throw new Error(`DeepSeek API error: ${deepseekResponse.status} ${errText}`);
         }
 
-        const geminiData = await geminiResponse.json();
-        const raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+        const deepseekData = await deepseekResponse.json();
+        const raw = deepseekData.choices?.[0]?.message?.content ?? "{}";
         result = JSON.parse(raw);
-      } catch (geminiError) {
-        console.error("Gemini API call failed. Using keywordFallback classifier.", geminiError);
+      } catch (deepseekError) {
+        console.error("DeepSeek API call failed. Using keywordFallback classifier.", deepseekError);
         result = keywordFallback(transaction.description ?? "", transaction.type ?? "expense");
       }
     } else {
@@ -343,7 +349,7 @@ Date: ${transaction.date ?? "unknown"}`;
   }
 });
 
-// ── Keyword fallback (used when no Gemini key is set) ─────────────────────────
+// ── Keyword fallback (used when no DeepSeek key is set) ───────────────────────
 function keywordFallback(description, typeHint) {
   const d = description.toLowerCase();
 

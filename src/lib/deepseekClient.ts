@@ -65,7 +65,7 @@ export async function classifyTransaction(
   return data.result as ClassifyResult;
 }
 
-// ── Chat with Gemini via edge function ────────────────────────────────────────
+// ── Chat with DeepSeek via edge function ──────────────────────────────────────
 
 export type ChatPayload = {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
