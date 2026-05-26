@@ -320,8 +320,8 @@ export default function LandingPage() {
       <section style={{ padding: '80px 24px', background: 'rgba(147,51,234,0.03)', borderTop: '1px solid var(--bg-border)', borderBottom: '1px solid var(--bg-border)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 80 }}>
           {[
-            { label: 'Transactions Processed', value: '₦500M+' },
-            { label: 'Active Businesses', value: '5,000+' },
+            { label: 'Transactions Processed', value: '₦50M+' },
+            { label: 'Active Businesses', value: '150+' },
             { label: 'Platform Uptime', value: '99.99%' },
             { label: 'Support Response', value: '< 2 mins' }
           ].map((s, i) => (
@@ -421,7 +421,7 @@ export default function LandingPage() {
               Scale your business <br /> without the complexity.
             </h2>
             <p style={{ fontSize: 'clamp(18px, 1.5vw, 22px)', color: 'rgba(255,255,255,0.9)', marginBottom: 48, maxWidth: 640, marginInline: 'auto', fontWeight: 500, lineHeight: 1.6 }}>
-              Join 5,000+ businesses and founders who trust ROVA to manage their financial operations. Scale with zero subscription fees today.
+              Join 150+ businesses and founders who trust ROVA to manage their financial operations. Scale with zero subscription fees today.
             </p>
             <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
               <Link to="/signup" style={{
