@@ -65,10 +65,14 @@ export default function LandingPage() {
 
     const fullPrompt = simulationData[activeSimulation].prompt;
     let index = 0;
+    let accumulated = '';
+    
     const interval = setInterval(() => {
-      setTypingText((prev) => prev + fullPrompt.charAt(index));
-      index++;
-      if (index >= fullPrompt.length) {
+      if (index < fullPrompt.length) {
+        accumulated += fullPrompt.charAt(index);
+        setTypingText(accumulated);
+        index++;
+      } else {
         clearInterval(interval);
         setTimeout(() => {
           setIsTyping(false);
