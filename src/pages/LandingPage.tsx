@@ -10,17 +10,10 @@ import {
   Calculator,
   Users2,
   CheckCircle2,
-  TrendingUp,
-  DollarSign,
-  Activity,
-  ChevronRight,
-  Layout,
   Sparkles,
   MessageSquare,
   ArrowUpRight,
-  TrendingDown,
   Check,
-  ArrowDownRight
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 
