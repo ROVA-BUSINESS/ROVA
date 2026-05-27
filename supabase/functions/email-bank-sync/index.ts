@@ -352,7 +352,7 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
             account_id: setting.account_id,
             amount: parsed.amount,
             type: parsed.type,
-            description: `Email Sync: ${parsed.description}`,
+            description: parsed.description,
             date: parsed.date,
             created_at: parsed.date,
             reference: parsed.reference,
@@ -486,12 +486,15 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   ];
 
   // ---- DESCRIPTION / NARRATION ----
+  // FirstBank HTML-stripped format: "Narration CPWInward: 100004... /MAYOKUN V"
+  // The HTML table strips to: label<whitespace>value on the same or next line with no colon after label.
+  // We make the colon optional and capture generously including "/" and alphanumerics.
   const descPatterns = [
-    // Same line match (requires colon, prefers same-line value)
-    /(?:description|narration|remarks|details|info)\s*:\s*((?!(?:date|time|amount|balance|reference|ref|type|account|credit|debit|ledger|cleared|available|value|post|status|channel|source|terminal|location)\b)[^\n\r]{3,80})/i,
-    // Next line match (requires colon, matches next-line value if not a header)
-    /(?:description|narration|remarks|details|info)\s*:\s*\r?\n\s*((?!(?:date|time|amount|balance|reference|ref|type|account|credit|debit|ledger|cleared|available|value|post|status|channel|source|terminal|location)\b)[^\n\r]{3,80})/i,
-    // Fallback: general "payment for" / "transfer to" patterns
+    // FirstBank / any bank: "Narration   CPWInward: ..." (colon-less label, space-separated value)
+    /(?:narration|description|remarks|details|info)\s*:?\s*([\w][^\n\r]{3,120})/i,
+    // Next line value: label on one line, value on next
+    /(?:narration|description|remarks|details|info)\s*:?\s*\r?\n\s*([^\n\r]{3,120})/i,
+    // Fallback: general "payment for" / "transfer to" / "transfer from" patterns
     /(?:payment for|transfer to|transfer from|from)[:\s]*([^\n\r]{3,60})/i,
   ];
 
@@ -553,12 +556,25 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   // Parse date using the exact time Gmail received the email (most reliable)
   const txDate = internalDate ? new Date(parseInt(internalDate)).toISOString() : new Date().toISOString();
 
+  // Build the best description from what was parsed:
+  // Priority: 1) narration field, 2) reference narration text, 3) fallback
+  let description = descMatch ? descMatch[1].trim() : null;
+
+  // If the description suspiciously short or is just a ref number, also try the reference narration text
+  if (!description || description.length < 5) {
+    // Try to extract readable text from the ref narration line (e.g. "/MAYOKUN V" part after the long digits)
+    const narrationFallback = text.match(/\/([A-Z][A-Z\s]{2,40})/i);
+    description = narrationFallback
+      ? narrationFallback[1].trim()
+      : `${isCredit ? 'Credit' : 'Debit'} via ${bank}`;
+  }
+
   return {
     amount,
     balanceAfter,
     type: txType,
     reference: refMatch ? refMatch[1].trim() : `EMAIL-${msgId}`,
-    description: descMatch ? descMatch[1].trim() : `${isCredit ? 'Credit' : 'Debit'} via ${bank}`,
+    description: description,
     date: txDate
   };
 }
