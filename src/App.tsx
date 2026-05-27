@@ -29,6 +29,9 @@ import AcceptInvitePage from './pages/auth/AcceptInvitePage';
 import GmailCallbackPage from './pages/auth/GmailCallbackPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
+import SolutionsPage from './pages/SolutionsPage';
+import CompanyPage from './pages/CompanyPage';
+import PricingPage from './pages/PricingPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -79,6 +82,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/solutions" element={<SolutionsPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/company" element={<CompanyPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />

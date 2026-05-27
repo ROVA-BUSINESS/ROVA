@@ -382,9 +382,10 @@ export default function LandingPage() {
           <div className="lp-nav-inner">
             <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="lp-nav-logo" />
             <div className="lp-nav-links">
-              {['Features', 'Solutions', 'Pricing', 'Company'].map(item => (
-                <a key={item} href={`#${item.toLowerCase()}`} className="lp-nav-link">{item}</a>
-              ))}
+              <Link to="/features" className="lp-nav-link">Features</Link>
+              <Link to="/solutions" className="lp-nav-link">Solutions</Link>
+              <Link to="/pricing" className="lp-nav-link">Pricing</Link>
+              <Link to="/company" className="lp-nav-link">Company</Link>
             </div>
             <div className="lp-nav-actions">
               <Link to="/login" className="lp-login-btn">Login</Link>
@@ -773,8 +774,13 @@ export default function LandingPage() {
                     <h4 style={{ fontWeight: 800, marginBottom: 20, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>{col.title}</h4>
                     <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
                       {col.items.map(item => {
-                        const isRouterLink = item === 'Privacy' || item === 'Terms';
-                        const path = item === 'Privacy' ? '/privacy' : '/terms';
+                        const isRouterLink = item === 'Privacy' || item === 'Terms' || item === 'About Us' || col.title === 'Solutions';
+                        let path = '#';
+                        if (item === 'Privacy') path = '/privacy';
+                        else if (item === 'Terms') path = '/terms';
+                        else if (item === 'About Us') path = '/company';
+                        else if (col.title === 'Solutions') path = '/solutions';
+
                         return (
                           <li key={item}>
                             {isRouterLink
