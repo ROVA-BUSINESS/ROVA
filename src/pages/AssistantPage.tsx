@@ -14,6 +14,7 @@ import {
   fetchPendingClarifications,
   resolveClarification,
   dismissClarification,
+  applyPayrollIntent,
   type PendingClarification,
   type ChatAction,
 } from '../lib/deepseekClient';
@@ -284,7 +285,6 @@ export default function AssistantPage() {
       };
       setMessages(prev => [...prev, userMsg, assistantMsg]);
 
-      // Call classifyTransaction to run the classification on the transaction again
       if (clarification.transaction_id) {
         classifyTransaction(
           {
@@ -307,23 +307,90 @@ export default function AssistantPage() {
     setClarifications(prev => prev.filter(c => c.id !== id));
   }
 
+  // ── Helper: Process Payroll ─────────────────────────────────────────────────
+
+  async function processPayrollFromAI(employeeName: string, grossAmount: number) {
+    const loadingId = `payroll-loading-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: loadingId, role: 'assistant',
+      content: `⏳ Processing salary for **${employeeName}**…`,
+      timestamp: new Date(),
+    }]);
+
+    const now = new Date();
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const periodLabel = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+
+    try {
+      const { data: tx, error: txErr } = await supabase.from('transactions').insert({
+        user_id: user!.id,
+        amount: grossAmount,
+        type: 'expense',
+        description: `Salary — ${employeeName} (${periodLabel})`,
+        date: periodEnd,
+        notes: 'Processed via ROVA AI Assistant',
+      }).select().maybeSingle();
+
+      if (txErr) throw txErr;
+
+      const result = await applyPayrollIntent({
+        userId: user!.id,
+        employeeName,
+        amount: grossAmount,
+        transactionId: tx?.id || '',
+        date: periodEnd,
+      });
+
+      if (!result.success) throw new Error(result.error || 'Payroll processing failed');
+
+      const payeRate = 7.5;
+      const pensionRate = 8.0;
+      const paye = grossAmount * (payeRate / 100);
+      const pension = grossAmount * (pensionRate / 100);
+      const net = grossAmount - paye - pension;
+
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+        id: `payroll-ok-${Date.now()}`, role: 'assistant',
+        content: `✅ Payroll processed for **${employeeName}** (${periodLabel}):\n\n` +
+          `• Gross: ₦${grossAmount.toLocaleString()}\n` +
+          `• PAYE (${payeRate}%): ₦${paye.toLocaleString()}\n` +
+          `• Pension (${pensionRate}%): ₦${pension.toLocaleString()}\n` +
+          `• **Net Pay: ₦${net.toLocaleString()}**\n\n` +
+          `Expense transaction and payslip have been recorded automatically.`,
+        timestamp: new Date(),
+        actions: [{ type: 'view_report', label: '📊 View Payroll', payload: {} }],
+      }));
+    } catch (err: any) {
+      const msg = err.message?.includes('not found')
+        ? `I couldn't find an employee named **"${employeeName}"** in your records. Please add them in the Payroll → Employees section first, then I can process their salary directly.`
+        : `❌ Payroll error: ${err.message || err}`;
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+        id: `payroll-err-${Date.now()}`, role: 'assistant',
+        content: msg,
+        timestamp: new Date(),
+      }));
+    } finally {
+      setTyping(false);
+    }
+  }
+
   // ── Handle action buttons ───────────────────────────────────────────────────
 
-  function handleAction(action: ChatAction) {
+  async function handleAction(action: ChatAction) {
     switch (action.type) {
+
+      // ── Invoice ────────────────────────────────────────────────────────────
       case 'create_invoice': {
         const payload = action.payload || {};
         if (payload.client_name) {
-          // Direct creation!
           setTyping(true);
           const loadingMsgId = `loading-${Date.now()}`;
           setMessages(prev => [...prev, {
-            id: loadingMsgId,
-            role: 'assistant',
-            content: `Creating invoice for ${payload.client_name}...`,
-            timestamp: new Date()
+            id: loadingMsgId, role: 'assistant',
+            content: `⏳ Creating invoice for **${payload.client_name}**…`,
+            timestamp: new Date(),
           }]);
-
           createInvoice({
             userId: user!.id,
             client_name: payload.client_name,
@@ -334,61 +401,73 @@ export default function AssistantPage() {
             notes: payload.notes || 'Created via ROVA AI Assistant',
             payment_status: payload.payment_status || 'unpaid',
             amount_paid: Number(payload.amount_paid) || 0,
-            items: (payload.items && Array.isArray(payload.items)) ? payload.items.map((item: any) => ({
-              description: item.description || 'Service',
-              quantity: Number(item.quantity) || 1,
-              unit_price: Number(item.unit_price) || 0,
-              inventory_item_id: item.inventory_item_id || null,
-            })) : [{
-              description: payload.item_description || payload.description || 'Service',
-              quantity: 1,
-              unit_price: Number(payload.amount) || 0,
-              inventory_item_id: null,
-            }]
-          }).then(newInv => {
-            // Remove the loading message, add success message
-            setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
-              id: `success-${Date.now()}`,
-              role: 'assistant',
-              content: `🎉 I have successfully created invoice **${newInv.invoice_number}** for **${newInv.client_name}** totaling **₦${newInv.total.toLocaleString()}**!`,
-              timestamp: new Date(),
-              actions: [
-                {
-                  type: 'view_invoice',
-                  label: 'View Invoice',
-                  payload: { invoice_id: newInv.id }
-                }
-              ]
-            }));
-          }).catch(err => {
-            console.error(err);
-            setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
-              id: `err-${Date.now()}`,
-              role: 'assistant',
-              content: `Sorry, I couldn't create the invoice: ${err.message || err}`,
-              timestamp: new Date()
-            }));
-          }).finally(() => {
-            setTyping(false);
-          });
+            items: (payload.items && Array.isArray(payload.items))
+              ? payload.items.map((item: any) => ({
+                  description: item.description || 'Service',
+                  quantity: Number(item.quantity) || 1,
+                  unit_price: Number(item.unit_price) || 0,
+                  inventory_item_id: item.inventory_item_id || null,
+                }))
+              : [{
+                  description: payload.item_description || payload.description || 'Professional Services',
+                  quantity: 1,
+                  unit_price: Number(payload.amount) || 0,
+                  inventory_item_id: null,
+                }],
+          })
+            .then(newInv => {
+              setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
+                id: `inv-ok-${Date.now()}`, role: 'assistant',
+                content: `✅ Invoice **${newInv.invoice_number}** created for **${newInv.client_name}** — total **₦${newInv.total.toLocaleString()}**. You can review and send it from the Invoices page.`,
+                timestamp: new Date(),
+                actions: [{ type: 'view_invoice', label: '📄 View Invoice', payload: { invoice_id: newInv.id } }],
+              }));
+            })
+            .catch(err => {
+              setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
+                id: `inv-err-${Date.now()}`, role: 'assistant',
+                content: `❌ Couldn't create the invoice: ${err.message || err}`,
+                timestamp: new Date(),
+              }));
+            })
+            .finally(() => setTyping(false));
         } else {
-          // Fallback to manual creation modal prefill
           navigate('/app/invoices', { state: { openCreateModal: true, payload } });
         }
         break;
       }
+
       case 'view_invoice':
         navigate('/app/invoices', { state: { viewInvoiceId: action.payload?.invoice_id || action.payload?.id } });
         break;
+
+      // ── Payroll ────────────────────────────────────────────────────────────
+      case 'record_payroll': {
+        const payload = action.payload || {};
+        const employeeName: string = payload.employee_name || payload.employee || '';
+        const grossAmount: number = Number(payload.gross_amount || payload.amount || 0);
+
+        if (employeeName && grossAmount > 0) {
+          // Has enough info — process directly via the helper
+          setTyping(true);
+          await processPayrollFromAI(employeeName, grossAmount);
+        } else {
+          // Not enough info — open payroll page as fallback
+          navigate('/app/payroll', { state: { openCreateModal: true, payload } });
+        }
+        break;
+      }
+
+      // ── Inventory ──────────────────────────────────────────────────────────
       case 'add_inventory':
         navigate('/app/inventory', { state: { openCreateModal: true, payload: action.payload } });
         break;
-      case 'record_payroll':
-        navigate('/app/payroll', { state: { openCreateModal: true, payload: action.payload } });
-        break;
+
+      // ── Reports ────────────────────────────────────────────────────────────
       case 'view_report':
         navigate('/app/reports');
         break;
+
       default:
         break;
     }
