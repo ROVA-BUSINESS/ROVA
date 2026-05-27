@@ -22,7 +22,28 @@ export default function AppLayout() {
   const [setupError, setSetupError] = useState('');
 
   useEffect(() => {
-    if (user) loadUnread();
+    if (!user) return;
+    loadUnread();
+
+    const channel = supabase
+      .channel('realtime-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadUnread();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   async function loadUnread() {
