@@ -491,17 +491,28 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   ];
 
   // ---- DESCRIPTION / NARRATION ----
-  // FirstBank HTML-stripped format: "Narration CPWInward: 100004... /MAYOKUN V"
-  // The HTML table strips to: label<whitespace>value on the same or next line with no colon after label.
-  // We make the colon optional and capture generously including "/" and alphanumerics.
-  const descPatterns = [
-    // FirstBank / any bank: "Narration   CPWInward: ..." (colon-less label, space-separated value)
-    /(?:narration|description|remarks|details|info)\s*:?\s*([\w][^\n\r]{3,120})/i,
-    // Next line value: label on one line, value on next
-    /(?:narration|description|remarks|details|info)\s*:?\s*\r?\n\s*([^\n\r]{3,120})/i,
-    // Fallback: general "payment for" / "transfer to" / "transfer from" patterns
-    /(?:payment for|transfer to|transfer from|from)[:\s]*([^\n\r]{3,60})/i,
-  ];
+  // Bank-specific field mapping:
+  //   First Bank  → reads the "Narration" field from the receipt
+  //   All others  → reads the "Description" field from the receipt
+  // Both patterns are colon-optional because HTML stripping can remove punctuation.
+  const isFirstBank = /first\s*bank/i.test(bank);
+  const descPatterns = isFirstBank
+    ? [
+        // First Bank: primary field is "Narration"
+        /(?:narration)\s*:?\s*([\w][^\n\r]{3,120})/i,
+        /(?:narration)\s*:?\s*\r?\n\s*([^\n\r]{3,120})/i,
+        // Fallback to description/remarks if no narration label found
+        /(?:description|remarks|details)\s*:?\s*([\w][^\n\r]{3,120})/i,
+      ]
+    : [
+        // All other banks: primary field is "Description"
+        /(?:description|details|info)\s*:?\s*([\w][^\n\r]{3,120})/i,
+        /(?:description|details|info)\s*:?\s*\r?\n\s*([^\n\r]{3,120})/i,
+        // Fallback to narration/remarks if no description label found
+        /(?:narration|remarks)\s*:?\s*([\w][^\n\r]{3,120})/i,
+        // Generic fallback
+        /(?:payment for|transfer to|transfer from|from)[:\s]*([^\n\r]{3,60})/i,
+      ];
 
 
   // ---- DATE ----
@@ -562,33 +573,13 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   // Parse date using the exact time Gmail received the email (most reliable)
   const txDate = internalDate ? new Date(parseInt(internalDate)).toISOString() : new Date().toISOString();
 
-  // Build the best description from what was parsed:
-  // Priority: 1) narration field, 2) reference narration text, 3) fallback
+  // Build description from the matched field (Narration for First Bank, Description for others).
+  // The descPatterns above already target the correct labeled field per bank.
   let description = descMatch ? descMatch[1].trim() : null;
 
-  // First Bank (and any NIP/CPW transfers) narration format:
-  //   "CPWInward: 100004260517135717160126116469 /JOHN DOE"
-  //   "NIPInward: 000123456789 /JANE SMITH"
-  //   "NIPOutward: 000123456789 /MERCHANT NAME"
-  // The human-readable part is ALWAYS after the last "/" — extract that instead of
-  // storing the raw transfer code + long digit string as the description.
-  if (description) {
-    const nipClean = description.match(
-      /^(?:CPW(?:Inward|Outward)|NIP(?:Inward|Outward)|Transfer)[:\s]+\d[\d\s]*\/(.+)$/i
-    );
-    if (nipClean) {
-      // Use just the readable text after the "/"
-      description = nipClean[1].trim();
-    }
-  }
-
-  // If description is still missing or suspiciously short, try to pull the readable
-  // counterparty name from anywhere in the narration line (e.g. "/MAYOKUN V")
-  if (!description || description.length < 5) {
-    const narrationFallback = text.match(/\/([A-Z][A-Z\s]{2,40})/i);
-    description = narrationFallback
-      ? narrationFallback[1].trim()
-      : `${isCredit ? 'Credit' : 'Debit'} via ${bank}`;
+  // Last-resort fallback if nothing was captured
+  if (!description || description.length < 3) {
+    description = `${isCredit ? 'Credit' : 'Debit'} via ${bank}`;
   }
 
   return {
