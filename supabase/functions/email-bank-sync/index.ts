@@ -49,10 +49,20 @@ serve(async (req) => {
         throw new Error(tokenData.error_description || "Failed to exchange token with Google");
       }
 
-      // 2. Save the refresh token
+      // 2. Save the refresh token (only save if we actually got a refresh_token;
+      //    Google only returns it on the first authorization or when prompt=consent).
+      //    Never fall back to access_token — it's short-lived and will cause
+      //    invalid_grant errors on the next cron sync.
+      if (!tokenData.refresh_token) {
+        throw new Error(
+          "Google did not return a refresh_token. " +
+          "Please revoke ROVA's Gmail access at myaccount.google.com/permissions and reconnect."
+        );
+      }
+
       const { error: updateError } = await supabaseClient
         .from("bank_email_sync_settings")
-        .update({ refresh_token: tokenData.refresh_token || tokenData.access_token })
+        .update({ refresh_token: tokenData.refresh_token })
         .eq("account_id", accountId);
 
       if (updateError) throw updateError;
@@ -280,7 +290,7 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
   const fromQuery = senders.map((s: string) => s.includes('@') ? `from:${s}` : `from:@${s}`).join(' OR ');
   const query = encodeURIComponent(`(${fromQuery})`);
   const listResponse = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=10`,
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=25`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
@@ -325,77 +335,72 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
         latestBalance = parsed.balanceAfter;
       }
 
-      // 3. Record transaction (only if email was received AFTER the account was linked)
-      const emailDate = new Date(parsed.date);
-      const linkDate = new Date(setting.created_at);
-      
-      if (emailDate >= linkDate) {
-        // Explicitly check for duplicate reference to avoid inserting multiple times
-        // especially if the DB lacks a strict unique constraint on reference
-        const { data: existingTx } = await supabaseClient
-          .from("transactions")
-          .select("id")
-          .eq("account_id", setting.account_id)
-          .eq("reference", parsed.reference)
-          .maybeSingle();
+      // 3. Deduplicate by reference — always try to insert, skip if already exists.
+      //    We no longer filter by linkDate here because:
+      //    (a) the initial sync already ran at link time via exchange_token,
+      //    (b) cron re-syncs need to catch any emails that failed to parse the first time,
+      //    (c) the duplicate reference check below is the correct guard.
+      const { data: existingTx } = await supabaseClient
+        .from("transactions")
+        .select("id")
+        .eq("account_id", setting.account_id)
+        .eq("reference", parsed.reference)
+        .maybeSingle();
 
-        if (existingTx) {
-          console.log(`Transaction ${parsed.reference} already exists, skipping.`);
-          transactionsSaved++; // Count as successfully processed
-          continue;
-        }
+      if (existingTx) {
+        console.log(`Transaction ${parsed.reference} already exists, skipping.`);
+        transactionsSaved++; // Count as successfully processed
+        continue;
+      }
 
-        const { data: txData, error: txError } = await supabaseClient
-          .from("transactions")
-          .insert({
-            user_id: setting.user_id,
-            account_id: setting.account_id,
-            amount: parsed.amount,
-            type: parsed.type,
-            description: parsed.description,
-            date: parsed.date,
-            created_at: parsed.date,
-            reference: parsed.reference,
-            source: 'email',
-            is_verified: true
-          })
-          .select()
-          .single();
+      const { data: txData, error: txError } = await supabaseClient
+        .from("transactions")
+        .insert({
+          user_id: setting.user_id,
+          account_id: setting.account_id,
+          amount: parsed.amount,
+          type: parsed.type,
+          description: parsed.description,
+          date: parsed.date,
+          created_at: parsed.date,
+          reference: parsed.reference,
+          source: 'email',
+          is_verified: true
+        })
+        .select()
+        .single();
 
-        if (!txError || txError.code === '23505') {
-          transactionsSaved++;
+      if (!txError || txError.code === '23505') {
+        transactionsSaved++;
 
-          // ── Call ai-classify to classify and detect intents ──────────────
-          if (txData?.id) {
-            try {
-              await fetch(
-                `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-classify`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        // ── Call ai-classify to classify and detect intents ──────────────
+        if (txData?.id) {
+          try {
+            await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-classify`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({
+                  transaction: {
+                    id: txData.id,
+                    description: parsed.description,
+                    amount: parsed.amount,
+                    type: parsed.type,
+                    date: parsed.date,
                   },
-                  body: JSON.stringify({
-                    transaction: {
-                      id: txData.id,
-                      description: parsed.description,
-                      amount: parsed.amount,
-                      type: parsed.type,
-                      date: parsed.date,
-                    },
-                    userId: setting.user_id,
-                    mode: "full",
-                  }),
-                }
-              );
-            } catch (classifyErr) {
-              console.error("ai-classify call failed (non-fatal):", classifyErr);
-            }
+                  userId: setting.user_id,
+                  mode: "full",
+                }),
+              }
+            );
+          } catch (classifyErr) {
+            console.error("ai-classify call failed (non-fatal):", classifyErr);
           }
         }
-      } else {
-        console.log(`Skipping transaction ${parsed.reference} because it predates the account link time.`);
       }
     } else {
       console.log(`Could not parse email ${msg.id}`);
@@ -501,9 +506,10 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
 
   // ---- DATE ----
   const datePatterns = [
-    /(?:date[\\/\s]?time|date|time|transaction date)[:\s]*([^\n\r]{5,30})/i,
-    /(\d{1,2}[\\/\-]\\w{3}[\\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
-    /(\d{1,2}[\\/\-]\d{1,2}[\\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
+    /(?:date[\/\s]?time|date|time|transaction date)[:\s]*([^\n\r]{5,30})/i,
+    // e.g. "15-Jan-2025 10:30 AM" — fixed: was \\w{3} (literal backslash-w) instead of \w{3}
+    /(\d{1,2}[\/\-]\w{3}[\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
+    /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)?)/i,
     /(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)/i,
   ];
 
