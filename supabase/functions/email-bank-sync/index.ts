@@ -566,9 +566,25 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   // Priority: 1) narration field, 2) reference narration text, 3) fallback
   let description = descMatch ? descMatch[1].trim() : null;
 
-  // If the description suspiciously short or is just a ref number, also try the reference narration text
+  // First Bank (and any NIP/CPW transfers) narration format:
+  //   "CPWInward: 100004260517135717160126116469 /JOHN DOE"
+  //   "NIPInward: 000123456789 /JANE SMITH"
+  //   "NIPOutward: 000123456789 /MERCHANT NAME"
+  // The human-readable part is ALWAYS after the last "/" — extract that instead of
+  // storing the raw transfer code + long digit string as the description.
+  if (description) {
+    const nipClean = description.match(
+      /^(?:CPW(?:Inward|Outward)|NIP(?:Inward|Outward)|Transfer)[:\s]+\d[\d\s]*\/(.+)$/i
+    );
+    if (nipClean) {
+      // Use just the readable text after the "/"
+      description = nipClean[1].trim();
+    }
+  }
+
+  // If description is still missing or suspiciously short, try to pull the readable
+  // counterparty name from anywhere in the narration line (e.g. "/MAYOKUN V")
   if (!description || description.length < 5) {
-    // Try to extract readable text from the ref narration line (e.g. "/MAYOKUN V" part after the long digits)
     const narrationFallback = text.match(/\/([A-Z][A-Z\s]{2,40})/i);
     description = narrationFallback
       ? narrationFallback[1].trim()
