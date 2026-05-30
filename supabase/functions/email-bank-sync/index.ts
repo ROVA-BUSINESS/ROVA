@@ -491,28 +491,18 @@ function parseEmailBody(body: string, bank: string, msgId: string, internalDate?
   ];
 
   // ---- DESCRIPTION / NARRATION ----
-  // Bank-specific field mapping:
-  //   First Bank  → reads the "Narration" field from the receipt
-  //   All others  → reads the "Description" field from the receipt
-  // Both patterns are colon-optional because HTML stripping can remove punctuation.
-  const isFirstBank = /first\s*bank/i.test(bank);
-  const descPatterns = isFirstBank
-    ? [
-        // First Bank: primary field is "Narration"
-        /(?:narration)\s*:?\s*([\w][^\n\r]{3,120})/i,
-        /(?:narration)\s*:?\s*\r?\n\s*([^\n\r]{3,120})/i,
-        // Fallback to description/remarks if no narration label found
-        /(?:description|remarks|details)\s*:?\s*([\w][^\n\r]{3,120})/i,
-      ]
-    : [
-        // All other banks: primary field is "Description"
-        /(?:description|details|info)\s*:?\s*([\w][^\n\r]{3,120})/i,
-        /(?:description|details|info)\s*:?\s*\r?\n\s*([^\n\r]{3,120})/i,
-        // Fallback to narration/remarks if no description label found
-        /(?:narration|remarks)\s*:?\s*([\w][^\n\r]{3,120})/i,
-        // Generic fallback
-        /(?:payment for|transfer to|transfer from|from)[:\s]*([^\n\r]{3,60})/i,
-      ];
+  // Universal: whichever field the bank uses — "Narration" or "Description" —
+  // it gets mapped to the description column in ROVA. Try both, same order for all banks.
+  const descPatterns = [
+    // Same-line: "Narration: ..." or "Description: ..."
+    /(?:narration|description)\s*:?\s*([\w][^\n\r]{3,120})/i,
+    // Next-line: label on one line, value on the next
+    /(?:narration|description)\s*:?\s*\r?\n\s*([^\n\r]{3,120})/i,
+    // Wider fallback: remarks / details / info
+    /(?:remarks|details|info)\s*:?\s*([\w][^\n\r]{3,120})/i,
+    // Generic transfer fallback
+    /(?:payment for|transfer to|transfer from|from)[:\s]*([^\n\r]{3,60})/i,
+  ];
 
 
   // ---- DATE ----
