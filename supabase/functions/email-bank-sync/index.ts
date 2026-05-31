@@ -109,10 +109,13 @@ serve(async (req) => {
       if (tokenData.error) throw new Error(`Token refresh failed: ${tokenData.error_description || tokenData.error}`);
 
       const accessToken = tokenData.access_token;
+      // Apply the same connected_at cutoff in debug mode too
+      const connectedAt = new Date(setting.created_at);
+      const afterDate = `${connectedAt.getUTCFullYear()}/${String(connectedAt.getUTCMonth() + 1).padStart(2, '0')}/${String(connectedAt.getUTCDate()).padStart(2, '0')}`;
       const senders = setting.bank_sender_address.split(/,| OR /i).map((s: string) => s.trim()).filter(Boolean);
       // If entry is a full email address use as-is; if it's domain-only prefix with @ for Gmail search
       const fromQuery = senders.map((s: string) => s.includes('@') ? `from:${s}` : `from:@${s}`).join(' OR ');
-      const query = encodeURIComponent(`(${fromQuery})`);
+      const query = encodeURIComponent(`(${fromQuery}) after:${afterDate}`);
       const listResponse = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=3`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -280,15 +283,20 @@ async function syncAccount(supabaseClient: any, accountId: string, accessToken: 
     .eq("account_id", accountId)
     .single();
 
-  const isInitialSync = !setting?.accounts?.last_synced_at;
-
   if (!setting) throw new Error("Settings not found");
 
-  // 2. Query Gmail API — get last 10 emails from the bank
+  // 2. Build Gmail query — only fetch emails AFTER the bank was connected.
+  //    We use `created_at` (set at the moment the user linked the bank) as the
+  //    hard cutoff so historic emails are NEVER imported.
+  const connectedAt = new Date(setting.created_at);
+  // Gmail `after:` operator accepts YYYY/MM/DD (UTC date is fine as a floor)
+  const afterDate = `${connectedAt.getUTCFullYear()}/${String(connectedAt.getUTCMonth() + 1).padStart(2, '0')}/${String(connectedAt.getUTCDate()).padStart(2, '0')}`;
+
   const senders = setting.bank_sender_address.split(/,| OR /i).map((s: string) => s.trim()).filter(Boolean);
   // If entry is a full email address use as-is; if it's domain-only prefix with @ for Gmail search
   const fromQuery = senders.map((s: string) => s.includes('@') ? `from:${s}` : `from:@${s}`).join(' OR ');
-  const query = encodeURIComponent(`(${fromQuery})`);
+  // Enforce the connection-date cutoff on every sync — initial AND recurring cron
+  const query = encodeURIComponent(`(${fromQuery}) after:${afterDate}`);
   const listResponse = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=25`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
