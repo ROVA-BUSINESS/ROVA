@@ -38,6 +38,7 @@ const NIGERIAN_BANKS = [
   { name: 'Keystone Bank',                sender: 'keystonebankng.com' },
   { name: 'Stanbic IBTC Bank',            sender: 'stanbicibtcbank.com' },
   { name: 'Standard Chartered Bank',      sender: 'sc.com' },
+  { name: 'FCMB (First City Monument Bank)', sender: 'fcmb.com' },
 ];
 
 export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSyncSetupProps) {
