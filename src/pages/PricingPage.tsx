@@ -9,9 +9,9 @@ export default function PricingPage() {
   const isLight = theme === 'light';
 
   // Interactive Fee Calculator State
-  const [txCount, setTxCount] = useState(30);
+  const [txCount, setTxCount] = useState(100);
 
-  const flatFeePerTx = 1000;
+  const flatFeePerTx = 10;
   const rovaMonthlyCost = txCount * flatFeePerTx;
   const accountantMonthlyCost = 250000; // Flat ₦250,000
   const savings = accountantMonthlyCost - rovaMonthlyCost;
@@ -25,7 +25,7 @@ export default function PricingPage() {
             ? 'radial-gradient(circle at 0% 0%, rgba(147,51,234,0.03) 0%, #f4f4f5 100%)'
             : 'radial-gradient(circle at 0% 0%, rgba(147,51,234,0.05) 0%, #09090b 100%)'};
           color: var(--text-primary);
-          font-family: 'Inter', system-ui, sans-serif;
+          font-family: 'Roboto', sans-serif;
           overflow-x: hidden;
           position: relative;
           padding-bottom: 80px;
@@ -65,11 +65,11 @@ export default function PricingPage() {
         .prc-badge-text {
           font-size: 11px; font-weight: 800; color: var(--accent-light);
           text-transform: uppercase; letter-spacing: 2px;
-          font-family: 'Space Grotesk', sans-serif;
+          font-family: 'Roboto', sans-serif;
         }
         .prc-title {
           font-size: clamp(32px, 4vw, 56px); font-weight: 800; line-height: 1.15;
-          margin-bottom: 20px; font-family: 'Space Grotesk', sans-serif;
+          margin-bottom: 20px; font-family: 'Roboto', sans-serif;
         }
         .prc-subtitle {
           font-size: clamp(15px, 1.8vw, 18px); color: var(--text-secondary); line-height: 1.6;
@@ -99,8 +99,8 @@ export default function PricingPage() {
           letter-spacing: 1px; padding: 6px 14px; border-radius: var(--radius-full);
           box-shadow: 0 4px 12px rgba(147,51,234,0.3);
         }
-        .prc-plan-name { font-size: 24px; font-weight: 800; font-family: 'Space Grotesk, sans-serif'; }
-        .prc-plan-price { font-size: 40px; font-weight: 800; font-family: 'Space Grotesk, sans-serif'; }
+        .prc-plan-name { font-size: 24px; font-weight: 800; font-family: 'Roboto', sans-serif; }
+        .prc-plan-price { font-size: 40px; font-weight: 800; font-family: 'Roboto', sans-serif; }
         .prc-plan-price span { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
         
         .prc-features-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; }
@@ -121,7 +121,7 @@ export default function PricingPage() {
           display: flex; flex-direction: column; gap: 28px;
         }
         .prc-calc-title {
-          font-size: 20px; font-weight: 800; font-family: 'Space Grotesk, sans-serif';
+          font-size: 20px; font-weight: 800; font-family: 'Roboto', sans-serif;
           display: flex; alignItems: center; gap: 8px;
         }
         .prc-slider {
@@ -144,7 +144,7 @@ export default function PricingPage() {
           border: 1px solid var(--bg-border); border-radius: var(--radius-lg);
           padding: 16px; background: ${isLight ? '#f9f9fb' : 'rgba(255,255,255,0.01)'};
         }
-        .prc-metric-num { font-size: 22px; font-weight: 800; margin-bottom: 2px; font-family: 'Space Grotesk, sans-serif'; }
+        .prc-metric-num { font-size: 22px; font-weight: 800; margin-bottom: 2px; font-family: 'Roboto', sans-serif; }
 
         /* FAQ Section */
         .prc-faq {
@@ -152,7 +152,7 @@ export default function PricingPage() {
         }
         .prc-faq-title {
           font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 36px;
-          font-family: 'Space Grotesk', sans-serif;
+          font-family: 'Roboto', sans-serif;
         }
         .prc-faq-item {
           border-bottom: 1px solid var(--bg-border); padding: 18px 0;
@@ -173,9 +173,23 @@ export default function PricingPage() {
         {/* Navbar */}
         <nav className="prc-nav">
           <div className="prc-nav-inner">
-            <Link to="/">
-              <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="prc-nav-logo" />
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <Link to="/" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                color: 'var(--text-secondary)', textDecoration: 'none',
+                fontSize: 14, fontWeight: 600, padding: '8px 16px',
+                borderRadius: 8, background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--bg-border)', transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              >
+                <ArrowLeft size={16} /> Back to Home
+              </Link>
+              <Link to="/">
+                <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="prc-nav-logo" />
+              </Link>
+            </div>
             <div className="prc-nav-links">
               <Link to="/features" className="prc-nav-link">Features</Link>
               <Link to="/solutions" className="sol-nav-link">Solutions</Link>
@@ -191,11 +205,7 @@ export default function PricingPage() {
 
         {/* Container */}
         <div className="prc-container">
-          <div style={{ marginBottom: 20 }}>
-            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textDecoration: 'none' }}>
-              <ArrowLeft size={14} /> Back to Home
-            </Link>
-          </div>
+
 
           <header className="prc-header">
             <div className="prc-badge">
@@ -220,7 +230,7 @@ export default function PricingPage() {
                 <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>Full GAAP Ledger access on autopilot.</p>
               </div>
               <div className="prc-plan-price">
-                ₦1,000<span>/ transaction sync &amp; classify</span>
+                ₦10<span>/ transaction processed</span>
               </div>
               
               <Link to="/signup" style={{ textDecoration: 'none' }}>
@@ -267,17 +277,17 @@ export default function PricingPage() {
                 </div>
                 <input
                   type="range"
-                  min="0"
-                  max="150"
-                  step="5"
+                  min="1"
+                  max="200"
+                  step="1"
                   value={txCount}
                   onChange={e => setTxCount(Number(e.target.value))}
                   className="prc-slider"
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-disabled)', marginTop: 6, fontWeight: 600 }}>
-                  <span>0 Transactions (₦0 fee)</span>
-                  <span>75 Tx (₦75k/mo)</span>
-                  <span>150 Transactions (₦150k/mo)</span>
+                  <span>1 Transaction (₦10 fee)</span>
+                  <span>100 Tx (₦1,000/mo)</span>
+                  <span>200 Transactions (₦2,000/mo)</span>
                 </div>
               </div>
 
@@ -305,7 +315,7 @@ export default function PricingPage() {
                 boxShadow: '0 0 16px rgba(34,197,94,0.08)'
               }}>
                 <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Net Monthly Savings</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: '#22c55e', fontFamily: 'Space Grotesk, sans-serif' }}>
+                <div style={{ fontSize: 26, fontWeight: 800, color: '#22c55e', fontFamily: "'Roboto', sans-serif" }}>
                   ₦{savings.toLocaleString()}
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#22c55e', opacity: 0.8 }}> / month saved</span>
                 </div>
@@ -334,7 +344,7 @@ export default function PricingPage() {
             <div className="prc-faq-item">
               <h3 className="prc-faq-q">Are there any hidden costs?</h3>
               <p className="prc-faq-a">
-                None at all. All features operate under the single flat rate of ₦1,000 per transaction sync. Invoicing modules, team onboarding invites, and co-pilot conversational queries carry zero monthly overhead.
+                None at all. All features operate under the single flat rate of ₦10 per transaction processed. Invoicing modules, team onboarding invites, and co-pilot conversational queries carry zero monthly overhead.
               </p>
             </div>
 
