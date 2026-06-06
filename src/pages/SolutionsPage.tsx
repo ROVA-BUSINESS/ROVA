@@ -1,6 +1,6 @@
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
-import { Sparkles, Globe, Calculator, ShieldCheck, ArrowLeft, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
+import { Globe, Calculator, ShieldCheck, ArrowLeft, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
 
 export default function SolutionsPage() {
   const { theme } = useTheme();
@@ -149,7 +149,6 @@ export default function SolutionsPage() {
 
           <header className="sol-header">
             <div className="sol-badge">
-              <Sparkles size={13} color="var(--accent-light)" />
               <span className="sol-badge-text">Proprietary Capabilities</span>
             </div>
             <h1 className="sol-title">

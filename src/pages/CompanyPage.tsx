@@ -1,6 +1,6 @@
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
-import { Sparkles, ArrowLeft, ArrowRight, ShieldCheck, Cpu, Code2, HeartHandshake } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ShieldCheck, Cpu, Code2, HeartHandshake } from 'lucide-react';
 
 export default function CompanyPage() {
   const { theme } = useTheme();
@@ -148,7 +148,6 @@ export default function CompanyPage() {
 
           <header className="com-header">
             <div className="com-badge">
-              <Sparkles size={13} color="var(--accent-light)" />
               <span className="com-badge-text">Mission &amp; Vision</span>
             </div>
             <h1 className="com-title">

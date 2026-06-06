@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
-import { Sparkles, ArrowLeft, Check, Zap } from 'lucide-react';
+import { ArrowLeft, Check, Zap } from 'lucide-react';
 import Button from '../components/ui/Button';
 
 export default function PricingPage() {
@@ -209,7 +209,6 @@ export default function PricingPage() {
 
           <header className="prc-header">
             <div className="prc-badge">
-              <Sparkles size={13} color="var(--accent-light)" />
               <span className="prc-badge-text">Transparent Pricing</span>
             </div>
             <h1 className="prc-title">
