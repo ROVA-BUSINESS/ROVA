@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { BookOpen, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase, type Transaction } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatCurrency, formatDate } from '../../lib/format';
+import { formatCurrency, formatDate, cleanDescription } from '../../lib/format';
 import Card from '../../components/ui/Card';
 
 type LedgerAccount = {
@@ -168,17 +168,19 @@ function buildLedger(transactions: Transaction[]): LedgerAccount[] {
     const catName = (tx.category as any)?.name || 'Uncategorized';
     const accountName = (tx.account as any)?.name || 'Cash';
 
+    const cleanedDesc = cleanDescription(tx.description);
+
     if (tx.type === 'income') {
       const cashAcc = getOrCreate(accountName, 'asset');
       const incomeAcc = getOrCreate(catName, 'income');
 
       cashAcc.totalDebit += tx.amount;
       cashAcc.balance += tx.amount;
-      cashAcc.entries.push({ date: tx.date, description: tx.description || catName, debit: tx.amount, credit: 0, balance: cashAcc.balance });
+      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: tx.amount, credit: 0, balance: cashAcc.balance });
 
       incomeAcc.totalCredit += tx.amount;
       incomeAcc.balance += tx.amount;
-      incomeAcc.entries.push({ date: tx.date, description: tx.description || accountName, debit: 0, credit: tx.amount, balance: incomeAcc.balance });
+      incomeAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: 0, credit: tx.amount, balance: incomeAcc.balance });
     }
 
     if (tx.type === 'expense') {
@@ -187,11 +189,11 @@ function buildLedger(transactions: Transaction[]): LedgerAccount[] {
 
       expAcc.totalDebit += tx.amount;
       expAcc.balance += tx.amount;
-      expAcc.entries.push({ date: tx.date, description: tx.description || accountName, debit: tx.amount, credit: 0, balance: expAcc.balance });
+      expAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: tx.amount, credit: 0, balance: expAcc.balance });
 
       cashAcc.totalCredit += tx.amount;
       cashAcc.balance -= tx.amount;
-      cashAcc.entries.push({ date: tx.date, description: tx.description || catName, debit: 0, credit: tx.amount, balance: cashAcc.balance });
+      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: 0, credit: tx.amount, balance: cashAcc.balance });
     }
   });
 

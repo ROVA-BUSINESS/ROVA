@@ -32,3 +32,12 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .slice(0, 2);
 }
+
+export function cleanDescription(desc: string | null | undefined): string {
+  if (!desc) return '';
+  // Match patterns like "TRANSFER (SMS ALERT CHARGE OUTSTANDING)" or "NIP TRANSFER (SOME TEXT)"
+  const match = desc.match(/^\s*[A-Za-z0-9\s\-_\/]+\s*\((.+)\)\s*$/);
+  if (match) return match[1].trim();
+  return desc;
+}
+

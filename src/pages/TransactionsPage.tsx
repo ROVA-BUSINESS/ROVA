@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Sparkles, Download, Edit2 } from 'lucide-react';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { formatCurrency, formatDate, formatTime } from '../lib/format';
+import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib/format';
 import { autoClassify } from '../lib/categorise';
 import { downloadCSV } from '../lib/export';
 import Card from '../components/ui/Card';
@@ -11,9 +11,8 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 
-
-
 type FilterType = 'all' | 'income' | 'expense';
+
 
 export default function TransactionsPage() {
   const { user, isStaff, profile, isAdmin } = useAuth();
@@ -308,7 +307,7 @@ export default function TransactionsPage() {
                             }} 
                             className={expandedDescId === tx.id ? "" : "mobile-desc-text"}
                           >
-                            {tx.description || 'No description'}
+                            {cleanDescription(tx.description) || 'No description'}
                           </div>
                           <button 
                             onClick={() => { setEditingId(tx.id); setEditingField('description'); setEditValue(tx.description || ''); }}
