@@ -41,8 +41,8 @@ serve(async (req) => {
     const net = thisIncome - thisExpense;
 
     const recentTx = txs
-      .slice(0, 10)
-      .map((t) => `- [id:${t.id}] ${t.date?.slice(0, 10)} | ${t.type} | ₦${t.amount?.toLocaleString()} | ${t.description}`)
+      .slice(0, 50)
+      .map((t) => `- [id:${t.id}] ${t.date?.slice(0, 10)} | ${t.type} | ₦${t.amount?.toLocaleString()} | ${t.description} | Category: ${t.category?.name || 'Uncategorized'}`)
       .join("\n");
 
     const financialCtx = `
@@ -84,7 +84,7 @@ Your capabilities:
 
 Action object shape:
 {
-  "type": "create_invoice" | "add_inventory" | "add_employee" | "record_payroll" | "clarify_transaction" | "view_report",
+  "type": "create_invoice" | "add_inventory" | "add_employee" | "record_payroll" | "clarify_transaction" | "view_report" | "update_transaction" | "delete_transaction",
   "label": "human-readable button label",
   "payload": {}
 }
@@ -215,6 +215,37 @@ TRANSACTION CLARIFICATION:
   }
 - This is CRITICAL: always include the transaction_id so the system can update the description in the database.
 - If the user tells you what multiple transactions are for, return a separate clarify_transaction action for each one.
+
+TRANSACTION UPDATES / EDITS:
+- When a user asks to change, edit, or update a transaction's category, description, amount, or date (e.g. "change the category of transaction 'Payment for INV-609928' to 'Revenue'", "change description of transaction for ₦77,000 on June 29 to Salary payment", "update the amount to 15,000"), you MUST return an 'update_transaction' action.
+- Search the recent transactions in your context to find the transaction that matches the user's request (by matching description, amount, date, or category).
+- The payload MUST contain the 'transaction_id' of the matched transaction.
+- The payload should include only the fields to be updated:
+  {
+    "type": "update_transaction",
+    "label": "Update Transaction",
+    "payload": {
+      "transaction_id": "<id of matched transaction>",
+      "category_name": "<new category name, optional>",
+      "description": "<new description, optional>",
+      "amount": <new amount number, optional>,
+      "date": "<new date in YYYY-MM-DD format, optional>"
+    }
+  }
+- In your reply, state clearly what fields you are updating for that transaction.
+
+TRANSACTION DELETION:
+- When a user asks to delete, remove, or cancel a transaction (e.g., "delete the duplicate salary payment of ₦77,000", "remove transaction for 12,000", "delete transaction [id:...]"), you MUST return a 'delete_transaction' action.
+- Search the recent transactions in your context to find the transaction that matches the user's request (by matching description, amount, date, or category).
+- The payload MUST contain the 'transaction_id' of the matched transaction.
+  {
+    "type": "delete_transaction",
+    "label": "Delete Transaction",
+    "payload": {
+      "transaction_id": "<id of matched transaction>"
+    }
+  }
+- In your reply, confirm that you have deleted that transaction (e.g., "I've removed the duplicate salary payment of ₦77,000 to Boss Baby on June 29, 2026. Your records have been updated.").
 
 GENERAL:
 - Use ₦ for amounts. Format large numbers with commas.

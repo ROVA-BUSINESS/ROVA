@@ -205,21 +205,27 @@ export default function AssistantPage() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [clarifications, setClarifications] = useState<PendingClarification[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: "Hi! I'm ROVA — your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or use one of the quick questions below.",
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]); // will be set on load or keep default
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Initialize messages with welcome if it doesn't exist
+  useEffect(() => {
+    setMessages([
+      {
+        id: 'welcome',
+        role: 'assistant',
+        content: "Hi! I'm ROVA — your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or use one of the quick questions below.",
+        timestamp: new Date(),
+      },
+    ]);
+  }, []);
 
   useEffect(() => {
     if (user) { loadData(); loadClarifications(); }
@@ -231,18 +237,24 @@ export default function AssistantPage() {
 
   async function loadData() {
     setLoading(true);
-    const [txRes, accRes] = await Promise.all([
+    const [txRes, accRes, catRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('*, category:categories(*), account:accounts(*)')
         .eq('user_id', user!.id)
         .order('date', { ascending: false }),
       supabase.from('accounts').select('*').eq('user_id', user!.id).eq('is_active', true),
+      supabase
+        .from('categories')
+        .select('*')
+        .or(`user_id.eq.${user!.id},is_system.eq.true`),
     ]);
     const txs = txRes.data || [];
     const accs = accRes.data || [];
+    const cats = catRes.data || [];
     setTransactions(txs);
     setAccounts(accs);
+    setCategories(cats);
     setInsights(generateInsights(txs, accs));
     setLoading(false);
   }
@@ -632,6 +644,119 @@ export default function AssistantPage() {
         }
         break;
 
+      // ── Edit Transaction ───────────────────────────────────────────────────
+      case 'update_transaction': {
+        const payload = action.payload || {};
+        const txId = payload.transaction_id;
+        const newCategoryName = payload.category_name || payload.category;
+        const newDescription = payload.description;
+        const newAmount = payload.amount;
+        const newDate = payload.date;
+
+        if (txId) {
+          const updates: any = {};
+          if (newDescription) updates.description = newDescription;
+          if (newAmount !== undefined && newAmount !== null) updates.amount = Number(newAmount);
+          if (newDate) updates.date = newDate;
+
+          const runUpdate = async () => {
+            if (newCategoryName) {
+              const matchedCat = categories.find(c => 
+                c.name.toLowerCase() === newCategoryName.toLowerCase()
+              );
+              if (matchedCat) {
+                updates.category_id = matchedCat.id;
+              } else {
+                const { data: newCat, error: createCatErr } = await supabase
+                  .from('categories')
+                  .insert({
+                    user_id: user!.id,
+                    name: newCategoryName,
+                    type: payload.type || 'expense',
+                    is_system: false
+                  })
+                  .select()
+                  .single();
+                if (!createCatErr && newCat) {
+                  setCategories(prev => [...prev, newCat]);
+                  updates.category_id = newCat.id;
+                }
+              }
+            }
+
+            if (Object.keys(updates).length > 0) {
+              const { error: updateErr } = await supabase
+                .from('transactions')
+                .update(updates)
+                .eq('id', txId);
+
+              if (!updateErr) {
+                setTransactions(prev =>
+                  prev.map(t => {
+                    if (t.id === txId) {
+                      const updatedTx = { ...t, ...updates };
+                      if (updates.category_id) {
+                        const catObj = categories.find(c => c.id === updates.category_id) || t.category;
+                        updatedTx.category = catObj;
+                      }
+                      return updatedTx;
+                    }
+                    return t;
+                  })
+                );
+                setMessages(prev => [...prev, {
+                  id: `update-ok-${Date.now()}`,
+                  role: 'assistant',
+                  content: `✅ Transaction updated successfully!`,
+                  timestamp: new Date(),
+                }]);
+              } else {
+                setMessages(prev => [...prev, {
+                  id: `update-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: `❌ Failed to update transaction: ${updateErr.message}`,
+                  timestamp: new Date(),
+                }]);
+              }
+            }
+          };
+          runUpdate().catch(err => console.error("Update action failed:", err));
+        }
+        break;
+      }
+
+      // ── Delete Transaction ───────────────────────────────────────────────────
+      case 'delete_transaction': {
+        const payload = action.payload || {};
+        const txId = payload.transaction_id;
+
+        if (txId) {
+          supabase
+            .from('transactions')
+            .delete()
+            .eq('id', txId)
+            .then(({ error: deleteErr }) => {
+              if (!deleteErr) {
+                setTransactions(prev => prev.filter(t => t.id !== txId));
+                setMessages(prev => [...prev, {
+                  id: `delete-ok-${Date.now()}`,
+                  role: 'assistant',
+                  content: `✅ Transaction deleted successfully.`,
+                  timestamp: new Date(),
+                }]);
+              } else {
+                setMessages(prev => [...prev, {
+                  id: `delete-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: `❌ Failed to delete transaction: ${deleteErr.message}`,
+                  timestamp: new Date(),
+                }]);
+              }
+            });
+        }
+        break;
+      }
+
       // ── Clarify Transaction (update description from AI/user answer) ──────
       case 'clarify_transaction': {
         const payload = action.payload || {};
@@ -736,8 +861,8 @@ export default function AssistantPage() {
           },
         ]);
 
-        // Auto-process clarify_transaction actions from the AI response
-        // so the transaction description is updated immediately
+        // Auto-process clarify_transaction, update_transaction, and delete_transaction actions from the AI response
+        // so the transactions are updated immediately
         for (const action of responseActions) {
           if (action.type === 'clarify_transaction') {
             const payload = action.payload || {};
@@ -770,6 +895,84 @@ export default function AssistantPage() {
                   }
                 });
             }
+          } else if (action.type === 'update_transaction') {
+            const payload = action.payload || {};
+            const txId = payload.transaction_id;
+            const newCategoryName = payload.category_name || payload.category;
+            const newDescription = payload.description;
+            const newAmount = payload.amount;
+            const newDate = payload.date;
+
+            if (txId) {
+              const updates: any = {};
+              if (newDescription) updates.description = newDescription;
+              if (newAmount !== undefined && newAmount !== null) updates.amount = Number(newAmount);
+              if (newDate) updates.date = newDate;
+
+              const runUpdate = async () => {
+                if (newCategoryName) {
+                  const matchedCat = categories.find(c => 
+                    c.name.toLowerCase() === newCategoryName.toLowerCase()
+                  );
+                  if (matchedCat) {
+                    updates.category_id = matchedCat.id;
+                  } else {
+                    const { data: newCat, error: createCatErr } = await supabase
+                      .from('categories')
+                      .insert({
+                        user_id: user!.id,
+                        name: newCategoryName,
+                        type: payload.type || 'expense',
+                        is_system: false
+                      })
+                      .select()
+                      .single();
+                    if (!createCatErr && newCat) {
+                      setCategories(prev => [...prev, newCat]);
+                      updates.category_id = newCat.id;
+                    }
+                  }
+                }
+
+                if (Object.keys(updates).length > 0) {
+                  const { error } = await supabase
+                    .from('transactions')
+                    .update(updates)
+                    .eq('id', txId);
+
+                  if (!error) {
+                    setTransactions(prev =>
+                      prev.map(t => {
+                        if (t.id === txId) {
+                          const updatedTx = { ...t, ...updates };
+                          if (updates.category_id) {
+                            const catObj = categories.find(c => c.id === updates.category_id) || t.category;
+                            updatedTx.category = catObj;
+                          }
+                          return updatedTx;
+                        }
+                        return t;
+                      })
+                    );
+                  }
+                }
+              };
+              runUpdate().catch(err => console.error("Auto-update failed:", err));
+            }
+          } else if (action.type === 'delete_transaction') {
+            const payload = action.payload || {};
+            const txId = payload.transaction_id;
+            if (txId) {
+              supabase
+                .from('transactions')
+                .delete()
+                .eq('id', txId)
+                .then(({ error }) => {
+                  if (!error) {
+                    setTransactions(prev => prev.filter(t => t.id !== txId));
+                  }
+                });
+            }
           }
         }
       } catch (err: any) {
@@ -786,7 +989,7 @@ export default function AssistantPage() {
         setTyping(false);
       }
     },
-    [messages, transactions, accounts, user, isStaff, typing]
+    [messages, transactions, accounts, categories, user, isStaff, typing]
   );
 
   function handleSubmit(e: React.FormEvent) {

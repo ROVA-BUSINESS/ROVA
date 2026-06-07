@@ -83,7 +83,7 @@ export type ChatResponse = {
 };
 
 export type ChatAction = {
-  type: 'create_invoice' | 'add_inventory' | 'add_employee' | 'record_payroll' | 'clarify_transaction' | 'view_report' | 'view_invoice';
+  type: 'create_invoice' | 'add_inventory' | 'add_employee' | 'record_payroll' | 'clarify_transaction' | 'view_report' | 'view_invoice' | 'update_transaction' | 'delete_transaction';
   label: string;
   payload?: Record<string, any>;
 };
