@@ -369,8 +369,8 @@ export default function LandingPage() {
         .lp-cta-inner {
           max-width: 1200px; margin: 0 auto; padding: 60px 32px;
           background: ${isLight
-            ? 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 50%, #9333ea 100%)'
-            : 'linear-gradient(135deg, #6d28d9 0%, #1e40af 50%, #7e22ce 100%)'};
+            ? 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 50%, #9333ea 100%)'
+            : 'linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%)'};
           border-radius: 28px; position: relative; overflow: hidden;
           text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
         }
