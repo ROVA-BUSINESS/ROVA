@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Plus, Pencil, Trash2, Package, TriangleAlert as AlertTriangle, TrendingDown, CircleArrowUp as ArrowUpCircle, CircleArrowDown as ArrowDownCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase, type InventoryItem, type Supplier } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/format';
@@ -36,12 +37,14 @@ interface Props {
 
 export default function StockTab({ items, suppliers, onRefresh, locationState }: Props) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isMobile = useMobile(1024);
   const [showItemModal, setShowItemModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState(EMPTY_ITEM);
   const [movement, setMovement] = useState<StockMovement>({ itemId: '', type: 'purchase', quantity: '', unit_cost: '', notes: '', date: new Date().toISOString().split('T')[0] });
+  const [adjustmentType, setAdjustmentType] = useState<'add' | 'remove'>('add');
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<'all' | 'low_stock' | 'out_of_stock'>('all');
 
@@ -50,18 +53,34 @@ export default function StockTab({ items, suppliers, onRefresh, locationState }:
       const payload = locationState.payload || {};
       const itemName = payload.item_name || payload.name || '';
       
-      // Try to find an existing item by name (case-insensitive match)
-      const existingItem = items.find(
-        i => i.name.toLowerCase().includes(itemName.toLowerCase()) || 
-             itemName.toLowerCase().includes(i.name.toLowerCase())
-      );
+      // Try to find by item_id first, then fallback to name matching
+      const itemId = payload.item_id || payload.itemId || '';
+      let existingItem = itemId
+        ? items.find(i => i.id === itemId)
+        : items.find(i => {
+            const dbName = i.name.toLowerCase();
+            const queryName = itemName.toLowerCase();
+            if (dbName.includes(queryName) || queryName.includes(dbName)) return true;
+            
+            // Word token match
+            const dbWords = dbName.split(/\s+/).filter((w: string) => w.length > 2);
+            const queryWords = queryName.split(/\s+/).filter((qw: string) => qw.length > 2);
+            return dbWords.some((dw: string) => queryWords.some((qw: string) => dw.includes(qw) || qw.includes(dw)));
+          });
       
-      if (existingItem) {
+      // For stock movements, always open the Record Stock Movement modal.
+      // Default to the first item in the list if no match is found.
+      const isMovement = payload.is_movement || payload.type === 'sale' || payload.type === 'purchase';
+      if (isMovement && !existingItem && items.length > 0) {
+        existingItem = items[0];
+      }
+      
+      if (isMovement && existingItem) {
         // Open Record Stock Movement modal
         setMovement({
           itemId: existingItem.id,
-          type: 'purchase',
-          quantity: String(payload.quantity || '1'),
+          type: payload.type || 'purchase',
+          quantity: String(payload.quantity ? Math.abs(Number(payload.quantity)) : '1'),
           unit_cost: String(payload.cost_price || payload.unit_cost || existingItem.cost_price || ''),
           notes: payload.notes || 'Stock update from ROVA AI Assistant',
           date: new Date().toISOString().split('T')[0]
@@ -86,9 +105,9 @@ export default function StockTab({ items, suppliers, onRefresh, locationState }:
         });
         setShowItemModal(true);
       }
-      window.history.replaceState({}, document.title);
+      navigate('/app/inventory', { replace: true, state: null });
     }
-  }, [locationState, items]);
+  }, [locationState, items, navigate]);
 
   const lowStock = items.filter(i => i.current_stock <= i.reorder_level && i.current_stock > 0);
   const outOfStock = items.filter(i => i.current_stock === 0);
@@ -135,14 +154,20 @@ export default function StockTab({ items, suppliers, onRefresh, locationState }:
     const item = items.find(i => i.id === movement.itemId);
     if (!item) { setSaving(false); return; }
 
-    const qtyChange = movement.type === 'sale' ? -qty : movement.type === 'purchase' ? qty : qty;
-    const newStock = item.current_stock + qtyChange;
+    const qtyChange =
+      movement.type === 'sale'
+        ? -qty
+        : movement.type === 'purchase'
+          ? qty
+          : (adjustmentType === 'remove' ? -qty : qty);
+    const newStock = Math.max(0, item.current_stock + qtyChange);
 
     await supabase.from('inventory_transactions').insert({
       user_id: user!.id, item_id: movement.itemId,
       type: movement.type, quantity: qty,
       unit_cost: unitCost, total_cost: qty * unitCost,
-      notes: movement.notes, date: movement.date,
+      notes: movement.notes || (movement.type === 'adjustment' ? `Stock adjustment (${adjustmentType === 'add' ? 'Add' : 'Remove'})` : ''),
+      date: movement.date,
     });
     await supabase.from('inventory_items').update({ current_stock: newStock }).eq('id', movement.itemId);
 
@@ -383,6 +408,31 @@ export default function StockTab({ items, suppliers, onRefresh, locationState }:
               </button>
             ))}
           </div>
+          {movement.type === 'adjustment' && (
+            <div style={{ display: 'flex', gap: 8, marginTop: -4 }}>
+              {(['add', 'remove'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setAdjustmentType(mode)}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500,
+                    background: adjustmentType === mode ? 'var(--bg-border)' : 'var(--bg-elevated)',
+                    color: adjustmentType === mode ? 'var(--text-primary)' : 'var(--text-muted)',
+                    border: '1px solid var(--bg-border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {mode === 'add' ? '➕ Add Stock' : '➖ Remove Stock'}
+                </button>
+              ))}
+            </div>
+          )}
+          {(movement.type === 'sale' || (movement.type === 'adjustment' && adjustmentType === 'remove')) && (
+            <div style={{ padding: '8px 10px', borderRadius: 'var(--radius-md)', background: 'var(--warning-dim)', fontSize: 11, color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              ℹ️ This will subtract the quantity from stock. Enter a positive number (e.g. 3).
+            </div>
+          )}
           <Input label="Quantity" type="number" min="0.001" step="0.001" placeholder="0" value={movement.quantity} onChange={e => setMovement(p => ({ ...p, quantity: e.target.value }))} required />
           {movement.type === 'purchase' && (
             <Input label="Unit Cost (₦)" type="number" min="0" step="0.01" placeholder="0.00" value={movement.unit_cost} onChange={e => setMovement(p => ({ ...p, unit_cost: e.target.value }))} />

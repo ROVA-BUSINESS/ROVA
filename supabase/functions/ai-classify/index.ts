@@ -72,18 +72,19 @@ Business context:
 
 Classification rules:
 1. If the description mentions paying a salary/wage to a named person → intent: salary_payment, extract employee_name
-2. If the description mentions buying goods/stock/items from a supplier → intent: inventory_purchase, extract inventory_item and quantity
-3. If the description mentions payment from a client or invoice number → intent: invoice_payment, extract client_name
-4. If the description is vague, has no clear purpose, or confidence < 0.7 → set clarification_needed: true and write a short friendly ai_question asking the user what it was for
-5. Always pick a category from the provided list, or suggest "Other Expense"/"Other Income"
-6. Confidence: 0.0–1.0 based on how certain you are
+2. If the description mentions buying/purchasing goods/stock/items from a supplier (debit/expense) → intent: inventory_purchase, extract inventory_item and quantity
+3. If the description mentions selling goods/stock/items to a customer, or receiving payment for stock (credit/income) → intent: inventory_sale, extract inventory_item and quantity
+4. If the description mentions payment from a client or invoice number → intent: invoice_payment, extract client_name
+5. If the description is vague, has no clear purpose, or confidence < 0.7 → set clarification_needed: true and write a short friendly ai_question asking the user what it was for
+6. Always pick a category from the provided list, or suggest "Other Expense"/"Other Income"
+7. Confidence: 0.0–1.0 based on how certain you are
 
 IMPORTANT: Reply ONLY with valid JSON, no markdown, no explanation.
 Schema:
 {
   "category": string,
   "type": "income" | "expense" | "transfer",
-  "intent": "salary_payment" | "inventory_purchase" | "invoice_payment" | "general_expense" | "general_income" | "transfer" | "unknown",
+  "intent": "salary_payment" | "inventory_purchase" | "inventory_sale" | "invoice_payment" | "general_expense" | "general_income" | "transfer" | "unknown",
   "employee_name": string | null,
   "inventory_item": string | null,
   "quantity": number | null,
@@ -141,6 +142,33 @@ Date: ${transaction.date ?? "unknown"}`;
       }
     } else {
       result = keywordFallback(transaction.description ?? "", transaction.type ?? "expense");
+    }
+
+    // ── Check if inventory item exists if intent is inventory ──────────────────
+    if (result.intent === "inventory_purchase" || result.intent === "inventory_sale") {
+      const itemName = result.inventory_item;
+      if (itemName) {
+        const { data: matches } = await supabaseClient
+          .from("inventory_items")
+          .select("id, name, unit")
+          .eq("user_id", userId)
+          .ilike("name", `%${itemName}%`);
+
+        const matchCount = matches?.length ?? 0;
+
+        if (matchCount === 0) {
+          result.clarification_needed = true;
+          result.ai_question = `I detected a ${result.intent === "inventory_purchase" ? "purchase" : "sale"} of "${itemName}". Since "${itemName}" is not in your inventory list, would you like to add it as a new inventory item first?`;
+        } else if (matchCount > 1) {
+          // Multiple types/matches of a product, AI is not sure
+          result.clarification_needed = true;
+          const unitName = matches[0]?.unit || "bag";
+          result.ai_question = `I'll need to know the unit cost per ${unitName} so I can record the correct expense. Could you please provide the price per ${unitName}?`;
+        }
+      } else {
+        result.clarification_needed = true;
+        result.ai_question = `This looks like an inventory ${result.intent === "inventory_purchase" ? "purchase" : "sale"}. What item was it for?`;
+      }
     }
 
     // ── Handle DB updates and notifications ───────────────────────────────────
@@ -246,6 +274,48 @@ Date: ${transaction.date ?? "unknown"}`;
               date: transaction.date || new Date().toISOString(),
               notes: "Auto-recorded by ROVA AI",
             });
+          }
+        } else if (result.intent === "inventory_sale") {
+          const itemName = result.inventory_item || "Inventory Item";
+          const qty = result.quantity || 1;
+
+          const { data: existing } = await supabaseClient
+            .from("inventory_items")
+            .select("id, current_stock, cost_price, unit")
+            .eq("user_id", userId)
+            .ilike("name", `%${itemName}%`)
+            .maybeSingle();
+
+          if (existing) {
+            const newStock = Math.max(0, existing.current_stock - qty);
+            await supabaseClient
+              .from("inventory_items")
+              .update({ current_stock: newStock })
+              .eq("id", existing.id);
+
+            await supabaseClient.from("inventory_transactions").insert({
+              user_id: userId,
+              item_id: existing.id,
+              transaction_id: transaction.id,
+              type: "sale",
+              quantity: qty,
+              unit_cost: existing.cost_price,
+              total_cost: qty * existing.cost_price,
+              date: transaction.date || new Date().toISOString(),
+              notes: "Auto-recorded by ROVA AI",
+            });
+
+            // Create COGS transaction if cost price is defined
+            if (existing.cost_price > 0) {
+              await supabaseClient.from("transactions").insert({
+                user_id: userId,
+                amount: qty * existing.cost_price,
+                type: "expense",
+                description: `COGS — ${itemName} (${qty} ${existing.unit || 'unit'})`,
+                date: transaction.date || new Date().toISOString().split("T")[0],
+                notes: "Cost of goods sold (Auto-recorded by ROVA AI)",
+              });
+            }
           }
         } else if (result.intent === "salary_payment" && result.employee_name) {
           const { data: employee } = await supabaseClient
@@ -370,22 +440,30 @@ function keywordFallback(description, typeHint) {
     };
   }
 
-  if (/cement|bags?|stock|inventory|purchase|supplier|bought|buy/.test(d)) {
+  if (/cement|bags?|stock|inventory|purchase|supplier|bought|buy|payment for|sold/.test(d)) {
     const qtyMatch = description.match(/(\d+)\s*(?:bags?|units?|pcs?|pieces?|cartons?|litres?)/i);
+    const isIncome = typeHint === "income" || /credit|received|inflow|deposit/.test(d);
+    
+    let itemName = null;
+    const itemMatch = description.match(/(?:bought|purchase|buy|payment for|for|sold)\s+(?:\d+\s+)?(?:bags?|units?|pcs?|pieces?|cartons?|litres?|items?)?\s*(?:of\s+)?([a-zA-Z\s]+?)(?:\s+from|\s+for|\s+at|\s+on|\bdebit\b|\bcredit\b|$)/i);
+    if (itemMatch) {
+      itemName = itemMatch[1].trim();
+    }
+
     return {
-      category: "Inventory Purchase",
-      type: "expense",
-      intent: "inventory_purchase",
+      category: isIncome ? "Business Revenue" : "Inventory Purchase",
+      type: isIncome ? "income" : "expense",
+      intent: isIncome ? "inventory_sale" : "inventory_purchase",
       employee_name: null,
-      inventory_item: null,
+      inventory_item: itemName,
       quantity: qtyMatch ? parseFloat(qtyMatch[1]) : null,
       unit_price: null,
       client_name: null,
-      clarification_needed: !qtyMatch,
-      ai_question: !qtyMatch
-        ? "This looks like an inventory purchase. What item did you buy, and how many units?"
+      clarification_needed: !qtyMatch || !itemName,
+      ai_question: !qtyMatch || !itemName
+        ? `This looks like an inventory ${isIncome ? 'sale' : 'purchase'}. What item was it, and how many units?`
         : null,
-      confidence: 0.75,
+      confidence: qtyMatch && itemName ? 0.85 : 0.6,
     };
   }
 

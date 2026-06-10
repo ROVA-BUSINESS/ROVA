@@ -74,6 +74,7 @@ export type ChatPayload = {
     accounts: any[];
     userId: string;
     isStaff?: boolean;
+    inventoryItems?: any[];
   };
 };
 
@@ -83,7 +84,18 @@ export type ChatResponse = {
 };
 
 export type ChatAction = {
-  type: 'create_invoice' | 'add_inventory' | 'add_employee' | 'record_payroll' | 'clarify_transaction' | 'view_report' | 'view_invoice' | 'update_transaction' | 'delete_transaction';
+  type:
+    | 'create_invoice'
+    | 'add_inventory'
+    | 'add_employee'
+    | 'record_payroll'
+    | 'clarify_transaction'
+    | 'view_report'
+    | 'view_invoice'
+    | 'update_transaction'
+    | 'delete_transaction'
+    | 'edit_inventory'
+    | 'delete_inventory';
   label: string;
   payload?: Record<string, any>;
 };
