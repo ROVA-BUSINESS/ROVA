@@ -626,8 +626,9 @@ export default function LandingPage() {
         /* ── Devices Showcase Section ── */
         .lp-devices-showcase {
           padding: 120px 20px;
+          padding-bottom: 150px;
           background: #110426;
-          border-bottom: 1px solid rgba(168, 85, 247, 0.15);
+          border-bottom: none;
           position: relative;
           z-index: 1;
           overflow: hidden;
@@ -637,6 +638,18 @@ export default function LandingPage() {
           --text-secondary: #d8b4fe;
           --text-muted: #a78bfa;
           --bg-border: rgba(168, 85, 247, 0.2);
+        }
+        .lp-devices-fade-bridge {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 150px;
+          background: ${isLight 
+            ? 'linear-gradient(to bottom, transparent, #ffffff)' 
+            : 'linear-gradient(to bottom, transparent, #030303)'};
+          pointer-events: none;
+          z-index: 2;
         }
         .devices-glow-bg {
           position: absolute;
@@ -1353,6 +1366,7 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+          <div className="lp-devices-fade-bridge" />
         </section>
 
         {/* ── Comparison Section (ROVA vs The Alternatives) ── */}
