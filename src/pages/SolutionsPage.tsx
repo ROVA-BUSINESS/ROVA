@@ -1,6 +1,6 @@
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
-import { Sparkles, Globe, Calculator, ShieldCheck, ArrowLeft, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
+import { Globe, Calculator, ShieldCheck, ArrowLeft, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
 
 export default function SolutionsPage() {
   const { theme } = useTheme();
@@ -15,7 +15,7 @@ export default function SolutionsPage() {
             ? 'radial-gradient(circle at 0% 0%, rgba(147,51,234,0.03) 0%, #f4f4f5 100%)'
             : 'radial-gradient(circle at 0% 0%, rgba(147,51,234,0.05) 0%, #09090b 100%)'};
           color: var(--text-primary);
-          font-family: 'Inter', system-ui, sans-serif;
+          font-family: 'Roboto', sans-serif;
           overflow-x: hidden;
           position: relative;
           padding-bottom: 80px;
@@ -55,11 +55,11 @@ export default function SolutionsPage() {
         .sol-badge-text {
           font-size: 11px; font-weight: 800; color: var(--accent-light);
           text-transform: uppercase; letter-spacing: 2px;
-          font-family: 'Space Grotesk', sans-serif;
+          font-family: 'Roboto', sans-serif;
         }
         .sol-title {
           font-size: clamp(32px, 4vw, 56px); font-weight: 800; line-height: 1.15;
-          margin-bottom: 20px; font-family: 'Space Grotesk', sans-serif;
+          margin-bottom: 20px; font-family: 'Roboto', sans-serif;
         }
         .sol-subtitle {
           font-size: clamp(15px, 1.8vw, 18px); color: var(--text-secondary); line-height: 1.6;
@@ -89,7 +89,7 @@ export default function SolutionsPage() {
           display: flex; align-items: center; justify-content: center;
         }
         .sol-card-title {
-          font-size: 22px; font-weight: 800; font-family: 'Space Grotesk', sans-serif;
+          font-size: 22px; font-weight: 800; font-family: 'Roboto', sans-serif;
         }
         .sol-card-desc {
           color: var(--text-secondary); line-height: 1.65; fontSize: 14px;
@@ -113,9 +113,23 @@ export default function SolutionsPage() {
         {/* Navbar */}
         <nav className="sol-nav">
           <div className="sol-nav-inner">
-            <Link to="/">
-              <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="sol-nav-logo" />
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <Link to="/" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                color: 'var(--text-secondary)', textDecoration: 'none',
+                fontSize: 14, fontWeight: 600, padding: '8px 16px',
+                borderRadius: 8, background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--bg-border)', transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              >
+                <ArrowLeft size={16} /> Back to Home
+              </Link>
+              <Link to="/">
+                <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="sol-nav-logo" />
+              </Link>
+            </div>
             <div className="sol-nav-links">
               <Link to="/features" className="sol-nav-link">Features</Link>
               <Link to="/solutions" className="sol-nav-link" style={{ color: 'var(--text-primary)' }}>Solutions</Link>
@@ -131,15 +145,10 @@ export default function SolutionsPage() {
 
         {/* Content Container */}
         <div className="sol-container">
-          <div style={{ marginBottom: 20 }}>
-            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textDecoration: 'none' }}>
-              <ArrowLeft size={14} /> Back to Home
-            </Link>
-          </div>
+
 
           <header className="sol-header">
             <div className="sol-badge">
-              <Sparkles size={13} color="var(--accent-light)" />
               <span className="sol-badge-text">Proprietary Capabilities</span>
             </div>
             <h1 className="sol-title">
@@ -251,7 +260,7 @@ export default function SolutionsPage() {
             borderRadius: 'var(--radius-xl)', padding: '50px 40px', textAlign: 'center',
             boxShadow: '0 20px 40px rgba(147,51,234,0.25)', position: 'relative', overflow: 'hidden'
           }}>
-            <h2 style={{ fontSize: 32, fontWeight: 800, color: 'white', marginBottom: 12, fontFamily: 'Space Grotesk, sans-serif' }}>Take absolute control of your business numbers</h2>
+            <h2 style={{ fontSize: 32, fontWeight: 800, color: 'white', marginBottom: 12, fontFamily: "'Roboto', sans-serif" }}>Take absolute control of your business numbers</h2>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16, marginBottom: 28, maxWidth: 580, marginInline: 'auto' }}>
               Scale your accounting, direct bank feeds, and invoice operations autonomously with ROVA AI.
             </p>

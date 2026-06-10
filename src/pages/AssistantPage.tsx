@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Send, Sparkles, RefreshCw, AlertTriangle, Info, CheckCircle,
+  Send, RefreshCw, AlertTriangle, Info, CheckCircle,
   Zap, Bell, ChevronRight, Package, Users, FileText, X,
   MessageCircle, HelpCircle, TrendingUp,
 } from 'lucide-react';
@@ -205,21 +205,27 @@ export default function AssistantPage() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [clarifications, setClarifications] = useState<PendingClarification[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: "Hi! I'm ROVA — your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or use one of the quick questions below.",
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]); // will be set on load or keep default
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Initialize messages with welcome if it doesn't exist
+  useEffect(() => {
+    setMessages([
+      {
+        id: 'welcome',
+        role: 'assistant',
+        content: "Hi! I'm ROVA — your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or use one of the quick questions below.",
+        timestamp: new Date(),
+      },
+    ]);
+  }, []);
 
   useEffect(() => {
     if (user) { loadData(); loadClarifications(); }
@@ -231,18 +237,24 @@ export default function AssistantPage() {
 
   async function loadData() {
     setLoading(true);
-    const [txRes, accRes] = await Promise.all([
+    const [txRes, accRes, catRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('*, category:categories(*), account:accounts(*)')
         .eq('user_id', user!.id)
         .order('date', { ascending: false }),
       supabase.from('accounts').select('*').eq('user_id', user!.id).eq('is_active', true),
+      supabase
+        .from('categories')
+        .select('*')
+        .or(`user_id.eq.${user!.id},is_system.eq.true`),
     ]);
     const txs = txRes.data || [];
     const accs = accRes.data || [];
+    const cats = catRes.data || [];
     setTransactions(txs);
     setAccounts(accs);
+    setCategories(cats);
     setInsights(generateInsights(txs, accs));
     setLoading(false);
   }
@@ -280,31 +292,172 @@ export default function AssistantPage() {
       const assistantMsg: ChatMessage = {
         id: `a-resolve-${Date.now()}`,
         role: 'assistant',
-        content: `Got it! I've noted that "${clarification.original_description}" was for: **${answer}**. I'll update the classification accordingly.`,
+        content: `Got it! I've updated the transaction "${clarification.original_description}" to: **${answer}**. The description and classification have been saved.`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, userMsg, assistantMsg]);
 
+      console.log('ROVA: Resolving clarification:', clarification);
       if (clarification.transaction_id) {
-        classifyTransaction(
-          {
-            id: clarification.transaction_id,
-            description: `${clarification.original_description} (Clarification: ${answer})`,
-            amount: clarification.suggested_amount || undefined,
-            type: clarification.suggested_intent === 'income' ? 'income' : 'expense',
-          },
-          user!.id,
-          'full'
-        ).catch(err => {
-          console.error("Failed to re-classify after clarification:", err);
-        });
+        // Update the transaction description in the database with the user's answer
+        supabase
+          .from('transactions')
+          .update({
+            description: answer,
+            notes: `Clarified via ROVA AI. Original: "${clarification.original_description}"`,
+          })
+          .eq('id', clarification.transaction_id)
+          .then(({ error: updateErr }) => {
+            if (updateErr) {
+              console.error("ROVA: Failed to update transaction description:", updateErr);
+              alert(`Error updating transaction description: ${updateErr.message}`);
+            } else {
+              console.log("ROVA: Successfully updated transaction description in DB to:", answer);
+              // Update local state so the UI reflects the change immediately
+              setTransactions(prev =>
+                prev.map(t =>
+                  t.id === clarification.transaction_id
+                    ? { ...t, description: answer, notes: `Clarified via ROVA AI. Original: "${clarification.original_description}"` }
+                    : t
+                )
+              );
+
+              classifyTransaction(
+                {
+                  id: clarification.transaction_id || undefined,
+                  description: answer,
+                  amount: clarification.suggested_amount || undefined,
+                  type: clarification.suggested_intent === 'income' ? 'income' : 'expense',
+                },
+                user!.id,
+                'full'
+              ).then((result) => {
+                console.log("ROVA: Successfully re-classified transaction:", result);
+              }).catch(err => {
+                console.error("ROVA: Failed to re-classify after clarification:", err);
+              });
+            }
+          });
+      } else {
+        console.warn('ROVA: No transaction_id associated with clarification:', clarification);
+        alert('Warning: No transaction ID associated with this clarification card.');
       }
+    } else {
+      console.warn('ROVA: Clarification card not found in local state for ID:', id);
     }
   }
 
   async function handleDismiss(id: string, notifId: string | null) {
     await dismissClarification(id, notifId);
     setClarifications(prev => prev.filter(c => c.id !== id));
+  }
+
+  // ── Helpers: Direct DB creation from AI actions ──────────────────────────────
+
+  async function addInventoryFromAI(payload: any) {
+    const loadingId = `inventory-loading-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: loadingId, role: 'assistant',
+      content: `⏳ Saving inventory item **${payload.name}**…`,
+      timestamp: new Date(),
+    }]);
+    setTyping(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .insert({
+          user_id: user!.id,
+          name: payload.name,
+          sku: payload.sku || `SKU-${Date.now()}`,
+          category: payload.category || 'General',
+          unit: payload.unit || 'unit',
+          cost_price: Number(payload.cost_price) || 0,
+          selling_price: Number(payload.selling_price) || 0,
+          current_stock: Number(payload.current_stock) || 0,
+          reorder_level: Number(payload.reorder_level) || 0,
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+        id: `inventory-ok-${Date.now()}`, role: 'assistant',
+        content: `✅ Inventory item **${payload.name}** has been added successfully!\n\n` +
+          `• SKU: \`${data.sku}\`\n` +
+          `• Cost Price: ₦${data.cost_price.toLocaleString()}\n` +
+          `• Selling Price: ₦${data.selling_price.toLocaleString()}\n` +
+          `• Current Stock: ${data.current_stock} ${data.unit}`,
+        timestamp: new Date(),
+        actions: [{ type: 'view_report', label: '📦 View Inventory', payload: { page: 'inventory' } }],
+      }));
+    } catch (err: any) {
+      console.error("Failed to add inventory item:", err);
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+        id: `inventory-err-${Date.now()}`, role: 'assistant',
+        content: `❌ Failed to save inventory item: ${err.message || err}`,
+        timestamp: new Date(),
+      }));
+    } finally {
+      setTyping(false);
+    }
+  }
+
+  async function addEmployeeFromAI(payload: any) {
+    const loadingId = `employee-loading-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: loadingId, role: 'assistant',
+      content: `⏳ Adding employee **${payload.full_name}**…`,
+      timestamp: new Date(),
+    }]);
+    setTyping(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .insert({
+          user_id: user!.id,
+          full_name: payload.full_name,
+          email: payload.email || '',
+          phone: payload.phone || '',
+          role: payload.role || '',
+          department: payload.department || '',
+          employment_type: payload.employment_type || 'full_time',
+          start_date: payload.start_date || new Date().toISOString().split('T')[0],
+          gross_salary: Number(payload.gross_salary) || 0,
+          paye_rate: Number(payload.paye_rate) ?? 7.5,
+          pension_rate: Number(payload.pension_rate) ?? 8.0,
+          bank_name: payload.bank_name || '',
+          bank_account: payload.bank_account || '',
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+        id: `employee-ok-${Date.now()}`, role: 'assistant',
+        content: `✅ Employee **${payload.full_name}** has been successfully registered!\n\n` +
+          `• Role: ${data.role || 'Not specified'}\n` +
+          `• Gross Salary: ₦${data.gross_salary.toLocaleString()}\n` +
+          `• Start Date: ${data.start_date}\n` +
+          `• Bank Account: ${data.bank_name} - ${data.bank_account || 'Not specified'}`,
+        timestamp: new Date(),
+        actions: [{ type: 'view_report', label: '👤 View Employees', payload: { page: 'payroll' } }],
+      }));
+    } catch (err: any) {
+      console.error("Failed to add employee:", err);
+      setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+        id: `employee-err-${Date.now()}`, role: 'assistant',
+        content: `❌ Failed to add employee: ${err.message || err}`,
+        timestamp: new Date(),
+      }));
+    } finally {
+      setTyping(false);
+    }
   }
 
   // ── Helper: Process Payroll ─────────────────────────────────────────────────
@@ -459,14 +612,202 @@ export default function AssistantPage() {
       }
 
       // ── Inventory ──────────────────────────────────────────────────────────
-      case 'add_inventory':
-        navigate('/app/inventory', { state: { openCreateModal: true, payload: action.payload } });
+      case 'add_inventory': {
+        const payload = action.payload || {};
+        if (payload.name) {
+          addInventoryFromAI(payload);
+        } else {
+          navigate('/app/inventory', { state: { openCreateModal: true, payload } });
+        }
         break;
+      }
+
+      // ── Employee ───────────────────────────────────────────────────────────
+      case 'add_employee': {
+        const payload = action.payload || {};
+        if (payload.full_name) {
+          addEmployeeFromAI(payload);
+        } else {
+          navigate('/app/payroll', { state: { openCreateModal: true, payload } });
+        }
+        break;
+      }
 
       // ── Reports ────────────────────────────────────────────────────────────
       case 'view_report':
-        navigate('/app/reports');
+        if (action.payload?.page === 'inventory') {
+          navigate('/app/inventory');
+        } else if (action.payload?.page === 'payroll') {
+          navigate('/app/payroll');
+        } else {
+          navigate('/app/reports');
+        }
         break;
+
+      // ── Edit Transaction ───────────────────────────────────────────────────
+      case 'update_transaction': {
+        const payload = action.payload || {};
+        const txId = payload.transaction_id;
+        const newCategoryName = payload.category_name || payload.category;
+        const newDescription = payload.description;
+        const newAmount = payload.amount;
+        const newDate = payload.date;
+
+        if (txId) {
+          const updates: any = {};
+          if (newDescription) updates.description = newDescription;
+          if (newAmount !== undefined && newAmount !== null) updates.amount = Number(newAmount);
+          if (newDate) updates.date = newDate;
+
+          const runUpdate = async () => {
+            if (newCategoryName) {
+              const matchedCat = categories.find(c => 
+                c.name.toLowerCase() === newCategoryName.toLowerCase()
+              );
+              if (matchedCat) {
+                updates.category_id = matchedCat.id;
+              } else {
+                const { data: newCat, error: createCatErr } = await supabase
+                  .from('categories')
+                  .insert({
+                    user_id: user!.id,
+                    name: newCategoryName,
+                    type: payload.type || 'expense',
+                    is_system: false
+                  })
+                  .select()
+                  .single();
+                if (!createCatErr && newCat) {
+                  setCategories(prev => [...prev, newCat]);
+                  updates.category_id = newCat.id;
+                }
+              }
+            }
+
+            if (Object.keys(updates).length > 0) {
+              const { error: updateErr } = await supabase
+                .from('transactions')
+                .update(updates)
+                .eq('id', txId);
+
+              if (!updateErr) {
+                setTransactions(prev =>
+                  prev.map(t => {
+                    if (t.id === txId) {
+                      const updatedTx = { ...t, ...updates };
+                      if (updates.category_id) {
+                        const catObj = categories.find(c => c.id === updates.category_id) || t.category;
+                        updatedTx.category = catObj;
+                      }
+                      return updatedTx;
+                    }
+                    return t;
+                  })
+                );
+                setMessages(prev => [...prev, {
+                  id: `update-ok-${Date.now()}`,
+                  role: 'assistant',
+                  content: `✅ Transaction updated successfully!`,
+                  timestamp: new Date(),
+                }]);
+              } else {
+                setMessages(prev => [...prev, {
+                  id: `update-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: `❌ Failed to update transaction: ${updateErr.message}`,
+                  timestamp: new Date(),
+                }]);
+              }
+            }
+          };
+          runUpdate().catch(err => console.error("Update action failed:", err));
+        }
+        break;
+      }
+
+      // ── Delete Transaction ───────────────────────────────────────────────────
+      case 'delete_transaction': {
+        const payload = action.payload || {};
+        const txId = payload.transaction_id;
+
+        if (txId) {
+          supabase
+            .from('transactions')
+            .delete()
+            .eq('id', txId)
+            .then(({ error: deleteErr }) => {
+              if (!deleteErr) {
+                setTransactions(prev => prev.filter(t => t.id !== txId));
+                setMessages(prev => [...prev, {
+                  id: `delete-ok-${Date.now()}`,
+                  role: 'assistant',
+                  content: `✅ Transaction deleted successfully.`,
+                  timestamp: new Date(),
+                }]);
+              } else {
+                setMessages(prev => [...prev, {
+                  id: `delete-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: `❌ Failed to delete transaction: ${deleteErr.message}`,
+                  timestamp: new Date(),
+                }]);
+              }
+            });
+        }
+        break;
+      }
+
+      // ── Clarify Transaction (update description from AI/user answer) ──────
+      case 'clarify_transaction': {
+        const payload = action.payload || {};
+        const txId = payload.transaction_id;
+        const newDescription = payload.description || payload.answer;
+        const newCategory = payload.category;
+
+        if (txId && newDescription) {
+          // Update the transaction description in the database
+          const { error: updateErr } = await supabase
+            .from('transactions')
+            .update({
+              description: newDescription,
+              notes: payload.original_description
+                ? `Clarified via ROVA AI. Original: "${payload.original_description}"`
+                : 'Updated via ROVA AI Assistant',
+            })
+            .eq('id', txId);
+
+          if (!updateErr) {
+            // Update local state
+            setTransactions(prev =>
+              prev.map(t =>
+                t.id === txId
+                  ? { ...t, description: newDescription, notes: payload.original_description ? `Clarified via ROVA AI. Original: "${payload.original_description}"` : 'Updated via ROVA AI Assistant' }
+                  : t
+              )
+            );
+          }
+
+          // Re-classify with the new description
+          classifyTransaction(
+            {
+              id: txId,
+              description: newDescription,
+              amount: payload.amount || undefined,
+              type: payload.type || 'expense',
+            },
+            user!.id,
+            'full'
+          ).catch(err => console.error('Failed to re-classify:', err));
+
+          setMessages(prev => [...prev, {
+            id: `clarify-ok-${Date.now()}`,
+            role: 'assistant',
+            content: `✅ Transaction updated to: **${newDescription}**${newCategory ? ` (Category: ${newCategory})` : ''}`,
+            timestamp: new Date(),
+          }]);
+        }
+        break;
+      }
 
       default:
         break;
@@ -507,6 +848,8 @@ export default function AssistantPage() {
           },
         });
 
+        const responseActions = response.actions ?? [];
+
         setMessages(prev => [
           ...prev,
           {
@@ -514,9 +857,124 @@ export default function AssistantPage() {
             role: 'assistant',
             content: response.reply,
             timestamp: new Date(),
-            actions: response.actions ?? [],
+            actions: responseActions,
           },
         ]);
+
+        // Auto-process clarify_transaction, update_transaction, and delete_transaction actions from the AI response
+        // so the transactions are updated immediately
+        for (const action of responseActions) {
+          if (action.type === 'clarify_transaction') {
+            const payload = action.payload || {};
+            const txId = payload.transaction_id;
+            const newDesc = payload.description || payload.answer;
+            if (txId && newDesc) {
+              supabase
+                .from('transactions')
+                .update({
+                  description: newDesc,
+                  notes: payload.original_description
+                    ? `Clarified via ROVA AI. Original: "${payload.original_description}"`
+                    : 'Updated via ROVA AI Assistant',
+                })
+                .eq('id', txId)
+                .then(({ error }) => {
+                  if (!error) {
+                    console.log("ROVA: Auto-updated transaction description in DB to:", newDesc);
+                    setTransactions(prev =>
+                      prev.map(t => t.id === txId ? { ...t, description: newDesc } : t)
+                    );
+                    // Only re-classify after description update succeeds
+                    classifyTransaction(
+                      { id: txId, description: newDesc, amount: payload.amount, type: payload.type || 'expense' },
+                      user!.id,
+                      'full'
+                    ).catch(err => console.error('ROVA: Auto-reclassify failed:', err));
+                  } else {
+                    console.error("ROVA: Auto-process description update failed:", error);
+                  }
+                });
+            }
+          } else if (action.type === 'update_transaction') {
+            const payload = action.payload || {};
+            const txId = payload.transaction_id;
+            const newCategoryName = payload.category_name || payload.category;
+            const newDescription = payload.description;
+            const newAmount = payload.amount;
+            const newDate = payload.date;
+
+            if (txId) {
+              const updates: any = {};
+              if (newDescription) updates.description = newDescription;
+              if (newAmount !== undefined && newAmount !== null) updates.amount = Number(newAmount);
+              if (newDate) updates.date = newDate;
+
+              const runUpdate = async () => {
+                if (newCategoryName) {
+                  const matchedCat = categories.find(c => 
+                    c.name.toLowerCase() === newCategoryName.toLowerCase()
+                  );
+                  if (matchedCat) {
+                    updates.category_id = matchedCat.id;
+                  } else {
+                    const { data: newCat, error: createCatErr } = await supabase
+                      .from('categories')
+                      .insert({
+                        user_id: user!.id,
+                        name: newCategoryName,
+                        type: payload.type || 'expense',
+                        is_system: false
+                      })
+                      .select()
+                      .single();
+                    if (!createCatErr && newCat) {
+                      setCategories(prev => [...prev, newCat]);
+                      updates.category_id = newCat.id;
+                    }
+                  }
+                }
+
+                if (Object.keys(updates).length > 0) {
+                  const { error } = await supabase
+                    .from('transactions')
+                    .update(updates)
+                    .eq('id', txId);
+
+                  if (!error) {
+                    setTransactions(prev =>
+                      prev.map(t => {
+                        if (t.id === txId) {
+                          const updatedTx = { ...t, ...updates };
+                          if (updates.category_id) {
+                            const catObj = categories.find(c => c.id === updates.category_id) || t.category;
+                            updatedTx.category = catObj;
+                          }
+                          return updatedTx;
+                        }
+                        return t;
+                      })
+                    );
+                  }
+                }
+              };
+              runUpdate().catch(err => console.error("Auto-update failed:", err));
+            }
+          } else if (action.type === 'delete_transaction') {
+            const payload = action.payload || {};
+            const txId = payload.transaction_id;
+            if (txId) {
+              supabase
+                .from('transactions')
+                .delete()
+                .eq('id', txId)
+                .then(({ error }) => {
+                  if (!error) {
+                    setTransactions(prev => prev.filter(t => t.id !== txId));
+                  }
+                });
+            }
+          }
+        }
       } catch (err: any) {
         setMessages(prev => [
           ...prev,
@@ -531,7 +989,7 @@ export default function AssistantPage() {
         setTyping(false);
       }
     },
-    [messages, transactions, accounts, user, isStaff, typing]
+    [messages, transactions, accounts, categories, user, isStaff, typing]
   );
 
   function handleSubmit(e: React.FormEvent) {
@@ -550,11 +1008,11 @@ export default function AssistantPage() {
             <div
               style={{
                 width: 28, height: 28, borderRadius: 8,
-                background: 'linear-gradient(135deg, var(--accent-primary), #7e22ce)',
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <Sparkles size={14} color="white" />
+              <span style={{ color: 'white', fontWeight: 800, fontSize: 15, fontFamily: 'Space Grotesk, sans-serif' }}>S</span>
             </div>
             <h1 style={{ fontSize: 22 }}>ROVA Assistant</h1>
           </div>
@@ -758,12 +1216,12 @@ export default function AssistantPage() {
                   <div
                     style={{
                       width: 24, height: 24, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--accent-primary), #7e22ce)',
+                      background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0, marginRight: 8, marginTop: 2,
                     }}
                   >
-                    <Sparkles size={11} color="white" />
+                    <span style={{ color: 'white', fontWeight: 800, fontSize: 13, fontFamily: 'Space Grotesk, sans-serif' }}>S</span>
                   </div>
                 )}
                 <div style={{ maxWidth: '85%' }}>
@@ -802,11 +1260,11 @@ export default function AssistantPage() {
                 <div
                   style={{
                     width: 24, height: 24, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, var(--accent-primary), #7e22ce)',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
                 >
-                  <Sparkles size={11} color="white" />
+                  <span style={{ color: 'white', fontWeight: 800, fontSize: 13, fontFamily: 'Space Grotesk, sans-serif' }}>S</span>
                 </div>
                 <div
                   style={{

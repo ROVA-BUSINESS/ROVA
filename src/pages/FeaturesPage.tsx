@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   ShieldCheck, Globe, Calculator, Users2,
-  Sparkles, CheckCircle2
+  Sparkles, CheckCircle2, ArrowLeft
 } from 'lucide-react';
 
 const FeatureCard = ({ icon, title, desc, details }: { icon: React.ReactNode, title: string, desc: string, details: string[] }) => (
@@ -31,7 +31,7 @@ export default function FeaturesPage() {
   const isLight = theme === 'light';
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', overflowX: 'hidden', fontFamily: "'Roboto', sans-serif" }}>
       {/* Navigation Re-used */}
       <nav style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 80,
@@ -39,9 +39,23 @@ export default function FeaturesPage() {
         borderBottom: '1px solid var(--bg-border)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <div style={{ width: '100%', maxWidth: 1200, padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/">
-            <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 56 }} />
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <Link to="/" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              color: 'var(--text-secondary)', textDecoration: 'none',
+              fontSize: 14, fontWeight: 600, padding: '8px 16px',
+              borderRadius: 8, background: 'rgba(255,255,255,0.04)',
+              border: '1px solid var(--bg-border)', transition: 'all 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+            >
+              <ArrowLeft size={16} /> Back to Home
+            </Link>
+            <Link to="/">
+              <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 56 }} />
+            </Link>
+          </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <Link to="/login" style={{ textDecoration: 'none', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600, padding: '10px 20px' }}>Login</Link>
             <Link to="/signup" style={{

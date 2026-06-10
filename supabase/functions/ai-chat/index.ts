@@ -41,8 +41,8 @@ serve(async (req) => {
     const net = thisIncome - thisExpense;
 
     const recentTx = txs
-      .slice(0, 10)
-      .map((t) => `- ${t.date?.slice(0, 10)} | ${t.type} | ₦${t.amount?.toLocaleString()} | ${t.description}`)
+      .slice(0, 50)
+      .map((t) => `- [id:${t.id}] ${t.date?.slice(0, 10)} | ${t.type} | ₦${t.amount?.toLocaleString()} | ${t.description} | Category: ${t.category?.name || 'Uncategorized'}`)
       .join("\n");
 
     const financialCtx = `
@@ -84,7 +84,7 @@ Your capabilities:
 
 Action object shape:
 {
-  "type": "create_invoice" | "add_inventory" | "record_payroll" | "clarify_transaction" | "view_report",
+  "type": "create_invoice" | "add_inventory" | "add_employee" | "record_payroll" | "clarify_transaction" | "view_report" | "update_transaction" | "delete_transaction",
   "label": "human-readable button label",
   "payload": {}
 }
@@ -126,6 +126,68 @@ INVOICE CREATION:
     }
   }
 
+INVENTORY ITEM CREATION:
+- When a user expresses intent to add or create a new inventory item (e.g. "add a product to inventory", "create a product", etc.), you MUST ask for and gather ALL of the following 8 pieces of information before you can return the 'add_inventory' action:
+  1. Item Name ('name')
+  2. SKU / Code ('sku')
+  3. Category ('category')
+  4. Unit ('unit', e.g., 'unit', 'kg', 'litre')
+  5. Cost Price ('cost_price' as a number)
+  6. Selling Price ('selling_price' as a number)
+  7. Current Stock ('current_stock' as a number)
+  8. Reorder Level ('reorder_level' as a number)
+- You MUST check the conversation history to see which fields have already been provided. If ANY are missing, you MUST NOT return the 'add_inventory' action yet. Instead, politely and clearly ask the user to provide the specific missing fields. You can list all the missing fields so the user can answer them together.
+- Only when ALL 8 fields are fully gathered, return the 'add_inventory' action in your JSON response with the following payload structure:
+  {
+    "type": "add_inventory",
+    "label": "Add Inventory Item",
+    "payload": {
+      "name": "<item name>",
+      "sku": "<sku code>",
+      "category": "<category>",
+      "unit": "<unit>",
+      "cost_price": <number>,
+      "selling_price": <number>,
+      "current_stock": <number>,
+      "reorder_level": <number>
+    }
+  }
+
+EMPLOYEE REGISTRATION:
+- When a user expresses intent to add or register an employee/team member (e.g. "add employee", "register a worker", "add staff member", etc.), you MUST ask for and gather ALL of the following 12 pieces of information before you can return the 'add_employee' action:
+  1. Full Name ('full_name')
+  2. Email ('email')
+  3. Phone Number ('phone')
+  4. Role / Title ('role')
+  5. Department ('department')
+  6. Employment Type ('employment_type' which MUST be exactly one of: 'full_time', 'part_time', or 'contract')
+  7. Start Date ('start_date' in YYYY-MM-DD format)
+  8. Gross Monthly Salary ('gross_salary' as a number)
+  9. PAYE Rate ('paye_rate' as a percentage, default to 7.5 if not specified)
+  10. Pension Rate ('pension_rate' as a percentage, default to 8.0 if not specified)
+  11. Bank Name ('bank_name')
+  12. Bank Account Number ('bank_account')
+- You MUST check the conversation history to see which fields have already been provided. If ANY are missing, you MUST NOT return the 'add_employee' action yet. Instead, politely and clearly ask the user to provide the specific missing fields. You can list all the missing fields so the user can answer them together.
+- Only when ALL 12 fields are fully gathered, return the 'add_employee' action in your JSON response with the following payload structure:
+  {
+    "type": "add_employee",
+    "label": "Add Employee",
+    "payload": {
+      "full_name": "<full name>",
+      "email": "<email>",
+      "phone": "<phone>",
+      "role": "<role>",
+      "department": "<department>",
+      "employment_type": "full_time" | "part_time" | "contract",
+      "start_date": "<YYYY-MM-DD>",
+      "gross_salary": <number>,
+      "paye_rate": <number>,
+      "pension_rate": <number>,
+      "bank_name": "<bank name>",
+      "bank_account": "<bank account number>"
+    }
+  }
+
 PAYROLL PROCESSING:
 - If the user asks to process, pay, or run salary/payroll for a named person with an amount (e.g. "Process Chinedu's monthly salary of ₦150,000"), extract the details immediately.
 - Return a record_payroll action with payload: { "employee_name": "<extracted name>", "gross_amount": <number> }
@@ -135,6 +197,55 @@ PAYROLL PROCESSING:
 RUNWAY / BURN RATE:
 - Always state the exact runway figure: "${runwayMonths} months" based on current balance ÷ this month's expenses.
 - Include a view_report action with label "View Financial Report" when answering burn rate or runway questions.
+
+TRANSACTION CLARIFICATION:
+- When a user tells you what a vague/unclear transaction was for (e.g. "the TRANSFER (60526976...) was for internet subscription"), you MUST return a 'clarify_transaction' action.
+- Look through the recent transactions in your context to find the matching transaction by description, amount, or date.
+- The payload MUST include:
+  {
+    "type": "clarify_transaction",
+    "label": "Update Transaction",
+    "payload": {
+      "transaction_id": "<the id of the transaction being clarified>",
+      "description": "<the user's clarified description, e.g. 'Internet Subscription'>",
+      "original_description": "<the original bank narration, e.g. 'TRANSFER (60526976...)'>",
+      "amount": <the transaction amount>,
+      "type": "income" | "expense"
+    }
+  }
+- This is CRITICAL: always include the transaction_id so the system can update the description in the database.
+- If the user tells you what multiple transactions are for, return a separate clarify_transaction action for each one.
+
+TRANSACTION UPDATES / EDITS:
+- When a user asks to change, edit, or update a transaction's category, description, amount, or date (e.g. "change the category of transaction 'Payment for INV-609928' to 'Revenue'", "change description of transaction for ₦77,000 on June 29 to Salary payment", "update the amount to 15,000"), you MUST return an 'update_transaction' action.
+- Search the recent transactions in your context to find the transaction that matches the user's request (by matching description, amount, date, or category).
+- The payload MUST contain the 'transaction_id' of the matched transaction.
+- The payload should include only the fields to be updated:
+  {
+    "type": "update_transaction",
+    "label": "Update Transaction",
+    "payload": {
+      "transaction_id": "<id of matched transaction>",
+      "category_name": "<new category name, optional>",
+      "description": "<new description, optional>",
+      "amount": <new amount number, optional>,
+      "date": "<new date in YYYY-MM-DD format, optional>"
+    }
+  }
+- In your reply, state clearly what fields you are updating for that transaction.
+
+TRANSACTION DELETION:
+- When a user asks to delete, remove, or cancel a transaction (e.g., "delete the duplicate salary payment of ₦77,000", "remove transaction for 12,000", "delete transaction [id:...]"), you MUST return a 'delete_transaction' action.
+- Search the recent transactions in your context to find the transaction that matches the user's request (by matching description, amount, date, or category).
+- The payload MUST contain the 'transaction_id' of the matched transaction.
+  {
+    "type": "delete_transaction",
+    "label": "Delete Transaction",
+    "payload": {
+      "transaction_id": "<id of matched transaction>"
+    }
+  }
+- In your reply, confirm that you have deleted that transaction (e.g., "I've removed the duplicate salary payment of ₦77,000 to Boss Baby on June 29, 2026. Your records have been updated.").
 
 GENERAL:
 - Use ₦ for amounts. Format large numbers with commas.

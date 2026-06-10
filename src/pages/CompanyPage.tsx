@@ -1,6 +1,6 @@
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
-import { Sparkles, ArrowLeft, ArrowRight, ShieldCheck, Cpu, Code2, HeartHandshake } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ShieldCheck, Cpu, Code2, HeartHandshake } from 'lucide-react';
 
 export default function CompanyPage() {
   const { theme } = useTheme();
@@ -15,7 +15,7 @@ export default function CompanyPage() {
             ? 'radial-gradient(circle at 0% 0%, rgba(147,51,234,0.03) 0%, #f4f4f5 100%)'
             : 'radial-gradient(circle at 0% 0%, rgba(147,51,234,0.05) 0%, #09090b 100%)'};
           color: var(--text-primary);
-          font-family: 'Inter', system-ui, sans-serif;
+          font-family: 'Roboto', sans-serif;
           overflow-x: hidden;
           position: relative;
           padding-bottom: 80px;
@@ -55,11 +55,11 @@ export default function CompanyPage() {
         .com-badge-text {
           font-size: 11px; font-weight: 800; color: var(--accent-light);
           text-transform: uppercase; letter-spacing: 2px;
-          font-family: 'Space Grotesk', sans-serif;
+          font-family: 'Roboto', sans-serif;
         }
         .com-title {
           font-size: clamp(32px, 4vw, 56px); font-weight: 800; line-height: 1.15;
-          margin-bottom: 20px; font-family: 'Space Grotesk', sans-serif;
+          margin-bottom: 20px; font-family: 'Roboto', sans-serif;
         }
         .com-subtitle {
           font-size: clamp(15px, 1.8vw, 18px); color: var(--text-secondary); line-height: 1.6;
@@ -72,7 +72,7 @@ export default function CompanyPage() {
           .com-about-section { grid-template-columns: 1fr; gap: 32px; }
         }
         .com-about-title {
-          font-size: 28px; font-weight: 800; margin-bottom: 18px; font-family: 'Space Grotesk, sans-serif';
+          font-size: 28px; font-weight: 800; margin-bottom: 18px; font-family: 'Roboto', sans-serif;
         }
         .com-about-p {
           color: var(--text-secondary); line-height: 1.7; font-size: 14px; margin-bottom: 16px;
@@ -94,7 +94,7 @@ export default function CompanyPage() {
           display: flex; align-items: center; justify-content: center;
         }
         .com-value-title {
-          font-size: 18px; font-weight: 800; font-family: 'Space Grotesk', sans-serif;
+          font-size: 18px; font-weight: 800; font-family: 'Roboto', sans-serif;
         }
         .com-value-desc {
           color: var(--text-secondary); line-height: 1.6; font-size: 13px;
@@ -112,9 +112,23 @@ export default function CompanyPage() {
         {/* Navbar */}
         <nav className="com-nav">
           <div className="com-nav-inner">
-            <Link to="/">
-              <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="com-nav-logo" />
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <Link to="/" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                color: 'var(--text-secondary)', textDecoration: 'none',
+                fontSize: 14, fontWeight: 600, padding: '8px 16px',
+                borderRadius: 8, background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--bg-border)', transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              >
+                <ArrowLeft size={16} /> Back to Home
+              </Link>
+              <Link to="/">
+                <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="com-nav-logo" />
+              </Link>
+            </div>
             <div className="com-nav-links">
               <Link to="/features" className="com-nav-link">Features</Link>
               <Link to="/solutions" className="sol-nav-link">Solutions</Link>
@@ -130,15 +144,10 @@ export default function CompanyPage() {
 
         {/* Container */}
         <div className="com-container">
-          <div style={{ marginBottom: 20 }}>
-            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textDecoration: 'none' }}>
-              <ArrowLeft size={14} /> Back to Home
-            </Link>
-          </div>
+
 
           <header className="com-header">
             <div className="com-badge">
-              <Sparkles size={13} color="var(--accent-light)" />
               <span className="com-badge-text">Mission &amp; Vision</span>
             </div>
             <h1 className="com-title">
@@ -168,23 +177,23 @@ export default function CompanyPage() {
               borderRadius: 'var(--radius-xl)', padding: 36, display: 'flex', flexDirection: 'column', gap: 24
             }}>
               <div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--accent-light)', marginBottom: 4, fontFamily: 'Space Grotesk, sans-serif' }}>₦50B+</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--accent-light)', marginBottom: 4, fontFamily: "'Roboto', sans-serif" }}>₦50B+</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Autonomous transaction pipeline capacity</div>
               </div>
               <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
               <div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: '#3b82f6', marginBottom: 4, fontFamily: 'Space Grotesk, sans-serif' }}>100%</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: '#3b82f6', marginBottom: 4, fontFamily: "'Roboto', sans-serif" }}>100%</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Statutory compliance calculations precision (FIRS rules)</div>
               </div>
               <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
               <div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: '#10b981', marginBottom: 4, fontFamily: 'Space Grotesk, sans-serif' }}>250ms</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: '#10b981', marginBottom: 4, fontFamily: "'Roboto', sans-serif" }}>250ms</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Average ledger query indexing latency</div>
               </div>
             </div>
           </div>
 
-          <h2 style={{ fontSize: 24, fontWeight: 800, textAlign: 'center', marginBottom: 36, fontFamily: 'Space Grotesk, sans-serif' }}>Our Engineering Principles</h2>
+          <h2 style={{ fontSize: 24, fontWeight: 800, textAlign: 'center', marginBottom: 36, fontFamily: "'Roboto', sans-serif" }}>Our Engineering Principles</h2>
 
           <div className="com-values-grid">
             <div className="com-value-card">
@@ -234,7 +243,7 @@ export default function CompanyPage() {
             borderRadius: 'var(--radius-xl)', padding: '50px 40px', textAlign: 'center',
             boxShadow: '0 20px 40px rgba(147,51,234,0.25)', position: 'relative', overflow: 'hidden'
           }}>
-            <h2 style={{ fontSize: 32, fontWeight: 800, color: 'white', marginBottom: 12, fontFamily: 'Space Grotesk, sans-serif' }}>Automate your financials with complete confidence</h2>
+            <h2 style={{ fontSize: 32, fontWeight: 800, color: 'white', marginBottom: 12, fontFamily: "'Roboto', sans-serif" }}>Automate your financials with complete confidence</h2>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16, marginBottom: 28, maxWidth: 580, marginInline: 'auto' }}>
               Consolidate your multi-bank ledgers, automate client invoicing, and compute compliance runs on ROVA AI today.
             </p>

@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plu
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase, type Transaction, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { formatCurrency, formatDate, formatTime } from '../lib/format';
+import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib/format';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -333,7 +333,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {tx.description || (tx.category as any)?.name || 'Transaction'}
+          {cleanDescription(tx.description) || (tx.category as any)?.name || 'Transaction'}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(tx.date)}</div>
