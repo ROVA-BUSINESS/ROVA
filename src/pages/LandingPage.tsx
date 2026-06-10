@@ -703,43 +703,7 @@ export default function LandingPage() {
           pointer-events: none;
           z-index: 2;
         }
-        .lp-floating-divider {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 2px;
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(139, 92, 246, 0.1) 20%,
-            rgba(139, 92, 246, 1) 50%,
-            rgba(139, 92, 246, 0.1) 80%,
-            transparent 100%
-          );
-          background-size: 200% 100%;
-          animation: lp-glow-trail 4s linear infinite;
-          z-index: 10;
-          box-shadow: 0 0 10px rgba(139, 92, 246, 0.6);
-        }
-        .lp-floating-divider::before {
-          content: '';
-          position: absolute;
-          top: -3px;
-          left: 0;
-          right: 0;
-          height: 8px;
-          background: inherit;
-          background-size: inherit;
-          animation: inherit;
-          filter: blur(5px);
-          opacity: 0.95;
-          z-index: -1;
-        }
-        @keyframes lp-glow-trail {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
+
         .lp-devices-grid {
           display: flex;
           flex-direction: row;
@@ -1371,7 +1335,6 @@ export default function LandingPage() {
 
         {/* ── Comparison Section (ROVA vs The Alternatives) ── */}
         <section id="comparison-section" className={`lp-comparison ${compVisible ? 'is-visible' : ''}`}>
-          <div className="lp-floating-divider" />
           <div className="lp-comparison-inner">
             <div className="lp-section-title">
               <h2 className="lp-h2">ROVA vs The Alternatives.</h2>
