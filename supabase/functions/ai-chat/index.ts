@@ -14,7 +14,7 @@ serve(async (req) => {
 
     const body = await req.json();
     const { messages, context } = body;
-    const { transactions, accounts, userId, isStaff } = context ?? {};
+    const { transactions, accounts, userId, isStaff, inventoryItems } = context ?? {};
 
     if (!messages || !userId) throw new Error("Missing messages or userId");
 
@@ -25,6 +25,7 @@ serve(async (req) => {
 
     const txs = transactions ?? [];
     const accs = accounts ?? [];
+    const items = inventoryItems ?? [];
 
     const thisMonthTx = txs.filter((t) => {
       const d = new Date(t.date);
@@ -45,6 +46,10 @@ serve(async (req) => {
       .map((t) => `- [id:${t.id}] ${t.date?.slice(0, 10)} | ${t.type} | ₦${t.amount?.toLocaleString()} | ${t.description} | Category: ${t.category?.name || 'Uncategorized'}`)
       .join("\n");
 
+    const recentItemsCtx = items
+      .map((i) => `- [id:${i.id}] ${i.name} | SKU: ${i.sku || 'N/A'} | Stock: ${i.current_stock} ${i.unit || 'unit'} | Cost: ₦${i.cost_price?.toLocaleString()} | Sell: ₦${i.selling_price?.toLocaleString()}`)
+      .join("\n");
+
     const financialCtx = `
 Current financial snapshot (Nigerian Naira):
 - Total balance across all accounts: ₦${totalBalance.toLocaleString()}
@@ -55,6 +60,9 @@ Current financial snapshot (Nigerian Naira):
 
 Recent transactions:
 ${recentTx || "No recent transactions."}
+
+Current inventory list:
+${recentItemsCtx || "No inventory items on record."}
 `.trim();
 
     const staffRestriction = isStaff
@@ -84,7 +92,7 @@ Your capabilities:
 
 Action object shape:
 {
-  "type": "create_invoice" | "add_inventory" | "add_employee" | "record_payroll" | "clarify_transaction" | "view_report" | "update_transaction" | "delete_transaction",
+  "type": "create_invoice" | "add_inventory" | "add_employee" | "record_payroll" | "clarify_transaction" | "view_report" | "update_transaction" | "delete_transaction" | "edit_inventory" | "delete_inventory",
   "label": "human-readable button label",
   "payload": {}
 }
@@ -247,6 +255,63 @@ TRANSACTION DELETION:
   }
 - In your reply, confirm that you have deleted that transaction (e.g., "I've removed the duplicate salary payment of ₦77,000 to Boss Baby on June 29, 2026. Your records have been updated.").
 
+INVENTORY ITEM UPDATES / EDITS:
+- When a user asks to change, edit, or update an inventory item's details (e.g. "change the price of product 'XYZ' to ₦10,000", "update the cost price of item 'ABC' to 3500", "update the current stock of Rice to 20"), you MUST return an 'edit_inventory' action.
+- Search the inventory list in your context to find the item that matches the user's request (by matching name or SKU).
+- The payload MUST contain the 'item_id' of the matched item.
+- The payload should include only the fields to be updated:
+  {
+    "type": "edit_inventory",
+    "label": "Update Inventory Item",
+    "payload": {
+      "item_id": "<id of matched item>",
+      "name": "<new name, optional>",
+      "sku": "<new sku, optional>",
+      "category": "<new category, optional>",
+      "unit": "<new unit, optional>",
+      "cost_price": <new cost price number, optional>,
+      "selling_price": <new selling price number, optional>,
+      "current_stock": <new current stock number, optional>,
+      "reorder_level": <new reorder level number, optional>
+    }
+  }
+- In your reply, state clearly what fields you are updating for that inventory item.
+
+INVENTORY ITEM DELETION / REMOVAL:
+- When a user asks to delete, remove, or throw away an inventory item (e.g. "delete inventory item 'XYZ'", "remove product 'ABC'", "delete product [id:...]"), you MUST return a 'delete_inventory' action.
+- Search the inventory list in your context to find the item that matches the user's request (by matching name or SKU).
+- The payload MUST contain the 'item_id' of the matched item.
+  {
+    "type": "delete_inventory",
+    "label": "Delete Inventory Item",
+    "payload": {
+      "item_id": "<id of matched item>"
+    }
+  }
+- In your reply, confirm that you have deleted that item.
+INVENTORY STOCK ADJUSTMENTS (ADD/REMOVE STOCK / EDIT STOCK LEVELS):
+- When a user asks to add, remove, decrease, or edit stock quantity of an item (e.g., "remove 3 bags of rice", "add 5 bags of beans", "deduct 6 bags of cement", "adjust inventory for beans"):
+  1. Do NOT ask for unit price, unit cost, cost price, or total value under any circumstances. Never say "I need to know the unit cost or total value..." or similar.
+  2. Do NOT ask if it is a sale or general stock adjustment.
+  3. Search the inventory items list in your context to find matching items (case-insensitive search).
+  4. If there are multiple different types or variations of the matched item (e.g., "Rice (Local)" and "Rice (Foreign)"):
+     - List all matching variations with Name, SKU, and Prices (Cost & Selling).
+     - Ask the user to clarify which specific type or variation they mean (e.g., "Which type of rice would you like to adjust?").
+     - Do NOT return any action button in this turn.
+  5. If there is exactly ONE matching item:
+     - Do NOT ask for confirmation, unit cost, or details.
+     - List the Name, SKU, and Prices of the item in your reply.
+     - Return a single 'edit_inventory' action with the label "Update Inventory" and this payload:
+       {
+         "item_id": "<id of the matched item>",
+         "name": "<name of the matched item>",
+         "quantity": <positive quantity value (always positive, e.g. 6 instead of -6)>,
+         "type": "sale" | "purchase", // "sale" if removing/deducting stock, "purchase" if adding/increasing stock
+         "is_movement": true
+       }
+  6. If there are no matching items:
+     - Inform the user you couldn't find the item, list nearby matches, or suggest adding a new inventory item.
+
 GENERAL:
 - Use ₦ for amounts. Format large numbers with commas.
 - Be warm and professional.
@@ -353,8 +418,14 @@ function keywordFallbackChat(q, balance, income, expense, net, txCount) {
   if (/\b(salary|payroll|pay)\b/.test(q)) {
     return `${prefix}Sure! To record a salary payment, go to Payroll and add a payslip, or tell me the employee name and amount and I'll guide you.`;
   }
+  if (/\b(remove|deduct|decrease|add|purchase|sale|adjust)\b/.test(q) && /\b(inventory|stock|item|bag|kg|unit|piece|carton|litre)\b/.test(q)) {
+    const isRemoval = /\b(remove|deduct|decrease|minus|sell|sale)\b/.test(q);
+    const qty = q.match(/\d+/)?.[0] || "some";
+    const itemName = q.replace(/\b(remove|add|deduct|decrease|stock|inventory|bags?|units?|pieces?|pcs?|of|from|to|\d+)\b/g, "").trim();
+    return `${prefix}I've detected a request to ${isRemoval ? 'remove' : 'add'} ${qty} units of "${itemName || 'item'}". Click the button below to record this movement in the inventory tab.`;
+  }
   if (/\b(inventory|stock|item)\b/.test(q)) {
-    return `${prefix}I can update your inventory. Tell me the item name, quantity, and cost price.`;
+    return `${prefix}I can help you adjust your inventory. Click the Update Inventory button below to record a stock movement.`;
   }
   if (/\b(hi|hello|hey)\b/.test(q)) {
     return `${prefix}Hi! I'm ROVA, your financial assistant. You have ${txCount} transactions on record and a total balance of ${fmt(balance)}. How can I help you today?`;
@@ -367,8 +438,29 @@ function detectActions(q) {
   if (q.includes("invoice")) {
     actions.push({ type: "create_invoice", label: "Create Invoice", payload: {} });
   }
-  if (q.includes("inventory") || q.includes("stock")) {
-    actions.push({ type: "add_inventory", label: "Add Inventory", payload: {} });
+  
+  const isStockAdj = /\b(remove|deduct|decrease|add|purchase|sale|adjust|stock|inventory)\b/.test(q) && /\b(bag|kg|unit|piece|carton|litre|qty|quantity|\d+)\b/.test(q);
+  
+  if (isStockAdj) {
+    const isRemoval = /\b(remove|deduct|decrease|minus|sell|sale)\b/.test(q);
+    actions.push({
+      type: "edit_inventory",
+      label: "Update Inventory",
+      payload: {
+        is_movement: true,
+        type: isRemoval ? "sale" : "purchase",
+        quantity: parseFloat(q.match(/\d+/)?.[0] || "1"),
+        name: q.replace(/\b(remove|add|deduct|decrease|stock|inventory|bags?|units?|pieces?|pcs?|of|from|to|\d+)\b/g, "").trim()
+      }
+    });
+  } else if (q.includes("inventory") || q.includes("stock")) {
+    if (q.includes("delete") || q.includes("remove")) {
+      actions.push({ type: "delete_inventory", label: "Delete Inventory Item", payload: {} });
+    } else if (q.includes("edit") || q.includes("update") || q.includes("change")) {
+      actions.push({ type: "edit_inventory", label: "Update Inventory", payload: { is_movement: true } });
+    } else {
+      actions.push({ type: "edit_inventory", label: "Update Inventory", payload: { is_movement: true } });
+    }
   }
   if (q.includes("salary") || q.includes("payroll")) {
     actions.push({ type: "record_payroll", label: "Record Payroll", payload: {} });

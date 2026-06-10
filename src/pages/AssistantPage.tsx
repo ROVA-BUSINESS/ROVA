@@ -206,6 +206,7 @@ export default function AssistantPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -237,7 +238,7 @@ export default function AssistantPage() {
 
   async function loadData() {
     setLoading(true);
-    const [txRes, accRes, catRes] = await Promise.all([
+    const [txRes, accRes, catRes, invRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('*, category:categories(*), account:accounts(*)')
@@ -248,13 +249,20 @@ export default function AssistantPage() {
         .from('categories')
         .select('*')
         .or(`user_id.eq.${user!.id},is_system.eq.true`),
+      supabase
+        .from('inventory_items')
+        .select('*')
+        .eq('user_id', user!.id)
+        .eq('status', 'active'),
     ]);
     const txs = txRes.data || [];
     const accs = accRes.data || [];
     const cats = catRes.data || [];
+    const invs = invRes.data || [];
     setTransactions(txs);
     setAccounts(accs);
     setCategories(cats);
+    setInventoryItems(invs);
     setInsights(generateInsights(txs, accs));
     setLoading(false);
   }
@@ -809,6 +817,132 @@ export default function AssistantPage() {
         break;
       }
 
+      // ── Edit Inventory ─────────────────────────────────────────────────────
+      case 'edit_inventory': {
+        const payload = action.payload || {};
+        if (payload.is_movement) {
+          navigate('/app/inventory', { state: { openCreateModal: true, payload } });
+          break;
+        }
+        const itemId = payload.item_id;
+        if (itemId) {
+          const updates: any = {};
+          if (payload.name) updates.name = payload.name;
+          if (payload.sku) updates.sku = payload.sku;
+          if (payload.category) updates.category = payload.category;
+          if (payload.unit) updates.unit = payload.unit;
+          if (payload.cost_price !== undefined) updates.cost_price = Number(payload.cost_price);
+          if (payload.selling_price !== undefined) updates.selling_price = Number(payload.selling_price);
+          if (payload.current_stock !== undefined) updates.current_stock = Number(payload.current_stock);
+          if (payload.reorder_level !== undefined) updates.reorder_level = Number(payload.reorder_level);
+
+          if (Object.keys(updates).length > 0) {
+            const runUpdate = async () => {
+              setTyping(true);
+              const loadingMsgId = `loading-${Date.now()}`;
+              setMessages(prev => [...prev, {
+                id: loadingMsgId, role: 'assistant',
+                content: `⏳ Saving changes to inventory item…`,
+                timestamp: new Date(),
+              }]);
+
+              try {
+                const { error } = await supabase
+                  .from('inventory_items')
+                  .update(updates)
+                  .eq('id', itemId);
+
+                setMessages(prev => prev.filter(m => m.id !== loadingMsgId));
+
+                if (!error) {
+                  setMessages(prev => [...prev, {
+                    id: `edit-inv-ok-${Date.now()}`,
+                    role: 'assistant',
+                    content: `✅ Inventory item updated successfully!`,
+                    timestamp: new Date(),
+                    actions: [{ type: 'view_report', label: '📦 View Inventory', payload: { page: 'inventory' } }],
+                  }]);
+                  loadData();
+                } else {
+                  setMessages(prev => [...prev, {
+                    id: `edit-inv-err-${Date.now()}`,
+                    role: 'assistant',
+                    content: `❌ Failed to update inventory item: ${error.message}`,
+                    timestamp: new Date(),
+                  }]);
+                }
+              } catch (err: any) {
+                setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
+                  id: `edit-inv-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: `❌ Failed to update inventory item: ${err.message || err}`,
+                  timestamp: new Date(),
+                }));
+              } finally {
+                setTyping(false);
+              }
+            };
+            runUpdate();
+          }
+        }
+        break;
+      }
+
+      // ── Delete Inventory ───────────────────────────────────────────────────
+      case 'delete_inventory': {
+        const payload = action.payload || {};
+        const itemId = payload.item_id;
+        if (itemId) {
+          const runDelete = async () => {
+            setTyping(true);
+            const loadingMsgId = `loading-${Date.now()}`;
+            setMessages(prev => [...prev, {
+              id: loadingMsgId, role: 'assistant',
+              content: `⏳ Deleting inventory item…`,
+              timestamp: new Date(),
+            }]);
+
+            try {
+              const { error } = await supabase
+                .from('inventory_items')
+                .delete()
+                .eq('id', itemId);
+
+              setMessages(prev => prev.filter(m => m.id !== loadingMsgId));
+
+              if (!error) {
+                setMessages(prev => [...prev, {
+                  id: `delete-inv-ok-${Date.now()}`,
+                  role: 'assistant',
+                  content: `✅ Inventory item deleted successfully.`,
+                  timestamp: new Date(),
+                  actions: [{ type: 'view_report', label: '📦 View Inventory', payload: { page: 'inventory' } }],
+                }]);
+                loadData();
+              } else {
+                setMessages(prev => [...prev, {
+                  id: `delete-inv-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: `❌ Failed to delete inventory item: ${error.message}`,
+                  timestamp: new Date(),
+                }]);
+              }
+            } catch (err: any) {
+              setMessages(prev => prev.filter(m => m.id !== loadingMsgId).concat({
+                id: `delete-inv-err-${Date.now()}`,
+                role: 'assistant',
+                content: `❌ Failed to delete inventory item: ${err.message || err}`,
+                timestamp: new Date(),
+              }));
+            } finally {
+              setTyping(false);
+            }
+          };
+          runDelete();
+        }
+        break;
+      }
+
       default:
         break;
     }
@@ -831,10 +965,37 @@ export default function AssistantPage() {
       setTyping(true);
 
       try {
-        const history = messages
-          .filter(m => !m.isTyping)
-          .slice(-10)
-          .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+        const systemInstructions = {
+          role: 'user' as const,
+          content: `IMPORTANT INSTRUCTION OVERRIDE:
+When I ask to add, remove, or edit stock/inventory of an item:
+1. Do NOT ask for unit price, unit cost, cost price, or total value under any circumstances. Never say "I need to know the unit cost or total value..." or similar.
+2. Do NOT ask if it is a sale or general stock adjustment.
+3. Search the inventory items list in the context.
+4. If there are multiple different types or variations of the product in the database:
+   - List all of them clearly in your reply with Name, SKU, and Prices (both Cost & Selling).
+   - Ask me which variation I want to adjust.
+   - Do NOT return any action button yet in this turn.
+5. If there is exactly ONE matching item:
+   - Directly list the matched item details (Name, SKU, current stock, cost price, selling price).
+   - Return a single 'edit_inventory' action labeled "Update Inventory" with this payload:
+     {
+       "item_id": "<id of matched item>",
+       "name": "<name of matched item>",
+       "quantity": <positive quantity (always positive)>,
+       "type": "sale" | "purchase",
+       "is_movement": true
+     }
+6. Always format replies in JSON as required. Do not violate these override rules.`,
+        };
+
+        const history = [
+          systemInstructions,
+          ...messages
+            .filter(m => !m.isTyping)
+            .slice(-10)
+            .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+        ];
 
         history.push({ role: 'user', content: text });
 
@@ -845,6 +1006,7 @@ export default function AssistantPage() {
             accounts,
             userId: user!.id,
             isStaff,
+            inventoryItems: inventoryItems.slice(0, 100),
           },
         });
 
@@ -861,8 +1023,8 @@ export default function AssistantPage() {
           },
         ]);
 
-        // Auto-process clarify_transaction, update_transaction, and delete_transaction actions from the AI response
-        // so the transactions are updated immediately
+        // Auto-process clarify_transaction, update_transaction, delete_transaction, edit_inventory, and delete_inventory actions from the AI response
+        // so the transactions/inventory are updated immediately
         for (const action of responseActions) {
           if (action.type === 'clarify_transaction') {
             const payload = action.payload || {};
@@ -973,6 +1135,55 @@ export default function AssistantPage() {
                   }
                 });
             }
+          } else if (action.type === 'edit_inventory') {
+            const payload = action.payload || {};
+            if (payload.is_movement) {
+              continue;
+            }
+            const itemId = payload.item_id;
+            if (itemId) {
+              const updates: any = {};
+              if (payload.name) updates.name = payload.name;
+              if (payload.sku) updates.sku = payload.sku;
+              if (payload.category) updates.category = payload.category;
+              if (payload.unit) updates.unit = payload.unit;
+              if (payload.cost_price !== undefined) updates.cost_price = Number(payload.cost_price);
+              if (payload.selling_price !== undefined) updates.selling_price = Number(payload.selling_price);
+              if (payload.current_stock !== undefined) updates.current_stock = Number(payload.current_stock);
+              if (payload.reorder_level !== undefined) updates.reorder_level = Number(payload.reorder_level);
+
+              if (Object.keys(updates).length > 0) {
+                supabase
+                  .from('inventory_items')
+                  .update(updates)
+                  .eq('id', itemId)
+                  .then(({ error }) => {
+                    if (!error) {
+                      console.log("ROVA: Auto-updated inventory item in DB");
+                      loadData();
+                    } else {
+                      console.error("ROVA: Auto-process inventory update failed:", error);
+                    }
+                  });
+              }
+            }
+          } else if (action.type === 'delete_inventory') {
+            const payload = action.payload || {};
+            const itemId = payload.item_id;
+            if (itemId) {
+              supabase
+                .from('inventory_items')
+                .delete()
+                .eq('id', itemId)
+                .then(({ error }) => {
+                  if (!error) {
+                    console.log("ROVA: Auto-deleted inventory item in DB");
+                    loadData();
+                  } else {
+                    console.error("ROVA: Auto-process inventory deletion failed:", error);
+                  }
+                });
+            }
           }
         }
       } catch (err: any) {
@@ -989,7 +1200,7 @@ export default function AssistantPage() {
         setTyping(false);
       }
     },
-    [messages, transactions, accounts, categories, user, isStaff, typing]
+    [messages, transactions, accounts, categories, inventoryItems, user, isStaff, typing]
   );
 
   function handleSubmit(e: React.FormEvent) {

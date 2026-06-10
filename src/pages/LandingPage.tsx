@@ -62,7 +62,7 @@ export default function LandingPage() {
           observer.disconnect();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.4 }
     );
     const element = document.getElementById('devices-section');
     if (element) {
@@ -741,11 +741,11 @@ export default function LandingPage() {
         .device-mockup-enter {
           opacity: 0;
           transform: translateY(70px) scale(1.15);
-          transition: opacity 1.3s cubic-bezier(0.16,1,0.3,1), transform 1.3s cubic-bezier(0.16,1,0.3,1);
+          transition: opacity 2.5s cubic-bezier(0.16,1,0.3,1), transform 2.5s cubic-bezier(0.16,1,0.3,1);
           display: inline-block;
         }
         .device-mockup-enter.visible { opacity: 1; transform: translateY(0) scale(1); }
-        .device-mockup-enter.delay { transition-delay: 0.25s; }
+        .device-mockup-enter.delay { transition-delay: 0.4s; }
 
         /* ── Tablet frame (landscape iPad style) ── */
         .tablet-frame-outer {
