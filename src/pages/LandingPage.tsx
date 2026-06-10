@@ -1331,7 +1331,7 @@ export default function LandingPage() {
                 <div className="tablet-frame-outer">
                   <div className="tablet-frame-camera" />
                   <div className="tablet-screen-inner">
-                    <img src="/tablet_screenshot.png" alt="ROVA Dashboard" />
+                    <img src="/image.png" alt="ROVA Dashboard" />
                   </div>
                   <div className="tablet-frame-home" />
                 </div>
