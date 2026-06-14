@@ -15,8 +15,8 @@ export default function AccountingHubPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 32 }}>
-        <Card hoverable onClick={() => navigate('/app/ledger')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'var(--accent-dim)', borderRadius: 10 }}>
+        <Card hoverable onClick={() => navigate('/app/general-ledger')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 10 }}>
             <BookOpen size={20} color="var(--accent-primary)" />
           </div>
           <div>
@@ -26,8 +26,8 @@ export default function AccountingHubPage() {
         </Card>
         
         <Card hoverable onClick={() => navigate('/app/chart-of-accounts')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'rgba(147,51,234,0.1)', borderRadius: 10 }}>
-            <Layers size={20} color="#9333ea" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 10 }}>
+            <Layers size={20} color="var(--accent-primary)" />
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Chart of Accounts</div>
@@ -36,7 +36,7 @@ export default function AccountingHubPage() {
         </Card>
 
         <Card hoverable onClick={() => navigate('/app/balance-sheet')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'var(--accent-dim)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 10 }}>
             <LayoutList size={20} color="var(--accent-primary)" />
           </div>
           <div>
@@ -46,8 +46,8 @@ export default function AccountingHubPage() {
         </Card>
 
         <Card hoverable onClick={() => navigate('/app/cash-flow')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'rgba(147,51,234,0.1)', borderRadius: 10 }}>
-            <Banknote size={20} color="#9333ea" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 10 }}>
+            <Banknote size={20} color="var(--accent-primary)" />
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Cash Flow</div>
@@ -56,7 +56,7 @@ export default function AccountingHubPage() {
         </Card>
 
         <Card hoverable onClick={() => navigate('/app/trial-balance')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'var(--error-dim)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--error-dim)', borderRadius: 10 }}>
             <Scale size={20} color="var(--error)" />
           </div>
           <div>

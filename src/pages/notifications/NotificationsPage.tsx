@@ -17,7 +17,7 @@ const TYPE_META: Record<Notification['type'], { icon: React.ElementType; color: 
   info: { icon: Info, color: 'var(--info)', label: 'Info' },
   success: { icon: CheckCircle, color: 'var(--success)', label: 'Success' },
   error: { icon: XCircle, color: 'var(--error)', label: 'Error' },
-  ai_clarification: { icon: Sparkles, color: '#a855f7', label: 'AI Clarification' },
+  ai_clarification: { icon: Sparkles, color: 'var(--accent-light)', label: 'AI Clarification' },
 };
 
 const SEVERITY_BG: Record<Notification['severity'], string> = {
@@ -267,8 +267,8 @@ export default function NotificationsPage() {
                 {/* Icon */}
                 <div style={{
                   width: 32, height: 32, borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                  background: isAiClarification ? 'linear-gradient(135deg, #9333ea22, #7e22ce22)' : notif.is_read ? 'var(--bg-elevated)' : 'transparent',
-                  border: isAiClarification ? '1px solid rgba(168,85,247,0.3)' : `1px solid ${notif.is_read ? 'var(--bg-border)' : 'transparent'}`,
+                  background: isAiClarification ? 'linear-gradient(135deg, var(--accent-dim), var(--accent-subtle))' : notif.is_read ? 'var(--bg-elevated)' : 'transparent',
+                  border: isAiClarification ? '1px solid var(--accent-border)' : `1px solid ${notif.is_read ? 'var(--bg-border)' : 'transparent'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   <Icon size={15} color={meta.color} />
@@ -294,7 +294,7 @@ export default function NotificationsPage() {
                         href="/app/assistant"
                         onClick={e => { e.stopPropagation(); markRead(notif.id); }}
                         style={{
-                          fontSize: 12, color: '#a855f7', fontWeight: 600,
+                          fontSize: 12, color: 'var(--accent-light)', fontWeight: 600,
                           textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
                         }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration = 'underline'}

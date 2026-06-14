@@ -124,7 +124,7 @@ export default function ReportsPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
         <Card hoverable onClick={() => navigate('/app/profit-loss')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'var(--success-dim)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--success-dim)', borderRadius: 10 }}>
             <TrendingUp size={20} color="var(--success)" />
           </div>
           <div>
@@ -187,7 +187,7 @@ export default function ReportsPage() {
                   />
                   <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
                   <Bar dataKey="income" fill="#22c55e" radius={[3, 3, 0, 0]} name="Income" />
-                  <Bar dataKey="expenses" fill="#9333ea" radius={[3, 3, 0, 0]} name="Expenses" />
+                  <Bar dataKey="expenses" fill="var(--accent-primary)" radius={[3, 3, 0, 0]} name="Expenses" />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
@@ -198,8 +198,8 @@ export default function ReportsPage() {
                 <AreaChart data={monthlyData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
                   <defs>
                     <linearGradient id="netGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#9333ea" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#9333ea" stopOpacity={0} />
+                      <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--bg-border)" />
@@ -209,7 +209,7 @@ export default function ReportsPage() {
                     contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 8, fontSize: 12 }}
                     formatter={(v) => formatCurrency(Number(v))}
                   />
-                  <Area type="monotone" dataKey="net" stroke="#9333ea" fill="url(#netGrad)" strokeWidth={2} name="Net Flow" />
+                  <Area type="monotone" dataKey="net" stroke="var(--accent-primary)" fill="url(#netGrad)" strokeWidth={2} name="Net Flow" />
                 </AreaChart>
               </ResponsiveContainer>
             </Card>
@@ -228,7 +228,7 @@ export default function ReportsPage() {
                     formatter={(v) => formatCurrency(Number(v))}
                   />
                   <Bar dataKey="income" fill="#22c55e" radius={[0, 3, 3, 0]} name="Income" stackId="a" />
-                  <Bar dataKey="expense" fill="#9333ea" radius={[0, 3, 3, 0]} name="Expense" stackId="b" />
+                  <Bar dataKey="expense" fill="var(--accent-primary)" radius={[0, 3, 3, 0]} name="Expense" stackId="b" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

@@ -88,6 +88,9 @@ export default function DashboardPage() {
 
   return (
     <div className="mobile-p-4" style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 12px 100px' }}>
+
+
+      {/* Header controls bar */}
       <div style={{ marginBottom: 32, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: isMobile ? 16 : 24 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Good {getGreeting()}, {profile?.full_name?.split(' ')[0] || 'User'}!</h1>
@@ -112,49 +115,56 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          {/* Metrics Row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginBottom: 32 }}>
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                <div style={{ padding: 10, background: 'var(--accent-dim)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 12 }}>
                   <TrendingUp size={20} color="var(--accent-primary)" />
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Total Revenue</span>
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', marginBottom: 12 }}>
                 {formatCurrency(income)}
               </div>
-              <div style={{ fontSize: 12, color: incomeChange >= 0 ? 'var(--success)' : 'var(--error)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                {incomeChange >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {incomeChange > 0 ? '+' : ''}{incomeChange.toFixed(1)}% from last month
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
+                <div style={{ fontSize: 12, color: incomeChange >= 0 ? 'var(--success)' : 'var(--error)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {incomeChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {incomeChange > 0 ? '+' : ''}{incomeChange.toFixed(1)}% from last month
+                </div>
               </div>
             </Card>
 
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                <div style={{ padding: 10, background: 'var(--error-dim)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--error-dim)', borderRadius: 12 }}>
                   <TrendingDown size={20} color="var(--error)" />
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Expenses</span>
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', marginBottom: 12 }}>
                 {formatCurrency(expenses)}
               </div>
-              <div style={{ fontSize: 12, color: expenseChange <= 0 ? 'var(--success)' : 'var(--error)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                {expenseChange >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {expenseChange > 0 ? '+' : ''}{expenseChange.toFixed(1)}% from last month
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
+                <div style={{ fontSize: 12, color: expenseChange <= 0 ? 'var(--success)' : 'var(--error)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {expenseChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {expenseChange > 0 ? '+' : ''}{expenseChange.toFixed(1)}% from last month
+                </div>
               </div>
             </Card>
 
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                <div style={{ padding: 10, background: 'var(--success-dim)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--success-dim)', borderRadius: 12 }}>
                   <DollarSign size={20} color="var(--success)" />
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Net Cashflow</span>
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netFlow >= 0 ? 'var(--success)' : 'var(--error)' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netFlow >= 0 ? 'var(--success)' : 'var(--error)', marginBottom: 12 }}>
                 {formatCurrency(netFlow)}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                Current period profitability
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Current period profitability
+                </div>
               </div>
             </Card>
           </div>
@@ -227,10 +237,10 @@ export default function DashboardPage() {
                     }}>
                       <div style={{
                         width: 32, height: 32, borderRadius: 'var(--radius-md)',
-                        background: acc.color || 'var(--accent-dim)',
+                        background: (acc.color && acc.color.toLowerCase() === '#9333ea') ? 'var(--accent-primary)' : (acc.color || 'var(--accent-dim)'),
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        <Wallet size={14} color="white" />
+                        <Wallet size={14} color="white" style={{ display: 'block' }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acc.name}</div>
@@ -281,21 +291,51 @@ export default function DashboardPage() {
                 </div>
               )}
               
-              <div style={{ marginTop: 16 }}>
-                <MonoConnectButton onSuccess={loadData} size="sm" className="w-full" />
-                <button
+              {/* Bank Connection Card styled after mockup connect card */}
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>Bank Connection</div>
+                <div 
                   onClick={() => setIsEmailSyncOpen(true)}
                   style={{
-                    width: '100%', marginTop: 8, background: 'transparent',
-                    border: '1px dashed var(--bg-border)', borderRadius: 'var(--radius-md)',
-                    padding: '8px', fontSize: 11, color: 'var(--text-secondary)',
-                    cursor: 'pointer', transition: 'all 0.2s'
+                    border: '1px dashed var(--accent-border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-elevated)',
+                    padding: '24px 16px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
                   }}
-                  onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
-                  onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--bg-border)'}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)';
+                    (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border)';
+                    (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)';
+                  }}
                 >
-                  Bank not on Mono? Use Email Sync
-                </button>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: '50%',
+                    background: 'rgba(147,51,234,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--accent-primary)',
+                  }}>
+                    <Plus size={18} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Connect Bank Account</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Secure bank connection via Mono or Email Sync</div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <MonoConnectButton onSuccess={loadData} size="sm" className="w-full" />
+                </div>
               </div>
             </Card>
           </div>

@@ -46,10 +46,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         }}>
           <div style={{
             width: 40, height: 40,
-            background: 'linear-gradient(135deg, #9333ea, #7e22ce)',
+            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
             borderRadius: 10,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 24px rgba(147,51,234,0.4)',
+            boxShadow: '0 0 24px var(--accent-border)',
             animation: 'spin 1.5s linear infinite',
           }} />
           <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading ROVA...</span>

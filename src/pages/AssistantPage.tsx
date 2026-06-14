@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Send, RefreshCw, AlertTriangle, Info, CheckCircle,
-  Zap, Bell, ChevronRight, Package, Users, FileText, X,
-  MessageCircle, HelpCircle, TrendingUp,
+  Send, RefreshCw,
+  Bell, ChevronRight, Package, Users, FileText, X,
+  MessageCircle, HelpCircle, TrendingUp, Brain
 } from 'lucide-react';
 import { supabase, type Transaction, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { generateInsights, type Insight } from '../lib/aiEngine';
 import {
   classifyTransaction,
   chatWithAssistant,
@@ -18,7 +17,7 @@ import {
   type PendingClarification,
   type ChatAction,
 } from '../lib/deepseekClient';
-import Card from '../components/ui/Card';
+
 import { useMobile } from '../hooks/useMobile';
 import { createInvoice } from '../lib/invoiceService';
 
@@ -33,17 +32,7 @@ type ChatMessage = {
   isTyping?: boolean;
 };
 
-// ── Severity styles ────────────────────────────────────────────────────────────
 
-const SEVERITY_STYLES: Record<
-  Insight['severity'],
-  { bg: string; border: string; icon: React.ElementType; color: string }
-> = {
-  info: { bg: 'var(--info-dim)', border: 'rgba(59,130,246,0.2)', icon: Info, color: 'var(--info)' },
-  warning: { bg: 'var(--warning-dim)', border: 'rgba(245,158,11,0.2)', icon: AlertTriangle, color: 'var(--warning)' },
-  critical: { bg: 'var(--error-dim)', border: 'rgba(239,68,68,0.2)', icon: AlertTriangle, color: 'var(--error)' },
-  positive: { bg: 'var(--success-dim)', border: 'rgba(34,197,94,0.2)', icon: CheckCircle, color: 'var(--success)' },
-};
 
 const ACTION_ICONS: Record<string, React.ElementType> = {
   create_invoice: FileText,
@@ -207,9 +196,7 @@ export default function AssistantPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [insights, setInsights] = useState<Insight[]>([]);
   const [clarifications, setClarifications] = useState<PendingClarification[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]); // will be set on load or keep default
   const [input, setInput] = useState('');
@@ -222,7 +209,7 @@ export default function AssistantPage() {
       {
         id: 'welcome',
         role: 'assistant',
-        content: "Hi! I'm ROVA — your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or use one of the quick questions below.",
+        content: "Hi! I'm ROVA, your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or use one of the quick questions below.",
         timestamp: new Date(),
       },
     ]);
@@ -237,7 +224,7 @@ export default function AssistantPage() {
   }, [messages]);
 
   async function loadData() {
-    setLoading(true);
+    if (!user) return;
     const [txRes, accRes, catRes, invRes] = await Promise.all([
       supabase
         .from('transactions')
@@ -263,8 +250,6 @@ export default function AssistantPage() {
     setAccounts(accs);
     setCategories(cats);
     setInventoryItems(invs);
-    setInsights(generateInsights(txs, accs));
-    setLoading(false);
   }
 
   async function loadClarifications() {
@@ -1218,17 +1203,18 @@ When I ask to add, remove, or edit stock/inventory of an item:
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <div
               style={{
-                width: 28, height: 28, borderRadius: 8,
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                width: 32, height: 32, borderRadius: 8,
+                background: 'var(--accent-dim)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1px solid var(--accent-border)'
               }}
             >
-              <span style={{ color: 'white', fontWeight: 800, fontSize: 15, fontFamily: 'Space Grotesk, sans-serif' }}>S</span>
+              <Brain size={18} color="var(--accent-light)" style={{ display: 'block' }} />
             </div>
             <h1 style={{ fontSize: 22 }}>ROVA Assistant</h1>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-            AI-powered financial advisor — insights, actions, and answers from your real data
+            AI-powered financial advisor: insights, actions, and answers from your real data
           </p>
         </div>
         <button
@@ -1247,34 +1233,6 @@ When I ask to add, remove, or edit stock/inventory of an item:
         </button>
       </div>
 
-      {/* ── Pending Clarifications Panel ─────────────────────────────────────── */}
-      {clarifications.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div
-            style={{
-              fontSize: 13, fontWeight: 600, color: '#f59e0b',
-              marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6,
-            }}
-          >
-            <Bell size={13} color="#f59e0b" />
-            Pending Clarifications ({clarifications.length})
-            <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
-              — Help ROVA categorise these transactions correctly
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {clarifications.map(item => (
-              <ClarificationCard
-                key={item.id}
-                item={item}
-                onResolve={handleResolve}
-                onDismiss={handleDismiss}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Main Grid ────────────────────────────────────────────────────────── */}
       <div
         style={{
@@ -1284,258 +1242,242 @@ When I ask to add, remove, or edit stock/inventory of an item:
           alignItems: 'start',
         }}
       >
-        {/* Left column: Insights + Starters */}
+        {/* Left column: Chat Box + Pending Clarifications */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Smart Insights */}
-          <div>
+          {/* Chat Box */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: 580,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--bg-border)',
+              borderRadius: 'var(--radius-lg)',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Chat header */}
             <div
               style={{
-                fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)',
-                marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6,
+                padding: '14px 16px', borderBottom: '1px solid var(--bg-border)',
+                display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+                justifyContent: 'space-between',
               }}
             >
-              <Zap size={13} color="var(--accent-light)" />
-              Smart Insights
-            </div>
-            {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="skeleton" style={{ height: 72 }} />
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div
+                  style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: 'var(--success)', boxShadow: '0 0 6px var(--success)',
+                  }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Chat with ROVA
+                </span>
               </div>
-            ) : insights.length === 0 ? (
-              <Card>
-                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-                  Add more transactions for personalised insights
-                </div>
-              </Card>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {insights.map(insight => {
-                  const style = SEVERITY_STYLES[insight.severity];
-                  return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <MessageCircle size={12} color="var(--text-muted)" />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {messages.filter(m => m.role === 'user').length} messages
+                </span>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div
+              style={{
+                flex: 1, overflowY: 'auto', padding: '14px',
+                display: 'flex', flexDirection: 'column', gap: 12,
+              }}
+            >
+              {messages.map(msg => (
+                <div
+                  key={msg.id}
+                  style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
+                >
+                  {msg.role === 'assistant' && (
                     <div
-                      key={insight.id}
                       style={{
-                        padding: '14px 16px', borderRadius: 'var(--radius-md)',
-                        background: style.bg, border: `1px solid ${style.border}`,
-                        display: 'flex', gap: 12, alignItems: 'flex-start',
-                        animation: 'fadeIn 0.3s ease',
+                        width: 24, height: 24, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, marginRight: 8, marginTop: 2,
                       }}
                     >
-                      <div style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{insight.icon}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-                          {insight.title}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 12, color: 'var(--text-secondary)',
-                            lineHeight: 1.5, whiteSpace: 'pre-line',
-                          }}
-                        >
-                          {insight.body}
-                        </div>
-                      </div>
+                      <span style={{ color: 'white', fontWeight: 800, fontSize: 13, fontFamily: 'Space Grotesk, sans-serif' }}>S</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  )}
+                  <div style={{ maxWidth: '85%' }}>
+                    <div
+                      style={{
+                        padding: '10px 13px',
+                        borderRadius:
+                          msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                        background:
+                          msg.role === 'user' ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                        whiteSpace: 'pre-line',
+                        border: msg.role === 'assistant' ? '1px solid var(--bg-border)' : 'none',
+                      }}
+                    >
+                      {msg.content}
+                    </div>
 
-          {/* Quick Starters */}
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>
-              Quick Questions
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {STARTERS.map(s => (
-                <button
-                  key={s}
-                  onClick={() => sendMessage(s)}
-                  disabled={typing}
-                  style={{
-                    padding: '7px 12px', borderRadius: 'var(--radius-full)', fontSize: 12,
-                    background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
-                    color: 'var(--text-secondary)', transition: 'all 0.15s', cursor: 'pointer',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border)';
-                    (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)';
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--bg-border)';
-                    (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-                  }}
-                >
-                  {s}
-                </button>
+                    {/* Action buttons */}
+                    {msg.actions && msg.actions.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingLeft: 4 }}>
+                        {msg.actions.map((action, i) => (
+                          <ActionButton key={i} action={action} onAction={handleAction} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               ))}
-            </div>
-          </div>
-        </div>
 
-        {/* Right column: Chat */}
-        <div
-          style={{
-            display: 'flex', flexDirection: 'column', height: 580,
-            background: 'var(--bg-card)', border: '1px solid var(--bg-border)',
-            borderRadius: 'var(--radius-lg)', overflow: 'hidden',
-          }}
-        >
-          {/* Chat header */}
-          <div
-            style={{
-              padding: '14px 16px', borderBottom: '1px solid var(--bg-border)',
-              display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
-              justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div
-                style={{
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: 'var(--success)', boxShadow: '0 0 6px var(--success)',
-                }}
-              />
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                Chat with ROVA
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <MessageCircle size={12} color="var(--text-muted)" />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {messages.filter(m => m.role === 'user').length} messages
-              </span>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div
-            style={{
-              flex: 1, overflowY: 'auto', padding: '14px',
-              display: 'flex', flexDirection: 'column', gap: 12,
-            }}
-          >
-            {messages.map(msg => (
-              <div
-                key={msg.id}
-                style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
-              >
-                {msg.role === 'assistant' && (
+              {/* Typing indicator */}
+              {typing && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div
                     style={{
                       width: 24, height: 24, borderRadius: '50%',
                       background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, marginRight: 8, marginTop: 2,
                     }}
                   >
                     <span style={{ color: 'white', fontWeight: 800, fontSize: 13, fontFamily: 'Space Grotesk, sans-serif' }}>S</span>
                   </div>
-                )}
-                <div style={{ maxWidth: '85%' }}>
                   <div
                     style={{
-                      padding: '10px 13px',
-                      borderRadius:
-                        msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                      background:
-                        msg.role === 'user' ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-                      color: 'var(--text-primary)',
-                      fontSize: 13,
-                      lineHeight: 1.55,
-                      whiteSpace: 'pre-line',
-                      border: msg.role === 'assistant' ? '1px solid var(--bg-border)' : 'none',
+                      background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
+                      borderRadius: '14px 14px 14px 4px', padding: '10px 16px',
+                      display: 'flex', gap: 4,
                     }}
                   >
-                    {msg.content}
+                    {[0, 1, 2].map(i => (
+                      <div
+                        key={i}
+                        style={{
+                          width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)',
+                          animation: `spin 1s ease-in-out ${i * 0.15}s infinite alternate`,
+                        }}
+                      />
+                    ))}
                   </div>
-
-                  {/* Action buttons */}
-                  {msg.actions && msg.actions.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingLeft: 4 }}>
-                      {msg.actions.map((action, i) => (
-                        <ActionButton key={i} action={action} onAction={handleAction} />
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
+              )}
 
-            {/* Typing indicator */}
-            {typing && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div
-                  style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <span style={{ color: 'white', fontWeight: 800, fontSize: 13, fontFamily: 'Space Grotesk, sans-serif' }}>S</span>
-                </div>
-                <div
-                  style={{
-                    background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
-                    borderRadius: '14px 14px 14px 4px', padding: '10px 16px',
-                    display: 'flex', gap: 4,
-                  }}
-                >
-                  {[0, 1, 2].map(i => (
-                    <div
-                      key={i}
-                      style={{
-                        width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)',
-                        animation: `spin 1s ease-in-out ${i * 0.15}s infinite alternate`,
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              <div ref={messagesEndRef} />
+            </div>
 
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <form
-            onSubmit={handleSubmit}
-            style={{
-              padding: '12px 14px', borderTop: '1px solid var(--bg-border)',
-              display: 'flex', gap: 8, flexShrink: 0,
-            }}
-          >
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="Ask anything about your finances…"
-              disabled={typing}
+            {/* Input */}
+            <form
+              onSubmit={handleSubmit}
               style={{
-                flex: 1, padding: '9px 12px', background: 'var(--bg-elevated)',
-                border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
-                color: 'var(--text-primary)', outline: 'none', fontSize: 13,
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={e => (e.target.style.borderColor = 'var(--accent-primary)')}
-              onBlur={e => (e.target.style.borderColor = 'var(--bg-border)')}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || typing}
-              style={{
-                width: 38, height: 38, borderRadius: 'var(--radius-md)', flexShrink: 0,
-                background: input.trim() && !typing ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-                color: input.trim() && !typing ? 'white' : 'var(--text-muted)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.15s', border: '1px solid var(--bg-border)', cursor: 'pointer',
+                padding: '12px 14px', borderTop: '1px solid var(--bg-border)',
+                display: 'flex', gap: 8, flexShrink: 0,
               }}
             >
-              <Send size={14} />
-            </button>
-          </form>
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="Ask anything about your finances…"
+                disabled={typing}
+                style={{
+                  flex: 1, padding: '9px 12px', background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)', outline: 'none', fontSize: 13,
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => (e.target.style.borderColor = 'var(--accent-primary)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--bg-border)')}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || typing}
+                style={{
+                  width: 38, height: 38, borderRadius: 'var(--radius-md)', flexShrink: 0,
+                  background: input.trim() && !typing ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                  color: input.trim() && !typing ? 'white' : 'var(--text-muted)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.15s', border: '1px solid var(--bg-border)', cursor: 'pointer',
+                }}
+              >
+                <Send size={14} />
+              </button>
+            </form>
+          </div>
+
+          {/* Pending Clarifications Panel (placed below chatbot) */}
+          {clarifications.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div
+                style={{
+                  fontSize: 13, fontWeight: 600, color: '#f59e0b',
+                  marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <Bell size={13} color="#f59e0b" />
+                Pending Clarifications ({clarifications.length})
+                <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
+                  — Help ROVA categorise these transactions correctly
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {clarifications.map(item => (
+                  <ClarificationCard
+                    key={item.id}
+                    item={item}
+                    onResolve={handleResolve}
+                    onDismiss={handleDismiss}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right column: Quick Questions */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            Quick Questions
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {STARTERS.map(s => (
+              <button
+                key={s}
+                onClick={() => sendMessage(s)}
+                disabled={typing}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  color: 'var(--text-secondary)',
+                  transition: 'all 0.15s',
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--bg-border)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{s}</span>
+                <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -95,7 +95,7 @@ export default function FeaturesPage() {
         <div style={{ maxWidth: 1200, width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 32 }}>
 
           <FeatureCard
-            icon={<Sparkles size={24} color="#9333ea" />}
+            icon={<Sparkles size={24} color="var(--accent-primary)" />}
             title="Next-Gen AI Assistant"
             desc="Your personal financial controller that lives inside the app. Navigate, analyze, and predict with natural language."
             details={[
