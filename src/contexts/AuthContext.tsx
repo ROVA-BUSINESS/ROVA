@@ -99,11 +99,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function updateProfile(updates: Partial<Profile>) {
     if (!user) return { error: new Error('Not authenticated') };
+    // Filter out staff_visibility_limit since it's not a database column in the profiles table
+    const { staff_visibility_limit, ...dbUpdates } = updates as any;
+
     const { error } = await supabase
       .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', user.id);
-    if (!error) setProfile(prev => prev ? { ...prev, ...updates } : prev);
+      .upsert({
+        id: user.id,
+        ...dbUpdates,
+        updated_at: new Date().toISOString()
+      });
+    if (!error) setProfile(prev => prev ? { ...prev, ...updates } : { id: user.id, ...updates } as any);
     return { error };
   }
 

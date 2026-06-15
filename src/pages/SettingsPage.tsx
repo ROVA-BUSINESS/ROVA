@@ -91,6 +91,9 @@ export default function SettingsPage() {
     if (!error) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } else {
+      console.error("Failed to save profile:", error);
+      alert("Failed to save profile: " + (error.message || "Unknown error"));
     }
   }
 

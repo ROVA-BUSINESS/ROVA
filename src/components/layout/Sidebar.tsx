@@ -4,7 +4,7 @@ import {
   Home, ArrowLeftRight, ChartBar as BarChart2, FileText, Receipt,
   Settings, LogOut, Plus, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
-  Sparkles, Users, Package, Shield, X, Brain
+  Users, Package, Shield, X, Brain
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';

@@ -42,19 +42,75 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   useEffect(() => {
-    if (user) loadNotifications();
+    if (!user) return;
+    loadNotifications();
+
+    const handleUpdate = () => {
+      loadNotifications();
+    };
+    window.addEventListener('unread-notifications-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('unread-notifications-updated', handleUpdate);
+    };
   }, [user]);
 
   async function loadNotifications() {
     setLoading(true);
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user!.id)
-      .eq('is_dismissed', false)
-      .order('created_at', { ascending: false });
-    setNotifications(data || []);
-    setLoading(false);
+    try {
+      const [notifsRes, clarsRes] = await Promise.all([
+        supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user!.id)
+          .eq('is_dismissed', false)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('ai_pending_clarifications')
+          .select('*')
+          .eq('user_id', user!.id)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+      ]);
+
+      const dbNotifs = notifsRes.data || [];
+      const dbClars = clarsRes.data || [];
+
+      // Read read clarification IDs from localStorage
+      const readClarIds = JSON.parse(localStorage.getItem('read_clarifications') || '[]');
+
+      // Map clarifications to virtual notification objects if they don't already have one in notifications
+      const clarificationNotifs = dbClars.map(clar => {
+        const hasNotification = dbNotifs.some(n => n.id === clar.notification_id);
+        if (hasNotification) return null;
+
+        const isRead = readClarIds.includes(clar.id);
+
+        return {
+          id: `clar-${clar.id}`,
+          user_id: user!.id,
+          type: 'ai_clarification' as const,
+          severity: 'info' as const,
+          title: 'Transaction needs your input',
+          body: clar.ai_question || `Please clarify the intent for transaction "${clar.original_description}".`,
+          action_url: '/app/assistant',
+          action_label: 'Clarify',
+          is_read: isRead,
+          is_dismissed: false,
+          created_at: clar.created_at,
+          clarification_id: clar.id
+        };
+      }).filter(Boolean) as any[];
+
+      const combined = [...dbNotifs, ...clarificationNotifs].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setNotifications(combined);
+    } catch (err) {
+      console.error('Error loading notifications:', err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function generateSmartNotifications() {
@@ -148,24 +204,61 @@ export default function NotificationsPage() {
   }
 
   async function markRead(id: string) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    if (id.startsWith('clar-')) {
+      const clarId = id.replace('clar-', '');
+      const readClarIds = JSON.parse(localStorage.getItem('read_clarifications') || '[]');
+      if (!readClarIds.includes(clarId)) {
+        readClarIds.push(clarId);
+        localStorage.setItem('read_clarifications', JSON.stringify(readClarIds));
+      }
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } else {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    }
+    window.dispatchEvent(new Event('unread-notifications-updated'));
   }
 
   async function dismiss(id: string) {
-    await supabase.from('notifications').update({ is_dismissed: true }).eq('id', id);
+    if (id.startsWith('clar-')) {
+      const clarId = id.replace('clar-', '');
+      await supabase
+        .from('ai_pending_clarifications')
+        .update({ status: 'dismissed' })
+        .eq('id', clarId);
+    } else {
+      await supabase.from('notifications').update({ is_dismissed: true }).eq('id', id);
+    }
     setNotifications(prev => prev.filter(n => n.id !== id));
+    window.dispatchEvent(new Event('unread-notifications-updated'));
   }
 
   async function markAllRead() {
     await supabase.from('notifications').update({ is_read: true }).eq('user_id', user!.id).eq('is_read', false);
+    
+    // Save all pending virtual notifications to localStorage read list
+    const pendingVirtuals = notifications.filter(n => n.id.startsWith('clar-') && !n.is_read);
+    const readClarIds = JSON.parse(localStorage.getItem('read_clarifications') || '[]');
+    pendingVirtuals.forEach(n => {
+      const clarId = n.id.replace('clar-', '');
+      if (!readClarIds.includes(clarId)) {
+        readClarIds.push(clarId);
+      }
+    });
+    localStorage.setItem('read_clarifications', JSON.stringify(readClarIds));
+
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    window.dispatchEvent(new Event('unread-notifications-updated'));
   }
 
   async function clearAll() {
     if (!confirm('Clear all notifications?')) return;
-    await supabase.from('notifications').update({ is_dismissed: true }).eq('user_id', user!.id);
+    await Promise.all([
+      supabase.from('notifications').update({ is_dismissed: true }).eq('user_id', user!.id),
+      supabase.from('ai_pending_clarifications').update({ status: 'dismissed' }).eq('user_id', user!.id).eq('status', 'pending')
+    ]);
     setNotifications([]);
+    window.dispatchEvent(new Event('unread-notifications-updated'));
   }
 
   const filtered = notifications.filter(n => filter === 'all' || !n.is_read);
