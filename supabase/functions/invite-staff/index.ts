@@ -45,6 +45,65 @@ serve(async (req) => {
       throw new Error('Staff members cannot invite new staff')
     }
 
+    // Helper to query database rate limits as fallback
+    async function checkDbRateLimit(uId: string, endpoint: string, maxHits: number, windowSecs: number): Promise<boolean> {
+      const { data, error } = await supabaseAdmin.rpc("check_rate_limit", {
+        p_user_id: uId,
+        p_endpoint: endpoint,
+        p_max_hits: maxHits,
+        p_window_seconds: windowSecs,
+      });
+      if (error) {
+        console.warn(`Database rate limiter fallback error for ${endpoint}:`, error.message);
+        return false; // Fail open
+      }
+      return !!data;
+    }
+
+    // Rate Limiting Check: Try Upstash Redis first, fallback to Database
+    let limitExceeded = false;
+    const redisUrl = Deno.env.get("UPSTASH_REDIS_REST_URL");
+    const redisToken = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
+
+    if (redisUrl && redisToken) {
+      try {
+        const windowStart = Math.floor(Date.now() / 60000); // 1-minute window
+        const key = `rate:invite-staff:${requester.id}:${windowStart}`;
+
+        const redisRes = await fetch(`${redisUrl}/incr/${key}`, {
+          headers: { Authorization: `Bearer ${redisToken}` },
+        });
+
+        if (redisRes.ok) {
+          const { result: hits } = await redisRes.json();
+          if (hits === 1) {
+            await fetch(`${redisUrl}/expire/${key}/60`, {
+              headers: { Authorization: `Bearer ${redisToken}` },
+            });
+          }
+          limitExceeded = hits > 5;
+          console.log(`Redis rate limiter (invite-staff): hits=${hits}/5`);
+        } else {
+          throw new Error(`Redis HTTP error: ${redisRes.status}`);
+        }
+      } catch (redisErr) {
+        console.warn("Redis rate limiter failed in invite-staff, falling back to Database:", redisErr.message);
+        limitExceeded = await checkDbRateLimit(requester.id, "invite-staff", 5, 60);
+      }
+    } else {
+      limitExceeded = await checkDbRateLimit(requester.id, "invite-staff", 5, 60);
+    }
+
+    if (limitExceeded) {
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded. You can only invite up to 5 staff members per minute." }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const { email, fullName, role, redirectTo } = await req.json()
 
     if (!email || !fullName) {

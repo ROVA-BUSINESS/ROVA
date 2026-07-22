@@ -118,15 +118,18 @@ export default function NotificationsPage() {
     const now = new Date();
     const toInsert: Omit<Notification, 'id' | 'created_at'>[] = [];
 
-    const [txRes, inventoryRes, invoicesRes] = await Promise.all([
+    const [txRes, inventoryRes, invoicesRes, agreementsRes, billsRes] = await Promise.all([
       supabase.from('transactions').select('*').eq('user_id', user!.id).order('date', { ascending: false }).limit(100),
       supabase.from('inventory_items').select('*').eq('user_id', user!.id).eq('status', 'active'),
       supabase.from('invoices').select('*').eq('user_id', user!.id).in('status', ['sent', 'overdue']),
+      supabase.from('service_agreements').select('*, worker:external_workers(*), contractor_payments(amount)').eq('user_id', user!.id).in('status', ['active']),
+      supabase.from('bills').select('*, bill_payments(*)').eq('user_id', user!.id).in('status', ['unpaid', 'partially_paid', 'overdue']),
     ]);
 
     const txs: Transaction[] = txRes.data || [];
     const items: InventoryItem[] = inventoryRes.data || [];
     const invoices: Invoice[] = invoicesRes.data || [];
+    const agreements = (agreementsRes.data || []) as any[];
 
     const thisMonth = now.getMonth();
     const thisYear = now.getFullYear();
@@ -179,6 +182,68 @@ export default function NotificationsPage() {
           action_url: '/invoices', action_label: 'View Invoice',
           is_read: false, is_dismissed: false, scheduled_for: null,
         });
+      }
+    });
+
+    const bills = billsRes.data || [];
+    bills.forEach(bill => {
+      const paymentsTotal = (bill.bill_payments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const outstanding = Number(bill.amount) - paymentsTotal;
+      if (outstanding > 0) {
+        const due = new Date(bill.due_date);
+        const daysOverdue = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysOverdue > 0) {
+          toInsert.push({
+            user_id: user!.id, type: 'payment_reminder', severity: 'critical',
+            title: `Bill overdue: ${bill.vendor}`,
+            body: `Bill #${bill.bill_number} for ${formatCurrency(bill.amount)} was due ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} ago. Outstanding: ${formatCurrency(outstanding)}.`,
+            action_url: '/app/bills', action_label: 'View Bills',
+            is_read: false, is_dismissed: false, scheduled_for: null,
+          });
+        } else if (daysOverdue > -7) {
+          toInsert.push({
+            user_id: user!.id, type: 'payment_reminder', severity: 'warning',
+            title: `Bill due soon: ${bill.vendor}`,
+            body: `Bill #${bill.bill_number} for ${formatCurrency(bill.amount)} is due on ${formatDate(bill.due_date)}. Outstanding: ${formatCurrency(outstanding)}.`,
+            action_url: '/app/bills', action_label: 'View Bills',
+            is_read: false, is_dismissed: false, scheduled_for: null,
+          });
+        }
+      }
+    });
+
+    agreements.forEach(agreement => {
+      const totalPaid = (agreement.contractor_payments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const outstanding = Number(agreement.agreed_amount) - totalPaid;
+      if (outstanding > 0) {
+        const due = new Date(agreement.due_date);
+        const daysOverdue = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+        const workerName = agreement.worker?.name || 'External Contractor';
+        if (daysOverdue > 0) {
+          toInsert.push({
+            user_id: user!.id, type: 'payment_reminder', severity: 'critical',
+            title: `Service payment overdue: ${workerName}`,
+            body: `Service "${agreement.title}" has an outstanding balance of ${formatCurrency(outstanding)} and was due ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} ago.`,
+            action_url: '/payroll', action_label: 'View Contractors',
+            is_read: false, is_dismissed: false, scheduled_for: null,
+          });
+        } else if (daysOverdue > -7) {
+          toInsert.push({
+            user_id: user!.id, type: 'payment_reminder', severity: 'warning',
+            title: `Service due soon: ${workerName}`,
+            body: `Service "${agreement.title}" is due on ${formatDate(agreement.due_date)} with an outstanding balance of ${formatCurrency(outstanding)}.`,
+            action_url: '/payroll', action_label: 'View Contractors',
+            is_read: false, is_dismissed: false, scheduled_for: null,
+          });
+        } else {
+          toInsert.push({
+            user_id: user!.id, type: 'payment_reminder', severity: 'info',
+            title: `Outstanding balance: ${workerName}`,
+            body: `Service "${agreement.title}" has an outstanding balance of ${formatCurrency(outstanding)}.`,
+            action_url: '/payroll', action_label: 'View Contractors',
+            is_read: false, is_dismissed: false, scheduled_for: null,
+          });
+        }
       }
     });
 

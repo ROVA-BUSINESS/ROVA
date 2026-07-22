@@ -75,6 +75,10 @@ export type ChatPayload = {
     userId: string;
     isStaff?: boolean;
     inventoryItems?: any[];
+    expenses?: any[];
+    bills?: any[];
+    externalWorkers?: any[];
+    serviceAgreements?: any[];
   };
 };
 

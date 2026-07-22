@@ -4,7 +4,8 @@ import {
   Home, ArrowLeftRight, ChartBar as BarChart2, FileText, Receipt,
   Settings, LogOut, Plus, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
-  Users, Package, Shield, X, Brain
+  Users, Package, Shield, X, Brain,
+  TrendingDown
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,6 +49,7 @@ const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/dashboard', icon: Home, label: 'Home' },
   { type: 'link', to: '/app/transactions', icon: ArrowLeftRight, label: 'Transactions' },
   { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices' },
+  { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
   { type: 'link', to: '/app/assistant', icon: Brain, label: 'AI Assistant' },
   {
@@ -160,8 +162,17 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         padding: '16px 0',
       }}>
-        {/* Top Header - Brand Logo */}
         <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          width: '100%',
+          height: '100%'
+        }}>
+          {/* Top Header - Brand Logo */}
+          <div style={{
           padding: !isDesktopCollapsed ? '24px 20px 16px' : '12px 0 8px',
           display: 'flex',
           flexDirection: 'column',
@@ -375,7 +386,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         </div>
 
         {/* Navigation Items List */}
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 10px', flex: 1, overflowY: 'auto' }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 10px', flexShrink: 0 }}>
           {visibleNavItems.map(item => {
             if (item.type === 'link') {
               const Icon = item.icon;
@@ -515,6 +526,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         {/* Quick Add Modal component */}
         <QuickAddModal open={showQuickAdd} onClose={() => setShowQuickAdd(false)} />
 
+        <div style={{ flex: 1 }} />
+
         {/* Bottom Section - Settings & Sign Out */}
         <div style={{
           padding: '8px 10px 0',
@@ -590,6 +603,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <LogOut size={16} style={{ flexShrink: 0 }} />
             {!isDesktopCollapsed && 'Sign out'}
           </button>
+        </div>
         </div>
       </aside>
     </>

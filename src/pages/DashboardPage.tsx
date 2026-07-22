@@ -15,7 +15,8 @@ import { useMobile } from '../hooks/useMobile';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function DashboardPage() {
-  const { user, profile, isStaff } = useAuth();
+  const { user, profile, isStaff, staffData } = useAuth();
+  const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -26,13 +27,13 @@ export default function DashboardPage() {
   const isMobile = useMobile(1024);
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (effectiveUserId) loadData();
+  }, [effectiveUserId]);
 
   async function loadData() {
     setLoading(true);
-    let txQuery = supabase.from('transactions').select('*, category:categories(*), account:accounts(*)').eq('user_id', user!.id).order('date', { ascending: false }).limit(50);
-    let invQuery = supabase.from('invoices').select('total, amount_paid').eq('user_id', user!.id).in('status', ['sent', 'overdue']);
+    let txQuery = supabase.from('transactions').select('*, category:categories(*), account:accounts(*)').eq('user_id', effectiveUserId).order('date', { ascending: false }).limit(50);
+    let invQuery = supabase.from('invoices').select('total, amount_paid').eq('user_id', effectiveUserId).in('status', ['sent', 'overdue']);
 
     if (isStaff) {
       const limit = profile?.staff_visibility_limit || 500000;
@@ -42,7 +43,7 @@ export default function DashboardPage() {
 
     const [txRes, accRes, invRes] = await Promise.all([
       txQuery,
-      supabase.from('accounts').select('*').eq('user_id', user!.id),
+      supabase.from('accounts').select('*').eq('user_id', effectiveUserId),
       invQuery
     ]);
     setTransactions(txRes.data || []);

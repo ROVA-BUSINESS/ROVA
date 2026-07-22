@@ -5,7 +5,7 @@ import {
   Bell, ChevronRight, Package, Users, FileText, X,
   MessageCircle, HelpCircle, TrendingUp, Brain
 } from 'lucide-react';
-import { supabase, type Transaction, type Account } from '../lib/supabase';
+import { supabase, type Transaction, type Account, type Expense, type Bill, type ExternalWorker, type ServiceAgreement } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   classifyTransaction,
@@ -188,7 +188,8 @@ function ActionButton({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AssistantPage() {
-  const { user, isStaff } = useAuth();
+  const { user, isStaff, staffData } = useAuth();
+  const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const isMobile = useMobile(1024);
   const navigate = useNavigate();
 
@@ -196,6 +197,10 @@ export default function AssistantPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [externalWorkers, setExternalWorkers] = useState<ExternalWorker[]>([]);
+  const [serviceAgreements, setServiceAgreements] = useState<ServiceAgreement[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [clarifications, setClarifications] = useState<PendingClarification[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]); // will be set on load or keep default
@@ -216,31 +221,51 @@ export default function AssistantPage() {
   }, []);
 
   useEffect(() => {
-    if (user) { loadData(); loadClarifications(); }
-  }, [user]);
+    if (effectiveUserId) { loadData(); loadClarifications(); }
+  }, [effectiveUserId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   async function loadData() {
-    if (!user) return;
-    const [txRes, accRes, catRes, invRes] = await Promise.all([
+    if (!effectiveUserId) return;
+    const [txRes, accRes, catRes, invRes, expRes, billsRes, workersRes, agreementsRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('*, category:categories(*), account:accounts(*)')
-        .eq('user_id', user!.id)
+        .eq('user_id', effectiveUserId)
         .order('date', { ascending: false }),
-      supabase.from('accounts').select('*').eq('user_id', user!.id).eq('is_active', true),
+      supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
       supabase
         .from('categories')
         .select('*')
-        .or(`user_id.eq.${user!.id},is_system.eq.true`),
+        .or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
       supabase
         .from('inventory_items')
         .select('*')
-        .eq('user_id', user!.id)
+        .eq('user_id', effectiveUserId)
         .eq('status', 'active'),
+      supabase
+        .from('expenses')
+        .select('*, category:categories(*)')
+        .eq('user_id', effectiveUserId)
+        .order('date', { ascending: false }),
+      supabase
+        .from('bills')
+        .select('*, category:categories(*), bill_payments(*)')
+        .eq('user_id', effectiveUserId)
+        .order('due_date', { ascending: true }),
+      supabase
+        .from('external_workers')
+        .select('*')
+        .eq('user_id', effectiveUserId)
+        .order('name'),
+      supabase
+        .from('service_agreements')
+        .select('*, worker:external_workers(*)')
+        .eq('user_id', effectiveUserId)
+        .order('created_at', { ascending: false }),
     ]);
     const txs = txRes.data || [];
     const accs = accRes.data || [];
@@ -250,11 +275,15 @@ export default function AssistantPage() {
     setAccounts(accs);
     setCategories(cats);
     setInventoryItems(invs);
+    setExpenses(expRes.data || []);
+    setBills(billsRes.data || []);
+    setExternalWorkers(workersRes.data || []);
+    setServiceAgreements(agreementsRes.data || []);
   }
 
   async function loadClarifications() {
     try {
-      const items = await fetchPendingClarifications(user!.id);
+      const items = await fetchPendingClarifications(effectiveUserId!);
       setClarifications(items);
     } catch {
       // silently ignore if table doesn't exist yet
@@ -322,7 +351,7 @@ export default function AssistantPage() {
                   amount: clarification.suggested_amount || undefined,
                   type: clarification.suggested_intent === 'income' ? 'income' : 'expense',
                 },
-                user!.id,
+                effectiveUserId!,
                 'full'
               ).then((result) => {
                 console.log("ROVA: Successfully re-classified transaction:", result);
@@ -360,7 +389,7 @@ export default function AssistantPage() {
       const { data, error } = await supabase
         .from('inventory_items')
         .insert({
-          user_id: user!.id,
+          user_id: effectiveUserId,
           name: payload.name,
           sku: payload.sku || `SKU-${Date.now()}`,
           category: payload.category || 'General',
@@ -411,7 +440,7 @@ export default function AssistantPage() {
       const { data, error } = await supabase
         .from('employees')
         .insert({
-          user_id: user!.id,
+          user_id: effectiveUserId,
           full_name: payload.full_name,
           email: payload.email || '',
           phone: payload.phone || '',
@@ -470,7 +499,7 @@ export default function AssistantPage() {
 
     try {
       const { data: tx, error: txErr } = await supabase.from('transactions').insert({
-        user_id: user!.id,
+        user_id: effectiveUserId,
         amount: grossAmount,
         type: 'expense',
         description: `Salary — ${employeeName} (${periodLabel})`,
@@ -481,7 +510,7 @@ export default function AssistantPage() {
       if (txErr) throw txErr;
 
       const result = await applyPayrollIntent({
-        userId: user!.id,
+        userId: effectiveUserId!,
         employeeName,
         amount: grossAmount,
         transactionId: tx?.id || '',
@@ -538,12 +567,13 @@ export default function AssistantPage() {
             timestamp: new Date(),
           }]);
           createInvoice({
-            userId: user!.id,
+            userId: effectiveUserId!,
             client_name: payload.client_name,
             client_email: payload.client_email,
             client_address: payload.client_address,
             due_date: payload.due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             tax_rate: Number(payload.tax_rate) || 0,
+            discount_rate: Number(payload.discount_rate) || 0,
             notes: payload.notes || 'Created via ROVA AI Assistant',
             payment_status: payload.payment_status || 'unpaid',
             amount_paid: Number(payload.amount_paid) || 0,
@@ -663,7 +693,7 @@ export default function AssistantPage() {
                 const { data: newCat, error: createCatErr } = await supabase
                   .from('categories')
                   .insert({
-                    user_id: user!.id,
+                    user_id: effectiveUserId,
                     name: newCategoryName,
                     type: payload.type || 'expense',
                     is_system: false
@@ -788,7 +818,7 @@ export default function AssistantPage() {
               amount: payload.amount || undefined,
               type: payload.type || 'expense',
             },
-            user!.id,
+            effectiveUserId!,
             'full'
           ).catch(err => console.error('Failed to re-classify:', err));
 
@@ -989,9 +1019,13 @@ When I ask to add, remove, or edit stock/inventory of an item:
           context: {
             transactions: transactions.slice(0, 100),
             accounts,
-            userId: user!.id,
+            userId: effectiveUserId!,
             isStaff,
             inventoryItems: inventoryItems.slice(0, 100),
+            expenses: expenses.slice(0, 100),
+            bills: bills.slice(0, 100),
+            externalWorkers: externalWorkers.slice(0, 100),
+            serviceAgreements: serviceAgreements.slice(0, 100),
           },
         });
 
@@ -1034,7 +1068,7 @@ When I ask to add, remove, or edit stock/inventory of an item:
                     // Only re-classify after description update succeeds
                     classifyTransaction(
                       { id: txId, description: newDesc, amount: payload.amount, type: payload.type || 'expense' },
-                      user!.id,
+                      effectiveUserId!,
                       'full'
                     ).catch(err => console.error('ROVA: Auto-reclassify failed:', err));
                   } else {
@@ -1067,7 +1101,7 @@ When I ask to add, remove, or edit stock/inventory of an item:
                     const { data: newCat, error: createCatErr } = await supabase
                       .from('categories')
                       .insert({
-                        user_id: user!.id,
+                        user_id: effectiveUserId!,
                         name: newCategoryName,
                         type: payload.type || 'expense',
                         is_system: false

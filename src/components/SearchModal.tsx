@@ -23,7 +23,7 @@ interface SearchResultItem {
 const STATIC_PAGES = [
   { title: 'Dashboard', subtitle: 'Overview, financial stats, and recent activities', url: '/app' },
   { title: 'Transactions', subtitle: 'View, edit, and export transactions', url: '/app/transactions' },
-  { title: 'Invoices', subtitle: 'Create invoices, track client payments', url: '/app/invoices' },
+  { title: 'Invoices', subtitle: 'Create invoices, track customer payments', url: '/app/invoices' },
   { title: 'Reports Hub', subtitle: 'Financial statements, taxes, and insights', url: '/app/reports' },
   { title: 'AI Assistant', subtitle: 'Chat with ROVA AI, analyze transactions', url: '/app/assistant' },
   { title: 'Settings', subtitle: 'Manage account, currencies, and appearances', url: '/app/settings' },
@@ -246,7 +246,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           {results.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
               <p style={{ fontSize: 14, fontWeight: 500 }}>No results found for "{query}"</p>
-              <p style={{ fontSize: 12, color: 'var(--text-disabled)', marginTop: 4 }}>Try searching for standard pages, transaction names, or invoice clients.</p>
+              <p style={{ fontSize: 12, color: 'var(--text-disabled)', marginTop: 4 }}>Try searching for standard pages, transaction names, or invoice customers.</p>
             </div>
           ) : (
             <div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, TrendingDown, ChartBar as BarChart2, Download, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, ChartBar as BarChart2, Download, ChevronDown, CreditCard } from 'lucide-react';
 import { downloadCSV } from '../lib/export';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -18,6 +18,9 @@ export default function ReportsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [bills, setBills] = useState<any[]>([]);
+  const [agreements, setAgreements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'3m' | '6m' | '12m'>('6m');
 
@@ -27,13 +30,92 @@ export default function ReportsPage() {
 
   async function loadData() {
     setLoading(true);
-    const { data } = await supabase
-      .from('transactions')
-      .select('*, category:categories(*)')
-      .eq('user_id', user!.id)
-      .order('date', { ascending: true });
-    setTransactions(data || []);
-    setLoading(false);
+    try {
+      const [txsRes, expRes, billsRes, agreementsRes] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('*, category:categories(*)')
+          .eq('user_id', user!.id)
+          .order('date', { ascending: true }),
+        supabase
+          .from('expenses')
+          .select('*, category:categories(*)')
+          .eq('user_id', user!.id)
+          .order('date', { ascending: false }),
+        supabase
+          .from('bills')
+          .select('*, category:categories(*), bill_payments(*)')
+          .eq('user_id', user!.id)
+          .order('due_date', { ascending: true }),
+        supabase
+          .from('service_agreements')
+          .select('*, worker:external_workers(*), contractor_payments(*)')
+          .eq('user_id', user!.id)
+      ]);
+      setTransactions(txsRes.data || []);
+      setExpenses(expRes.data || []);
+      setBills(billsRes.data || []);
+      setAgreements(agreementsRes.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleExportExpenses() {
+    const rows = expenses.map(e => [
+      e.expense_number,
+      e.date,
+      e.vendor,
+      e.category?.name || 'Uncategorized',
+      e.amount,
+      e.payment_method || '—',
+      e.description || '—'
+    ]);
+    downloadCSV('expenses-report.csv', ['Expense Number', 'Date', 'Vendor/Payee', 'Category', 'Amount (NGN)', 'Payment Method', 'Description'], rows);
+    setShowExportMenu(false);
+  }
+
+  function handleExportOutstandingBills() {
+    const outstanding = bills.filter(b => {
+      const paid = (b.bill_payments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      return Math.max(0, Number(b.amount) - paid) > 0;
+    });
+    const rows = outstanding.map(b => {
+      const paid = (b.bill_payments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const bal = Number(b.amount) - paid;
+      return [
+        b.bill_number,
+        b.vendor,
+        b.bill_date,
+        b.due_date,
+        b.amount,
+        bal,
+        b.status,
+        b.description || '—'
+      ];
+    });
+    downloadCSV('outstanding-bills.csv', ['Bill Number', 'Vendor', 'Bill Date', 'Due Date', 'Total Amount (NGN)', 'Outstanding (NGN)', 'Status', 'Description'], rows);
+    setShowExportMenu(false);
+  }
+
+  function handleExportContractors() {
+    const rows = agreements.map(a => {
+      const totalPaid = (a.contractor_payments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const outstanding = Number(a.agreed_amount) - totalPaid;
+      return [
+        a.worker?.name || '—',
+        a.title,
+        a.category,
+        a.agreed_amount,
+        totalPaid,
+        outstanding,
+        a.status
+      ];
+    });
+    downloadCSV('contractor-spending.csv', ['Contractor Name', 'Agreement/Job', 'Category', 'Agreed Amount (NGN)', 'Paid Amount (NGN)', 'Outstanding (NGN)', 'Status'], rows);
+    setShowExportMenu(false);
   }
 
   const periodMonths = period === '3m' ? 3 : period === '6m' ? 6 : 12;
@@ -106,16 +188,31 @@ export default function ReportsPage() {
             Export <ChevronDown size={11} style={{ marginLeft: 2 }} />
           </Button>
           {showExportMenu && (
-            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', zIndex: 100, minWidth: 200, overflow: 'hidden' }}>
-              <button onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.1s' }}
+            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', zIndex: 100, minWidth: 220, overflow: 'hidden' }}>
+              <button onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                 <Download size={13} color="var(--text-muted)" /> Monthly Summary CSV
               </button>
-              <button onClick={handleExportCategories} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.1s', borderTop: '1px solid var(--bg-border)' }}
+              <button onClick={handleExportCategories} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s', borderTop: '1px solid var(--bg-border)', borderBottom: '1px solid var(--bg-border)', borderLeft: 'none', borderRight: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                 <Download size={13} color="var(--text-muted)" /> Category Breakdown CSV
+              </button>
+              <button onClick={handleExportExpenses} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s', borderBottom: '1px solid var(--bg-border)', borderTop: 'none', borderLeft: 'none', borderRight: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                <Download size={13} color="var(--text-muted)" /> Expenses Summary CSV
+              </button>
+              <button onClick={handleExportOutstandingBills} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s', borderBottom: '1px solid var(--bg-border)', borderTop: 'none', borderLeft: 'none', borderRight: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                <Download size={13} color="var(--text-muted)" /> Outstanding Bills CSV
+              </button>
+              <button onClick={handleExportContractors} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                <Download size={13} color="var(--text-muted)" /> Contractor Spending CSV
               </button>
             </div>
           )}
@@ -123,13 +220,33 @@ export default function ReportsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
-        <Card hoverable onClick={() => navigate('/app/profit-loss')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
+        <Card hoverable onClick={() => navigate('/app/profit-loss')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--success-dim)', borderRadius: 10 }}>
             <TrendingUp size={20} color="var(--success)" />
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Profit & Loss</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Income vs Expenses</div>
+          </div>
+        </Card>
+
+        <Card hoverable onClick={() => navigate('/app/expenses')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 10 }}>
+            <TrendingDown size={20} color="var(--accent-primary)" />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Expenses</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Paid business outflows</div>
+          </div>
+        </Card>
+
+        <Card hoverable onClick={() => navigate('/app/bills')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--warning-dim)', borderRadius: 10 }}>
+            <CreditCard size={20} color="var(--warning)" />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Bills</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Outstanding obligations</div>
           </div>
         </Card>
       </div>

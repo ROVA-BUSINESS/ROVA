@@ -2,20 +2,19 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import {
-  BarChart3,
   ShieldCheck,
-  Zap,
   ArrowRight,
   Globe,
-  Calculator,
   Users2,
   CheckCircle2,
-  Sparkles,
   ArrowUpRight,
   Check,
   TrendingUp,
   FileText,
   Link2,
+  UserCheck,
+  Zap,
+  BarChart3,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 
@@ -1296,7 +1295,12 @@ export default function LandingPage() {
                     <path d="M 0 -240 A 240 240 0 0 1 240 0" fill="none" stroke="url(#traceGradLeft3)" strokeWidth="1.5" strokeDasharray="3 3" />
                   </svg>
                   <div className="orbit-badge orbit-badge-left-3">
-                    <Sparkles size={22} />
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M 13 0 Q 13 5 18 5 Q 13 5 13 10 Q 13 5 8 5 Q 13 5 13 0" />
+                      <path d="M 20 0 Q 20 2.5 22.5 2.5 Q 20 2.5 20 5 Q 20 2.5 17.5 2.5 Q 20 2.5 20 0" />
+                      <path d="M 21.5 6 Q 21.5 8.5 24 8.5 Q 21.5 8.5 21.5 11 Q 21.5 8.5 19 8.5 Q 21.5 8.5 21.5 6" />
+                      <text x="0" y="21" fontFamily="'Inter', 'Plus Jakarta Sans', sans-serif" fontWeight="900" fontSize="13" letterSpacing="-0.5">AI</text>
+                    </svg>
                     <span className="orbit-label">Assistant</span>
                   </div>
                 </div>
@@ -1381,45 +1385,45 @@ export default function LandingPage() {
                   <tbody>
                     {[
                       {
-                        feat: 'Automatic tracking',
+                        feat: 'Live automatic tracking',
                         qb: <span className="lp-comp-badge-qb">✗ Not in Nigeria</span>,
                         ex: <span className="lp-comp-cross">✗</span>,
-                        mp: <span className="lp-comp-check">✓</span>,
+                        mp: <span className="lp-comp-cross">✗</span>,
                         rv: <span className="lp-comp-check">✓</span>
                       },
                       {
-                        feat: 'Inventory sync',
+                        feat: 'AI automated bookkeeping',
+                        qb: <span className="lp-comp-badge-qb">✗ Manual entry</span>,
+                        ex: <span className="lp-comp-cross">✗</span>,
+                        mp: <span className="lp-comp-cross">✗</span>,
+                        rv: <span className="lp-comp-check">✓</span>
+                      },
+                      {
+                        feat: 'WhatsApp AI chatbot',
+                        qb: <span className="lp-comp-cross">✗</span>,
+                        ex: <span className="lp-comp-cross">✗</span>,
+                        mp: <span className="lp-comp-cross">✗</span>,
+                        rv: <span className="lp-comp-check">✓</span>
+                      },
+                      {
+                        feat: 'Local tax compliance',
+                        qb: <span className="lp-comp-cross">✗</span>,
+                        ex: <span className="lp-comp-cross">✗</span>,
+                        mp: <span className="lp-comp-cross">✗</span>,
+                        rv: <span className="lp-comp-check">✓</span>
+                      },
+                      {
+                        feat: 'Real-time inventory sync',
                         qb: <span className="lp-comp-check">✓</span>,
                         ex: <span className="lp-comp-cross">✗</span>,
                         mp: <span className="lp-comp-cross">✗</span>,
                         rv: <span className="lp-comp-check">✓</span>
                       },
                       {
-                        feat: 'AI assistant',
+                        feat: 'Multi-user collaboration',
                         qb: <span className="lp-comp-check">✓</span>,
                         ex: <span className="lp-comp-cross">✗</span>,
                         mp: <span className="lp-comp-cross">✗</span>,
-                        rv: <span className="lp-comp-check">✓</span>
-                      },
-                      {
-                        feat: 'Offline-first',
-                        qb: <span className="lp-comp-cross">✗</span>,
-                        ex: <span className="lp-comp-check">✓</span>,
-                        mp: <span className="lp-comp-cross">✗</span>,
-                        rv: <span className="lp-comp-check">✓</span>
-                      },
-                      {
-                        feat: 'Africa-native',
-                        qb: <span className="lp-comp-cross">✗</span>,
-                        ex: <span className="lp-comp-cross">✗</span>,
-                        mp: <span className="lp-comp-check">✓</span>,
-                        rv: <span className="lp-comp-check">✓</span>
-                      },
-                      {
-                        feat: 'Zero setup',
-                        qb: <span className="lp-comp-cross">✗</span>,
-                        ex: <span className="lp-comp-check">✓</span>,
-                        mp: <span className="lp-comp-check">✓</span>,
                         rv: <span className="lp-comp-check">✓</span>
                       }
                     ].map((row, idx) => {
@@ -1504,41 +1508,41 @@ export default function LandingPage() {
           </div>
           <div className="lp-features-inner">
             <div className="lp-section-title">
-              <h2 className="lp-h2">Features engineered for massive operations</h2>
-              <p className="lp-h2-sub">All components are housed in a unified, secured double-entry ledger to drive business intelligence.</p>
+              <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: 2, display: 'block', marginBottom: 12 }}>Platform Features</span>
+              <h2 className="lp-h2">Features engineered for <br />massive operations</h2>
             </div>
 
             <div className="lp-features-grid">
               {[
                 {
-                  title: 'Secure Bank Sync',
-                  desc: 'Consolidate multiple financial accounts globally in one dashboard. Exchanged bank tokens support secure real-time bank statement synchronisation.',
-                  icon: <Globe size={20} color="#3b82f6" />, badge: "Open Banking Sync"
+                  title: 'Live Bank Sync',
+                  desc: 'Connect multiple Nigerian bank accounts in real-time. Automatically ingest statements and sync transaction feeds in a single dashboard.',
+                  icon: <Globe size={22} color="#3b82f6" />
                 },
                 {
-                  title: 'ROVA Autonomous Classifier',
-                  desc: 'Raw bank descriptions are fed into the proprietary AI engine. It extracts intents (salaries, stock purchase, invoices) with strict confidence validation.',
-                  icon: <Zap size={20} color="#a855f7" />, badge: "AI Categorization"
+                  title: 'AI Bookkeeper',
+                  desc: 'Instantly categorize transaction intent, post details to a double-entry ledger, and update reports with zero manual data entry.',
+                  icon: <Zap size={22} color="#ec4899" />
                 },
                 {
-                  title: 'Double-Entry Bookkeeping Ledger',
-                  desc: 'GAAP-compliant financial records. Each transaction auto-generates balanced double-entry ledger rows, updating cash flow, balance sheets & Trial Balance.',
-                  icon: <Calculator size={20} color="#10b981" />, badge: "GAAP Compliant"
+                  title: 'Expense & Outflows',
+                  desc: 'Track paid bills, upload and store receipts securely, and automatically link documents to your business expenses.',
+                  icon: <FileText size={22} color="#a855f7" />
                 },
                 {
-                  title: 'Payroll & Statutory Deductions',
-                  desc: 'Run payroll for team members easily. Compute progressive PAYE income tax brackets (7% to 24%) and automatic pension contribution limits under local rules.',
-                  icon: <Users2 size={20} color="#f59e0b" />, badge: "Regulatory Automations"
+                  title: 'VAT & PAYE Compliance',
+                  desc: 'Stay audit-ready for FIRS. Automatically compute local tax liabilities, VAT at 7.5%, WHT, and progressive PAYE tax brackets.',
+                  icon: <ShieldCheck size={22} color="#10b981" />
                 },
                 {
-                  title: 'Tax Compliance Hub',
-                  desc: 'Ensure compliance with FIRS guidelines. Track corporate liabilities (CIT, VAT at 7.5%, and CGT at 10%) automatically based on operational transaction books.',
-                  icon: <ShieldCheck size={20} color="#ef4444" />, badge: "Tax Reporting"
+                  title: 'Automated Inventory',
+                  desc: 'Track product stock levels in real-time. Automatically deduct inventory quantities on invoices and calculate dynamic Cost of Goods Sold (COGS).',
+                  icon: <BarChart3 size={22} color="#eab308" />
                 },
                 {
-                  title: 'Connected Inventory & COGS',
-                  desc: 'Link stock quantities and SKUs to vendor transaction expenses. Calculates cost of goods sold (COGS) automatically and issues warning notifications.',
-                  icon: <BarChart3 size={20} color="var(--accent-primary)" />, badge: "Stock Controller"
+                  title: 'WhatsApp AI Assistant',
+                  desc: 'Manage your books from your favorite chat app. Message our AI bot to log invoices, check balances, and generate instant financial reports.',
+                  icon: <UserCheck size={22} color="#ef4444" />
                 }
               ].map((f, i) => (
                 <div
@@ -1550,20 +1554,11 @@ export default function LandingPage() {
                     animationDelay: `${i * 80}ms`
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{
-                      width: 42, height: 42, borderRadius: 11,
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                      {f.icon}
-                    </div>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>{f.badge}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {f.icon}
+                    <h3 style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Geist', 'Inter', sans-serif" }}>{f.title}</h3>
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, fontFamily: "'Geist', 'Inter', sans-serif" }}>{f.title}</h3>
-                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: 13 }}>{f.desc}</p>
-                  </div>
+                  <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: 13.5 }}>{f.desc}</p>
                 </div>
               ))}
             </div>

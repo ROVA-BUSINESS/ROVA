@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encryptText, decryptText } from "./crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    const ENCRYPTION_SECRET = Deno.env.get("ENCRYPTION_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "default_fallback_secret_key_rova_32_chars";
 
     const body = await req.json().catch(() => ({}));
 
@@ -60,9 +63,10 @@ serve(async (req) => {
         );
       }
 
+      const encryptedToken = await encryptText(tokenData.refresh_token, ENCRYPTION_SECRET);
       const { error: updateError } = await supabaseClient
         .from("bank_email_sync_settings")
-        .update({ refresh_token: tokenData.refresh_token })
+        .update({ refresh_token: encryptedToken })
         .eq("account_id", accountId);
 
       if (updateError) throw updateError;
@@ -91,6 +95,7 @@ serve(async (req) => {
 
       if (!setting) throw new Error("Settings not found for account: " + accountId);
       if (!setting.refresh_token) throw new Error("No refresh token stored — please re-link Gmail");
+      const decryptedToken = await decryptText(setting.refresh_token, ENCRYPTION_SECRET);
 
       // Get a fresh access token using the stored refresh token
       const clientId = Deno.env.get("GMAIL_CLIENT_ID");
@@ -101,7 +106,7 @@ serve(async (req) => {
         body: new URLSearchParams({
           client_id: clientId!,
           client_secret: clientSecret!,
-          refresh_token: setting.refresh_token,
+          refresh_token: decryptedToken,
           grant_type: "refresh_token"
         })
       });
@@ -174,6 +179,7 @@ serve(async (req) => {
 
     for (const setting of syncSettings || []) {
       try {
+        const decryptedToken = await decryptText(setting.refresh_token, ENCRYPTION_SECRET);
         // Exchange refresh token for fresh access token
         const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
@@ -181,7 +187,7 @@ serve(async (req) => {
           body: new URLSearchParams({
             client_id: clientId,
             client_secret: clientSecret,
-            refresh_token: setting.refresh_token,
+            refresh_token: decryptedToken,
             grant_type: "refresh_token"
           })
         });

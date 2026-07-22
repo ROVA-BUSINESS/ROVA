@@ -23,6 +23,7 @@ import InventoryPage from './pages/inventory/InventoryPage';
 import TeamPage from './pages/team/TeamPage';
 import OnboardingPage from './pages/team/OnboardingPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
+import ExpensesPage from './pages/ExpensesPage';
 import LandingPage from './pages/LandingPage';
 import FeaturesPage from './pages/FeaturesPage';
 import AcceptInvitePage from './pages/auth/AcceptInvitePage';
@@ -104,6 +105,8 @@ export default function App() {
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
             <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
+            <Route path="bills" element={<Navigate to="/app/expenses?tab=bills" replace />} />
             <Route path="tax" element={<AdminRoute><TaxPage /></AdminRoute>} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="accounting" element={<AdminRoute><AccountingHubPage /></AdminRoute>} />

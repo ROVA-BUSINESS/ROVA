@@ -93,7 +93,7 @@ function downloadInvoicePDF(inv: Invoice, businessName: string) {
 
     <div class="parties">
       <div class="party">
-        <h3>Billed To</h3>
+        <h3>Billed To (Customer)</h3>
         <p class="name">${inv.client_name}</p>
         ${inv.client_email ? `<p>${inv.client_email}</p>` : ''}
         ${inv.client_address ? `<p>${inv.client_address}</p>` : ''}
@@ -127,6 +127,7 @@ function downloadInvoicePDF(inv: Invoice, businessName: string) {
 
     <div class="totals">
       <div class="totals-row"><span>Subtotal</span><span>${formatCurrency(inv.subtotal)}</span></div>
+      ${inv.discount_rate ? `<div class="totals-row" style="color:#16a34a"><span>Discount (${inv.discount_rate}%)</span><span>-${formatCurrency(inv.discount_amount || 0)}</span></div>` : ''}
       <div class="totals-row"><span>Tax (${inv.tax_rate}%)</span><span>${formatCurrency(inv.tax_amount)}</span></div>
       <div class="totals-row grand"><span>Total</span><span>${formatCurrency(inv.total)}</span></div>
       ${inv.amount_paid ? `
@@ -158,7 +159,8 @@ function downloadInvoicePDF(inv: Invoice, businessName: string) {
 
 export default function InvoicesPage() {
   const isMobile = useMobile();
-  const { user, profile, isStaff } = useAuth();
+  const { user, profile, isStaff, staffData } = useAuth();
+  const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const location = useLocation();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,17 +173,18 @@ export default function InvoicesPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [form, setForm] = useState({
     client_name: '', client_email: '', client_address: '',
-    due_date: '', tax_rate: '0', notes: '', payment_status: 'unpaid' as 'unpaid' | 'paid_in_full' | 'part_payment', amount_paid: '',
+    due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid' as 'unpaid' | 'paid_in_full' | 'part_payment', amount_paid: '',
   });
   const [items, setItems] = useState<{ description: string; quantity: string; unit_price: string; inventory_item_id: string }[]>([
     { description: '', quantity: '1', unit_price: '', inventory_item_id: '' }
   ]);
 
   useEffect(() => {
-    if (user) loadInvoices();
-  }, [user]);
+    if (effectiveUserId) loadInvoices();
+  }, [effectiveUserId]);
 
   useEffect(() => {
     if (location.state?.openCreateModal) {
@@ -193,6 +196,7 @@ export default function InvoicesPage() {
         client_address: payload.client_address || '',
         due_date: payload.due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         tax_rate: String(payload.tax_rate ?? '0'),
+        discount_rate: String(payload.discount_rate ?? '0'),
         notes: payload.notes || '',
         payment_status: payload.payment_status || 'unpaid',
         amount_paid: String(payload.amount_paid ?? ''),
@@ -218,15 +222,15 @@ export default function InvoicesPage() {
   }, [location.state]);
 
   useEffect(() => {
-    if (location.state?.viewInvoiceId && user) {
+    if (location.state?.viewInvoiceId && effectiveUserId) {
       loadInvoiceWithItems(location.state.viewInvoiceId);
       window.history.replaceState({}, document.title);
     }
-  }, [location.state, user]);
+  }, [location.state, effectiveUserId]);
 
   async function loadInvoices() {
     setLoading(true);
-    let invQuery = supabase.from('invoices').select('*').eq('user_id', user!.id).order('created_at', { ascending: false });
+    let invQuery = supabase.from('invoices').select('*').eq('user_id', effectiveUserId).order('created_at', { ascending: false });
 
     if (isStaff) {
       const limit = profile?.staff_visibility_limit || 500000;
@@ -235,7 +239,7 @@ export default function InvoicesPage() {
 
     const [invRes, invItemsRes] = await Promise.all([
       invQuery,
-      supabase.from('inventory_items').select('*').eq('user_id', user!.id).eq('status', 'active')
+      supabase.from('inventory_items').select('*').eq('user_id', effectiveUserId).eq('status', 'active')
     ]);
     setInvoices(invRes.data || []);
     setInventoryItems(invItemsRes.data || []);
@@ -250,8 +254,9 @@ export default function InvoicesPage() {
 
   function calcTotals() {
     const subtotal = items.reduce((s, item) => s + (Number(item.quantity) || 0) * (Number(item.unit_price) || 0), 0);
-    const taxAmount = subtotal * (Number(form.tax_rate) / 100 || 0);
-    return { subtotal, taxAmount, total: subtotal + taxAmount };
+    const discountAmount = subtotal * (Number(form.discount_rate) / 100 || 0);
+    const taxAmount = (subtotal - discountAmount) * (Number(form.tax_rate) / 100 || 0);
+    return { subtotal, discountAmount, taxAmount, total: subtotal - discountAmount + taxAmount };
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -268,12 +273,13 @@ export default function InvoicesPage() {
         }));
 
       await createInvoice({
-        userId: user!.id,
+        userId: effectiveUserId!,
         client_name: form.client_name,
         client_email: form.client_email,
         client_address: form.client_address,
         due_date: form.due_date,
         tax_rate: Number(form.tax_rate) || 0,
+        discount_rate: Number(form.discount_rate) || 0,
         notes: form.notes,
         payment_status: form.payment_status,
         amount_paid: Number(form.amount_paid) || 0,
@@ -339,7 +345,7 @@ export default function InvoicesPage() {
   }
 
   function resetForm() {
-    setForm({ client_name: '', client_email: '', client_address: '', due_date: '', tax_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '' });
+    setForm({ client_name: '', client_email: '', client_address: '', due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '' });
     setItems([{ description: '', quantity: '1', unit_price: '', inventory_item_id: '' }]);
   }
 
@@ -351,7 +357,25 @@ export default function InvoicesPage() {
     setItems(p => p.filter((_, idx) => idx !== i));
   }
 
-  const { subtotal, taxAmount, total } = calcTotals();
+  // Extract unique customers from existing invoices
+  const recentCustomers = Object.values(
+    invoices.reduce<Record<string, { name: string; email: string; address: string; date: string }>>((acc, inv) => {
+      const name = inv.client_name?.trim();
+      if (!name) return acc;
+      const key = name.toLowerCase();
+      if (!acc[key] || new Date(inv.created_at) > new Date(acc[key].date)) {
+        acc[key] = {
+          name: inv.client_name,
+          email: inv.client_email || '',
+          address: inv.client_address || '',
+          date: inv.created_at || inv.issue_date,
+        };
+      }
+      return acc;
+    }, {})
+  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const { subtotal, discountAmount, taxAmount, total } = calcTotals();
 
   const filtered = statusFilter === 'all' ? invoices : invoices.filter(i => i.status === statusFilter);
   const paidTotal = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total, 0);
@@ -365,12 +389,12 @@ export default function InvoicesPage() {
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Invoices</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Create and manage client invoices</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Create and manage customer invoices</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="secondary" icon={<Download size={14} />} onClick={() => {
             const rows = invoices.map(inv => [inv.invoice_number, inv.client_name, inv.client_email, formatDate(inv.issue_date), formatDate(inv.due_date), inv.status, inv.subtotal, inv.tax_amount, inv.total]);
-            downloadCSV(`invoices-${new Date().toISOString().split('T')[0]}.csv`, ['Invoice #', 'Client', 'Email', 'Issue Date', 'Due Date', 'Status', 'Subtotal', 'Tax', 'Total (NGN)'], rows);
+            downloadCSV(`invoices-${new Date().toISOString().split('T')[0]}.csv`, ['Invoice #', 'Customer', 'Email', 'Issue Date', 'Due Date', 'Status', 'Subtotal', 'Tax', 'Total (NGN)'], rows);
           }}>Export CSV</Button>
           <Button variant="primary" icon={<Plus size={14} />} onClick={() => { resetForm(); setShowModal(true); }}>
             New Invoice
@@ -463,9 +487,9 @@ export default function InvoicesPage() {
           <div className="mobile-overflow-x">
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'var(--bg-elevated)' }}>
+               <tr style={{ background: 'var(--bg-elevated)' }}>
                 {[
-                  { label: 'Invoice #' }, { label: 'Client' }, 
+                  { label: 'Invoice #' }, { label: 'Customer' }, 
                   { label: 'Issue Date', hideMobile: true }, { label: 'Due Date', hideMobile: true }, 
                   { label: 'Amount' }, { label: 'Status' }, { label: '' }
                 ].map(h => (
@@ -543,12 +567,73 @@ export default function InvoicesPage() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Create Invoice" size="lg">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-            <Input label="Client Name" placeholder="Acme Corp" value={form.client_name} onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))} required />
-            <Input label="Client Email" type="email" placeholder="client@example.com" value={form.client_email} onChange={e => setForm(p => ({ ...p, client_email: e.target.value }))} />
+            <div style={{ position: 'relative' }}>
+              <Input
+                label="Customer Name"
+                placeholder="Customer Name"
+                value={form.client_name}
+                onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))}
+                onFocus={() => setShowCustomerDropdown(true)}
+                onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                required
+              />
+              {showCustomerDropdown && (
+                (() => {
+                  const filtered = recentCustomers.filter(cust =>
+                    cust.name.toLowerCase().includes(form.client_name.toLowerCase())
+                  ).slice(0, 5);
+                  if (filtered.length === 0) return null;
+                  return (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: 4,
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--bg-border)',
+                      borderRadius: 'var(--radius-md)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                      zIndex: 50,
+                      maxHeight: 200,
+                      overflowY: 'auto'
+                    }}>
+                      {filtered.map(cust => (
+                        <div
+                          key={cust.name}
+                          onMouseDown={() => {
+                            setForm(p => ({
+                              ...p,
+                              client_name: cust.name,
+                              client_email: cust.email,
+                              client_address: cust.address
+                            }));
+                            setShowCustomerDropdown(false);
+                          }}
+                          style={{
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid var(--bg-border)',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{cust.name}</div>
+                          {cust.email && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{cust.email}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+            <Input label="Customer Email" type="email" placeholder="customer@example.com" value={form.client_email} onChange={e => setForm(p => ({ ...p, client_email: e.target.value }))} />
           </div>
-          <Input label="Client Address" placeholder="123 Main St, Lagos" value={form.client_address} onChange={e => setForm(p => ({ ...p, client_address: e.target.value }))} />
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+          <Input label="Customer Address" placeholder="123 Main St, Lagos" value={form.client_address} onChange={e => setForm(p => ({ ...p, client_address: e.target.value }))} />
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
             <Input label="Due Date" type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} required />
+            <Input label="Discount Rate (%)" type="number" min="0" max="100" step="0.1" value={form.discount_rate} onChange={e => setForm(p => ({ ...p, discount_rate: e.target.value }))} />
             <Input label="Tax Rate (%)" type="number" min="0" max="100" step="0.1" value={form.tax_rate} onChange={e => setForm(p => ({ ...p, tax_rate: e.target.value }))} />
           </div>
 
@@ -619,6 +704,11 @@ export default function InvoicesPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
               <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
             </div>
+            {Number(form.discount_rate) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--success)' }}>
+                <span>Discount ({form.discount_rate || 0}%)</span><span>-{formatCurrency(discountAmount)}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
               <span>Tax ({form.tax_rate || 0}%)</span><span>{formatCurrency(taxAmount)}</span>
             </div>
@@ -733,6 +823,11 @@ export default function InvoicesPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
                 <span>Subtotal</span><span>{formatCurrency(viewInvoice.subtotal)}</span>
               </div>
+              {Number(viewInvoice.discount_rate) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--success)', marginBottom: 4 }}>
+                  <span>Discount ({viewInvoice.discount_rate}%)</span><span>-{formatCurrency(viewInvoice.discount_amount || 0)}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
                 <span>Tax ({viewInvoice.tax_rate}%)</span><span>{formatCurrency(viewInvoice.tax_amount)}</span>
               </div>
