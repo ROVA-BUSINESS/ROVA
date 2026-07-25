@@ -21,6 +21,7 @@ const NIGERIAN_BANKS = [
   { name: 'Opay',                  sender: 'no-reply@opay-nigeria.com' },
   { name: 'Moniepoint',            sender: 'no-reply@moniepoint.com' },
   { name: 'Palmpay',               sender: 'no-reply@palmpay.com' },
+  { name: 'FCMB (First City Monument Bank)', sender: 'ebusiness@fcmb.com' },
 
   // --- Domain-only match entries ---
   { name: 'United Bank for Africa (UBA)', sender: 'ubagroup.com' },
@@ -38,7 +39,6 @@ const NIGERIAN_BANKS = [
   { name: 'Keystone Bank',                sender: 'keystonebankng.com' },
   { name: 'Stanbic IBTC Bank',            sender: 'stanbicibtcbank.com' },
   { name: 'Standard Chartered Bank',      sender: 'sc.com' },
-  { name: 'FCMB (First City Monument Bank)', sender: 'fcmb.com' },
 ];
 
 export default function EmailSyncSetup({ isOpen, onClose, onSuccess }: EmailSyncSetupProps) {
