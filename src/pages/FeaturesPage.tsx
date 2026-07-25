@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   ShieldCheck, Globe, Calculator, Users2,
-  Sparkles, CheckCircle2, ArrowLeft
+  CheckCircle2, ArrowLeft
 } from 'lucide-react';
 
 const FeatureCard = ({ icon, title, desc, details }: { icon: React.ReactNode, title: string, desc: string, details: string[] }) => (
@@ -75,10 +75,9 @@ export default function FeaturesPage() {
         }} />
         <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 1 }}>
           <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 16px',
+            display: 'inline-flex', alignItems: 'center', padding: '6px 16px',
             background: 'rgba(147,51,234,0.1)', borderRadius: 100, marginBottom: 24, border: '1px solid rgba(147,51,234,0.2)'
           }}>
-            <Sparkles size={16} color="var(--accent-primary)" />
             <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: 1 }}>Platform Features</span>
           </div>
           <h1 style={{ fontSize: 'clamp(40px, 5vw, 64px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 24, letterSpacing: '-2px' }}>
@@ -95,7 +94,14 @@ export default function FeaturesPage() {
         <div style={{ maxWidth: 1200, width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 32 }}>
 
           <FeatureCard
-            icon={<Sparkles size={24} color="#9333ea" />}
+            icon={
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent-primary)" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 13 0 Q 13 5 18 5 Q 13 5 13 10 Q 13 5 8 5 Q 13 5 13 0" />
+                <path d="M 20 0 Q 20 2.5 22.5 2.5 Q 20 2.5 20 5 Q 20 2.5 17.5 2.5 Q 20 2.5 20 0" />
+                <path d="M 21.5 6 Q 21.5 8.5 24 8.5 Q 21.5 8.5 21.5 11 Q 21.5 8.5 19 8.5 Q 21.5 8.5 21.5 6" />
+                <text x="0" y="21" fontFamily="'Inter', 'Plus Jakarta Sans', sans-serif" fontWeight="900" fontSize="13" letterSpacing="-0.5">AI</text>
+              </svg>
+            }
             title="Next-Gen AI Assistant"
             desc="Your personal financial controller that lives inside the app. Navigate, analyze, and predict with natural language."
             details={[

@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Users, Play } from 'lucide-react';
+import { Users, Play, Briefcase } from 'lucide-react';
 import { supabase, type Employee, type PayrollRun } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import EmployeesTab from './EmployeesTab';
 import PayrollRunTab from './PayrollRunTab';
+import ContractorsTab from './ContractorsTab';
 
-type Tab = 'employees' | 'payroll';
+type Tab = 'employees' | 'payroll' | 'contractors';
 
 export default function PayrollPage() {
   const { user } = useAuth();
   const location = useLocation();
-  const [tab, setTab] = useState<Tab>(location.state?.openCreateModal ? 'payroll' : 'employees');
+  const [tab, setTab] = useState<Tab>(
+    location.state?.openCreateModal ? 'payroll' : 'employees'
+  );
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,13 +37,14 @@ export default function PayrollPage() {
   const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: 'employees', label: 'Employees', icon: Users },
     { key: 'payroll', label: 'Payroll Runs', icon: Play },
+    { key: 'contractors', label: 'External Payments / Contractor', icon: Briefcase },
   ];
 
   return (
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1100, animation: 'fadeIn 0.3s ease' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, marginBottom: 4 }}>Payroll & Staff</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Manage employees, process salaries, and track deductions</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Manage employees, process salaries, and track external contractor payments</p>
       </div>
 
       <div style={{ display: 'flex', gap: 2, marginBottom: 24, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 4, width: 'fit-content' }}>
@@ -65,8 +69,10 @@ export default function PayrollPage() {
         <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 56, marginBottom: 10 }} />)}</div>
       ) : tab === 'employees' ? (
         <EmployeesTab employees={employees} onRefresh={loadData} />
-      ) : (
+      ) : tab === 'payroll' ? (
         <PayrollRunTab employees={employees} runs={runs} onRefresh={loadData} locationState={location.state} />
+      ) : (
+        <ContractorsTab />
       )}
     </div>
   );

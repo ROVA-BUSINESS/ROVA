@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { LayoutList, Banknote, Scale, BookOpen, Layers } from 'lucide-react';
 import Card from '../../components/ui/Card';
 
 export default function AccountingHubPage() {
@@ -15,10 +14,7 @@ export default function AccountingHubPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 32 }}>
-        <Card hoverable onClick={() => navigate('/app/ledger')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'var(--accent-dim)', borderRadius: 10 }}>
-            <BookOpen size={20} color="var(--accent-primary)" />
-          </div>
+        <Card hoverable onClick={() => navigate('/app/general-ledger')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>General Ledger</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Master record of all accounts</div>
@@ -26,9 +22,6 @@ export default function AccountingHubPage() {
         </Card>
         
         <Card hoverable onClick={() => navigate('/app/chart-of-accounts')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'rgba(147,51,234,0.1)', borderRadius: 10 }}>
-            <Layers size={20} color="#9333ea" />
-          </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Chart of Accounts</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Financial account structure</div>
@@ -36,9 +29,6 @@ export default function AccountingHubPage() {
         </Card>
 
         <Card hoverable onClick={() => navigate('/app/balance-sheet')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'var(--accent-dim)', borderRadius: 10 }}>
-            <LayoutList size={20} color="var(--accent-primary)" />
-          </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Balance Sheet</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Assets & Liabilities</div>
@@ -46,9 +36,6 @@ export default function AccountingHubPage() {
         </Card>
 
         <Card hoverable onClick={() => navigate('/app/cash-flow')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'rgba(147,51,234,0.1)', borderRadius: 10 }}>
-            <Banknote size={20} color="#9333ea" />
-          </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Cash Flow</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Money in & out</div>
@@ -56,9 +43,6 @@ export default function AccountingHubPage() {
         </Card>
 
         <Card hoverable onClick={() => navigate('/app/trial-balance')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
-          <div style={{ padding: 10, background: 'var(--error-dim)', borderRadius: 10 }}>
-            <Scale size={20} color="var(--error)" />
-          </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Trial Balance</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Accounts overview</div>

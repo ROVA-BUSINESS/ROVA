@@ -7,6 +7,7 @@ export interface CreateInvoiceInput {
   client_address?: string;
   due_date: string;
   tax_rate?: number;
+  discount_rate?: number;
   notes?: string;
   payment_status: 'unpaid' | 'paid_in_full' | 'part_payment';
   amount_paid?: number;
@@ -19,10 +20,12 @@ export interface CreateInvoiceInput {
 }
 
 export async function createInvoice(input: CreateInvoiceInput) {
+  const discountRate = input.discount_rate ?? 0;
   const taxRate = input.tax_rate ?? 0;
   const subtotal = input.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const taxAmount = subtotal * (taxRate / 100);
-  const total = subtotal + taxAmount;
+  const discountAmount = subtotal * (discountRate / 100);
+  const taxAmount = (subtotal - discountAmount) * (taxRate / 100);
+  const total = subtotal - discountAmount + taxAmount;
   const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
 
   let initialAmountPaid = 0;
@@ -47,6 +50,8 @@ export async function createInvoice(input: CreateInvoiceInput) {
     client_address: input.client_address || null,
     issue_date: new Date().toISOString().split('T')[0],
     due_date: input.payment_status === 'paid_in_full' ? new Date().toISOString().split('T')[0] : input.due_date,
+    discount_rate: discountRate,
+    discount_amount: discountAmount,
     tax_rate: taxRate,
     tax_amount: taxAmount,
     subtotal,

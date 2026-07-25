@@ -15,7 +15,8 @@ type FilterType = 'all' | 'income' | 'expense';
 
 
 export default function TransactionsPage() {
-  const { user, isStaff, profile, isAdmin } = useAuth();
+  const { user, isStaff, profile, isAdmin, staffData } = useAuth();
+  const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -38,12 +39,12 @@ export default function TransactionsPage() {
   const [autoSuggestion, setAutoSuggestion] = useState('');
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (effectiveUserId) loadData();
+  }, [effectiveUserId]);
 
   async function loadData() {
     setLoading(true);
-    let txQuery = supabase.from('transactions').select('*, category:categories(*), account:accounts(*)').eq('user_id', user!.id).order('date', { ascending: false });
+    let txQuery = supabase.from('transactions').select('*, category:categories(*), account:accounts(*)').eq('user_id', effectiveUserId).order('date', { ascending: false });
     
     if (isStaff) {
       const limit = profile?.staff_visibility_limit || 500000;
@@ -52,8 +53,8 @@ export default function TransactionsPage() {
 
     const [txRes, accRes, catRes] = await Promise.all([
       txQuery,
-      supabase.from('accounts').select('*').eq('user_id', user!.id).eq('is_active', true),
-      supabase.from('categories').select('*').or(`user_id.eq.${user!.id},is_system.eq.true`),
+      supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
+      supabase.from('categories').select('*').or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
     ]);
     setTransactions(txRes.data || []);
     setAccounts(accRes.data || []);
@@ -70,7 +71,7 @@ export default function TransactionsPage() {
     setSaving(true);
     setFormError('');
     const { error } = await supabase.from('transactions').insert({
-      user_id: user!.id,
+      user_id: effectiveUserId,
       description: form.description,
       amount: Number(form.amount),
       type: form.type,

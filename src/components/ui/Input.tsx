@@ -41,9 +41,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             }}
             onFocus={e => {
               e.target.style.borderColor = error ? 'var(--error)' : 'var(--accent-primary)';
+              props.onFocus?.(e);
             }}
             onBlur={e => {
               e.target.style.borderColor = error ? 'var(--error)' : 'var(--bg-border)';
+              props.onBlur?.(e);
             }}
           />
           {suffix && (

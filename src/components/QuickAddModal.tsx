@@ -14,7 +14,8 @@ interface Props {
 }
 
 export default function QuickAddModal({ open, onClose }: Props) {
-  const { user } = useAuth();
+  const { user, isStaff, staffData } = useAuth();
+  const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [saving, setSaving] = useState(false);
@@ -37,10 +38,10 @@ export default function QuickAddModal({ open, onClose }: Props) {
   });
 
   useEffect(() => {
-    if (open && user) {
+    if (open && effectiveUserId) {
       Promise.all([
-        supabase.from('accounts').select('*').eq('user_id', user.id).eq('is_active', true),
-        supabase.from('categories').select('*').or(`user_id.eq.${user.id},is_system.eq.true`),
+        supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
+        supabase.from('categories').select('*').or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
       ]).then(([accRes, catRes]) => {
         setAccounts(accRes.data || []);
         setCategories(catRes.data || []);
@@ -55,7 +56,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
       setIntentPrompt(null);
       setIntentConfirmed(false);
     }
-  }, [open, user]);
+  }, [open, effectiveUserId]);
 
   function handleDescriptionChange(desc: string) {
     // Instant keyword fallback
@@ -81,12 +82,12 @@ export default function QuickAddModal({ open, onClose }: Props) {
     if (desc.trim().length < 6) { setAiResult(null); setIntentPrompt(null); return; }
 
     debounceRef.current = setTimeout(async () => {
-      if (!user) return;
+      if (!effectiveUserId) return;
       setAiLoading(true);
       try {
         const result = await classifyTransaction(
           { description: desc, type: form.type },
-          user.id,
+          effectiveUserId,
           'preview' // preview mode = no notifications created
         );
         setAiResult(result);
@@ -131,7 +132,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
     setSaving(true);
     setError('');
     const { data: txData, error: err } = await supabase.from('transactions').insert({
-      user_id: user!.id,
+      user_id: effectiveUserId,
       description: form.description,
       amount: Number(form.amount),
       type: form.type,
@@ -155,7 +156,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
           const unitCost = aiResult.unit_price || (Number(form.amount) / qty);
 
           await applyInventoryIntent({
-            userId: user!.id,
+            userId: effectiveUserId!,
             itemName,
             quantity: qty,
             unitCost,
@@ -166,7 +167,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
           const employeeName = aiResult.employee_name || '';
           if (employeeName) {
             await applyPayrollIntent({
-              userId: user!.id,
+              userId: effectiveUserId!,
               employeeName,
               amount: Number(form.amount),
               transactionId: txData.id,

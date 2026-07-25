@@ -91,6 +91,9 @@ export default function SettingsPage() {
     if (!error) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } else {
+      console.error("Failed to save profile:", error);
+      alert("Failed to save profile: " + (error.message || "Unknown error"));
     }
   }
 
@@ -277,10 +280,10 @@ export default function SettingsPage() {
                     }}>
                       <div style={{
                         width: 40, height: 40, borderRadius: 10,
-                        background: acc.color || 'var(--accent-dim)',
+                        background: (acc.color && acc.color.toLowerCase() === '#9333ea') ? 'var(--accent-primary)' : (acc.color || 'var(--accent-dim)'),
                         display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white'
                       }}>
-                        <CreditCard size={20} />
+                        <CreditCard size={20} style={{ display: 'block' }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 700 }}>{acc.name}</div>

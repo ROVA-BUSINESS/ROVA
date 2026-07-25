@@ -77,6 +77,8 @@ export type Invoice = {
   due_date: string;
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   subtotal: number;
+  discount_rate?: number;
+  discount_amount?: number;
   tax_rate: number;
   tax_amount: number;
   total: number;
@@ -322,3 +324,100 @@ export type Notification = {
   scheduled_for: string | null;
   created_at: string;
 };
+
+export type ExternalWorker = {
+  id: string;
+  user_id: string;
+  name: string;
+  business_name: string | null;
+  phone: string | null;
+  email: string | null;
+  category: string;
+  bank_name: string | null;
+  account_number: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ServiceAgreement = {
+  id: string;
+  user_id: string;
+  worker_id: string;
+  title: string;
+  category: string;
+  description: string | null;
+  agreed_amount: number;
+  start_date: string | null;
+  due_date: string | null;
+  status: 'active' | 'completed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+  worker?: ExternalWorker;
+  contractor_payments?: ContractorPayment[];
+};
+
+export type ContractorPayment = {
+  id: string;
+  user_id: string;
+  agreement_id: string;
+  payment_date: string;
+  amount: number;
+  payment_method: string | null;
+  reference_number: string | null;
+  notes: string | null;
+  transaction_id: string | null;
+  created_at: string;
+};
+
+export type Expense = {
+  id: string;
+  user_id: string;
+  expense_number: string;
+  date: string;
+  vendor: string;
+  category_id: string | null;
+  amount: number;
+  payment_method: string | null;
+  account_id: string | null;
+  description: string | null;
+  attachment_url: string | null;
+  transaction_id: string | null;
+  created_at: string;
+  category?: any;
+  account?: any;
+};
+
+export type Bill = {
+  id: string;
+  user_id: string;
+  bill_number: string;
+  vendor: string;
+  description: string | null;
+  bill_date: string;
+  due_date: string;
+  amount: number;
+  category_id: string | null;
+  status: 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
+  notes: string | null;
+  attachment_url: string | null;
+  agreement_id: string | null;
+  created_at: string;
+  category?: any;
+  agreement?: any;
+};
+
+export type BillPayment = {
+  id: string;
+  user_id: string;
+  bill_id: string;
+  payment_date: string;
+  amount: number;
+  payment_method: string | null;
+  reference_number: string | null;
+  notes: string | null;
+  transaction_id: string | null;
+  created_at: string;
+};
+
+

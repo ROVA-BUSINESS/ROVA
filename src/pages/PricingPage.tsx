@@ -1,20 +1,46 @@
-import { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, Zap } from 'lucide-react';
+import { ArrowLeft, Check, X, Building2 } from 'lucide-react';
 import Button from '../components/ui/Button';
 
 export default function PricingPage() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
-  // Interactive Fee Calculator State
-  const [txCount, setTxCount] = useState(100);
+  const PLAN_FEATURES = [
+    { name: "Accounting", basic: true, business: true },
+    { name: "Income & Expense Tracking", basic: true, business: true },
+    { name: "Invoicing", basic: true, business: true },
+    { name: "Financial Dashboard", basic: true, business: true },
+    { name: "Live Automatic Tracking", basic: true, business: true },
+    { name: "Financial Reports", basic: true, business: true },
+    { name: "AI Transaction Categorization", basic: true, business: true },
+    { name: "Receipt Storage", basic: true, business: true },
+    { name: "Inventory Management", basic: false, business: true },
+    { name: "Multi-User Access", basic: false, business: true },
+    { name: "User Roles & Permissions", basic: false, business: true },
+    { name: "Approval Workflows", basic: false, business: true },
+    { name: "Payroll Management", basic: false, business: true },
+    { name: "Employee Records", basic: false, business: true },
+    { name: "Advanced Analytics", basic: false, business: true },
+    { name: "Cash Flow Forecasting", basic: false, business: true },
+    { name: "AI Financial Assistant", basic: false, business: true },
+    { name: "VAT & PAYE Reports", basic: false, business: true },
+    { name: "Priority Support", basic: false, business: true },
+  ];
 
-  const flatFeePerTx = 10;
-  const rovaMonthlyCost = txCount * flatFeePerTx;
-  const accountantMonthlyCost = 250000; // Flat ₦250,000
-  const savings = accountantMonthlyCost - rovaMonthlyCost;
+  const ADD_ONS = [
+    { name: "Payroll Processing", price: "₦100 per employee/month", available: "Basic & Business" },
+    { name: "Advanced Payroll (Payslips, Leave Tracking)", price: "₦500/month + ₦100/employee", available: "Basic & Business" },
+    { name: "VAT Report Generation", price: "₦1,000/month", available: "Basic" },
+    { name: "PAYE Report Generation", price: "₦1,000/month", available: "Basic" },
+    { name: "Full Tax Compliance Package", price: "₦2,500/month", available: "Basic" },
+    { name: "VAT Filing Assistance", price: "₦5,000 per filing", available: "Both" },
+    { name: "Annual Filing Assistance", price: "₦10,000–₦20,000 per filing", available: "Both" },
+    { name: "Additional User Seats", price: "₦500/user/month", available: "Basic" },
+    { name: "Extra Cloud Storage", price: "₦500/month", available: "Both" },
+    { name: "Priority Support", price: "₦1,000/month", available: "Basic" },
+  ];
 
   return (
     <>
@@ -28,7 +54,7 @@ export default function PricingPage() {
           font-family: 'Roboto', sans-serif;
           overflow-x: hidden;
           position: relative;
-          padding-bottom: 80px;
+          padding-bottom: 100px;
         }
         .prc-nav {
           height: 70px;
@@ -50,11 +76,11 @@ export default function PricingPage() {
         }
         .prc-nav-link:hover { color: var(--text-primary); }
         .prc-container {
-          max-width: 1200px; margin: 0 auto; padding: 60px 20px;
+          max-width: 1100px; margin: 0 auto; padding: 60px 20px;
           position: relative; z-index: 1;
         }
         .prc-header {
-          text-align: center; max-width: 700px; margin: 0 auto 60px;
+          text-align: center; max-width: 700px; margin: 0 auto 50px;
         }
         .prc-badge {
           display: inline-flex; align-items: center; gap: 8px;
@@ -65,108 +91,106 @@ export default function PricingPage() {
         .prc-badge-text {
           font-size: 11px; font-weight: 800; color: var(--accent-light);
           text-transform: uppercase; letter-spacing: 2px;
-          font-family: 'Roboto', sans-serif;
         }
         .prc-title {
-          font-size: clamp(32px, 4vw, 56px); font-weight: 800; line-height: 1.15;
-          margin-bottom: 20px; font-family: 'Roboto', sans-serif;
+          font-size: clamp(32px, 4vw, 52px); font-weight: 800; line-height: 1.15;
+          margin-bottom: 20px;
         }
         .prc-subtitle {
-          font-size: clamp(15px, 1.8vw, 18px); color: var(--text-secondary); line-height: 1.6;
+          font-size: clamp(15px, 1.8vw, 17px); color: var(--text-secondary); line-height: 1.6;
         }
         
-        /* Pricing Plan Section */
-        .prc-plans {
-          display: grid; grid-template-columns: 1fr 1.2fr; gap: 40px; align-items: start; margin-bottom: 80px;
+        /* Plan Cards */
+        .prc-cards-grid {
+          display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 70px;
         }
-        @media (max-width: 1024px) {
-          .prc-plans { grid-template-columns: 1fr; }
+        @media (max-width: 768px) {
+          .prc-cards-grid { grid-template-columns: 1fr; }
         }
-
-        .prc-plan-card {
+        .prc-card {
           background: ${isLight ? 'rgba(255,255,255,0.45)' : 'rgba(20,20,22,0.55)'};
           backdrop-filter: blur(30px);
-          border: 2px solid var(--accent-border);
+          border: 1px solid var(--bg-border);
           border-radius: var(--radius-xl); padding: 40px;
-          box-shadow: var(--shadow-lg), 0 20px 45px -10px rgba(147,51,234,0.12);
           display: flex; flex-direction: column; gap: 24px;
-          position: relative;
+          position: relative; transition: all 0.3s ease;
         }
-        .prc-plan-badge {
+        .prc-card.featured {
+          border: 2px solid var(--accent-primary);
+          box-shadow: 0 20px 40px -10px rgba(147,51,234,0.15);
+        }
+        .prc-card-badge {
           position: absolute; top: -14px; right: 28px;
           background: linear-gradient(135deg, var(--accent-primary), #7c3aed);
           color: white; font-size: 10px; font-weight: 800; text-transform: uppercase;
           letter-spacing: 1px; padding: 6px 14px; border-radius: var(--radius-full);
           box-shadow: 0 4px 12px rgba(147,51,234,0.3);
         }
-        .prc-plan-name { font-size: 24px; font-weight: 800; font-family: 'Roboto', sans-serif; }
-        .prc-plan-price { font-size: 40px; font-weight: 800; font-family: 'Roboto', sans-serif; }
+        .prc-plan-name { font-size: 24px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .prc-plan-price { font-size: 40px; font-weight: 800; line-height: 1; }
         .prc-plan-price span { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
-        
-        .prc-features-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-        .prc-feature-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; font-weight: 600; line-height: 1.5; }
-        .prc-check-icon {
-          display: flex; align-items: center; justify-content: center;
-          width: 20px; height: 20px; border-radius: 50%;
-          background: rgba(34,197,94,0.1); color: #22c55e; flex-shrink: 0;
-        }
+        .prc-plan-sub { font-size: 14px; color: var(--text-muted); font-weight: 500; }
 
-        /* Calculator Card */
-        .prc-calc-card {
+        /* Comparison Table */
+        .prc-table-section { margin-bottom: 80px; }
+        .prc-table-title { font-size: 28px; font-weight: 800; margin-bottom: 24px; text-align: center; }
+        .prc-table-container {
           background: ${isLight ? 'rgba(255,255,255,0.45)' : 'rgba(20,20,22,0.55)'};
           backdrop-filter: blur(30px);
           border: 1px solid var(--bg-border);
-          border-radius: var(--radius-xl); padding: 40px;
-          box-shadow: var(--shadow-lg);
-          display: flex; flex-direction: column; gap: 28px;
+          border-radius: var(--radius-xl); overflow: hidden;
         }
-        .prc-calc-title {
-          font-size: 20px; font-weight: 800; font-family: 'Roboto', sans-serif;
-          display: flex; alignItems: center; gap: 8px;
+        .prc-table {
+          width: 100%; border-collapse: collapse; text-align: left;
         }
-        .prc-slider {
-          -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px;
-          background: var(--bg-hover); outline: none; cursor: pointer;
+        .prc-th {
+          padding: 20px 24px; font-size: 14px; font-weight: 700; border-bottom: 1px solid var(--bg-border);
+          color: var(--text-primary);
         }
-        .prc-slider::-webkit-slider-thumb {
-          -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
-          background: var(--accent-primary); cursor: pointer;
-          box-shadow: 0 0 10px rgba(147,51,234,0.4);
-          transition: transform 0.15s;
+        .prc-td {
+          padding: 16px 24px; font-size: 13px; border-bottom: 1px solid var(--bg-border);
+          color: var(--text-secondary);
         }
-        .prc-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        .prc-tr:last-child .prc-td { border-bottom: none; }
+        .prc-tr:hover { background: ${isLight ? 'rgba(9,9,11,0.01)' : 'rgba(255,255,255,0.01)'}; }
+        
+        .prc-check-icon { color: #10b981; display: inline-flex; }
+        .prc-x-icon { color: var(--text-disabled); display: inline-flex; opacity: 0.5; }
 
-        .prc-metric-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        @media (max-width: 640px) {
-          .prc-metric-row { grid-template-columns: 1fr; }
+        /* Add-Ons Section */
+        .prc-addons-section { margin-bottom: 80px; }
+        .prc-addons-grid {
+          display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;
         }
-        .prc-metric-box {
-          border: 1px solid var(--bg-border); border-radius: var(--radius-lg);
-          padding: 16px; background: ${isLight ? '#f9f9fb' : 'rgba(255,255,255,0.01)'};
-        }
-        .prc-metric-num { font-size: 22px; font-weight: 800; margin-bottom: 2px; font-family: 'Roboto', sans-serif; }
-
-        /* FAQ Section */
-        .prc-faq {
-          max-width: 800px; margin: 0 auto 60px;
-        }
-        .prc-faq-title {
-          font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 36px;
-          font-family: 'Roboto', sans-serif;
-        }
-        .prc-faq-item {
-          border-bottom: 1px solid var(--bg-border); padding: 18px 0;
+        .prc-addon-card {
+          background: ${isLight ? 'rgba(255,255,255,0.45)' : 'rgba(20,20,22,0.55)'};
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--bg-border);
+          border-radius: var(--radius-lg); padding: 24px;
           display: flex; flex-direction: column; gap: 8px;
         }
+        .prc-addon-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+        .prc-addon-price { font-size: 15px; font-weight: 800; color: var(--accent-light); }
+        .prc-addon-avail { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+
+        /* FAQ Section */
+        .prc-faq { max-width: 800px; margin: 0 auto; }
+        .prc-faq-title { font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 36px; }
+        .prc-faq-item { border-bottom: 1px solid var(--bg-border); padding: 18px 0; display: flex; flex-direction: column; gap: 8px; }
         .prc-faq-q { font-size: 15px; font-weight: 700; }
         .prc-faq-a { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
       `}</style>
 
       <div className="prc-root">
-        {/* Glow */}
+        {/* Glow Effects */}
         <div style={{
           position: 'absolute', top: '10%', left: '-10%', width: 400, height: 400,
-          background: 'rgba(147,51,234,0.12)', filter: 'blur(120px)', borderRadius: '50%',
+          background: 'rgba(147,51,234,0.08)', filter: 'blur(120px)', borderRadius: '50%',
+          zIndex: 0, pointerEvents: 'none'
+        }} />
+        <div style={{
+          position: 'absolute', top: '50%', right: '-10%', width: 350, height: 350,
+          background: 'rgba(59,130,246,0.06)', filter: 'blur(120px)', borderRadius: '50%',
           zIndex: 0, pointerEvents: 'none'
         }} />
 
@@ -184,7 +208,7 @@ export default function PricingPage() {
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
               onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
               >
-                <ArrowLeft size={16} /> Back to Home
+                <ArrowLeft size={16} /> Back
               </Link>
               <Link to="/">
                 <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="prc-nav-logo" />
@@ -203,154 +227,167 @@ export default function PricingPage() {
           </div>
         </nav>
 
-        {/* Container */}
+        {/* Main Content */}
         <div className="prc-container">
-
-
           <header className="prc-header">
             <div className="prc-badge">
-              <span className="prc-badge-text">Transparent Pricing</span>
+              <span className="prc-badge-text">ROVA Subscription Plans</span>
             </div>
             <h1 className="prc-title">
-              Simple, usage-based <br />
-              pricing that <span style={{ background: 'linear-gradient(135deg, #a855f7, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>scales as you grow</span>
+              Simple, transparent pricing <br />
+              built for <span style={{ background: 'linear-gradient(135deg, #a855f7, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Nigerian SMEs</span>
             </h1>
             <p className="prc-subtitle">
-              ROVA eliminates rigid monthly subscription fees that penalise growing startups. You pay a low flat rate strictly based on transaction volume processed by the AI engine.
+              Scale your accounting, invoices, and payroll operations. Choose a plan that fits your current operational needs, with flexible custom add-ons.
             </p>
           </header>
 
-          <div className="prc-plans">
-            {/* The Main Plan */}
-            <div className="prc-plan-card">
-              <span className="prc-plan-badge">Scale-As-You-Grow</span>
-              <div>
-                <h2 className="prc-plan-name">Autonomous OS</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>Full GAAP Ledger access on autopilot.</p>
+          {/* Cards Grid */}
+          <div className="prc-cards-grid">
+            {/* Basic Plan */}
+            <div className="prc-card">
+              <div className="prc-plan-name">
+                <Building2 size={24} color="var(--text-secondary)" />
+                Basic Plan
               </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, minHeight: 36 }}>
+                Ideal for freelancers and small businesses needing clean bookkeeping and professional invoices.
+              </p>
               <div className="prc-plan-price">
-                ₦10<span>/ transaction processed</span>
+                ₦100<span> / day</span>
+              </div>
+              <div className="prc-plan-sub">
+                or <span style={{ color: 'var(--accent-light)', fontWeight: 700 }}>₦3,000</span> / month
               </div>
               
-              <Link to="/signup" style={{ textDecoration: 'none' }}>
-                <Button variant="primary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0' }}>Get Started for Free</Button>
+              <Link to="/signup" style={{ textDecoration: 'none', marginTop: 'auto' }}>
+                <Button variant="secondary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0' }}>Get Started</Button>
               </Link>
-
               <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
-
-              <ul className="prc-features-list">
-                {[
-                  '₦0 Core Platform fee (Always free core ledgers!)',
-                  'Direct open-banking connection endpoints integrated',
-                  'Autonomous email-alert alert parser and synchronizer',
-                  'Unlimited Draft client invoices and receipts logging',
-                  'Unlimited Payroll employees processing and deduction calculators',
-                  'Profit & Loss, Balance Sheet, and Trial Balance statements',
-                  'Unlimited AI Co-pilot assistant queries and chat actions',
-                  'Full team onboarding invite logs'
-                ].map((item, i) => (
-                  <li key={i} className="prc-feature-item">
-                    <div className="prc-check-icon"><Check size={12} /></div>
-                    <span>{item}</span>
+              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['Full Bookkeeping & Ledger', 'Income & Expense tracking', 'Professional Invoicing', 'Financial Reports (P&L, Balance Sheet)', 'Bank Transaction Import (Mono)', 'AI Transaction Categorization'].map((f, i) => (
+                  <li key={i} style={{ display: 'flex', gap: 8, fontSize: 13, fontWeight: 500 }}>
+                    <Check size={16} style={{ color: '#10b981' }} /> {f}
                   </li>
                 ))}
               </ul>
             </div>
 
-            {/* Interactive Calculator */}
-            <div className="prc-calc-card">
-              <div>
-                <h2 className="prc-calc-title">
-                  <Zap size={18} color="var(--accent-light)" />
-                  Savings Calculator
-                </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>
-                  Compare the monthly usage fee of ROVA against a traditional accountant in Nigeria.
-                </p>
+            {/* Business Plan */}
+            <div className="prc-card featured">
+              <span className="prc-card-badge">Most Popular</span>
+              <div className="prc-plan-name">
+                Business Plan
               </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-                  <span>Estimated Bank Sync Transactions Processed</span>
-                  <span style={{ color: 'var(--accent-light)', fontSize: 14 }}>{txCount} transactions</span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="200"
-                  step="1"
-                  value={txCount}
-                  onChange={e => setTxCount(Number(e.target.value))}
-                  className="prc-slider"
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-disabled)', marginTop: 6, fontWeight: 600 }}>
-                  <span>1 Transaction (₦10 fee)</span>
-                  <span>100 Tx (₦1,000/mo)</span>
-                  <span>200 Transactions (₦2,000/mo)</span>
-                </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, minHeight: 36 }}>
+                Perfect for growing companies requiring inventory management, payroll processing, and multi-user collaboration.
+              </p>
+              <div className="prc-plan-price">
+                ₦300<span> / day</span>
               </div>
-
-              <div className="prc-metric-row">
-                <div className="prc-metric-box">
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>ROVA Cost</div>
-                  <div className="prc-metric-num" style={{ color: 'var(--accent-light)' }}>
-                    ₦{rovaMonthlyCost.toLocaleString()}
-                    <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>/ month</span>
-                  </div>
-                </div>
-
-                <div className="prc-metric-box">
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Accountant Cost</div>
-                  <div className="prc-metric-num" style={{ color: 'var(--text-primary)', textDecoration: 'line-through', opacity: 0.6 }}>
-                    ₦{accountantMonthlyCost.toLocaleString()}
-                    <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>/ month</span>
-                  </div>
-                </div>
+              <div className="prc-plan-sub">
+                or <span style={{ color: 'var(--accent-light)', fontWeight: 700 }}>₦9,000</span> / month
               </div>
-
-              <div style={{
-                background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.25)',
-                borderRadius: 'var(--radius-lg)', padding: '16px 20px', textAlign: 'center',
-                boxShadow: '0 0 16px rgba(34,197,94,0.08)'
-              }}>
-                <div style={{ fontSize: 10, color: '#22c55e', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Net Monthly Savings</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: '#22c55e', fontFamily: "'Roboto', sans-serif" }}>
-                  ₦{savings.toLocaleString()}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#22c55e', opacity: 0.8 }}> / month saved</span>
-                </div>
-              </div>
+              
+              <Link to="/signup" style={{ textDecoration: 'none', marginTop: 'auto' }}>
+                <Button variant="primary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0' }}>Start Business Trial</Button>
+              </Link>
+              <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
+              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['Everything in Basic Plan', 'AI Financial Assistant (ROVA Chat)', 'Multi-User Access & Roles', 'Payroll Management & Employee Records', 'Inventory Management', 'Cash Flow Forecasting & Analytics'].map((f, i) => (
+                  <li key={i} style={{ display: 'flex', gap: 8, fontSize: 13, fontWeight: 500 }}>
+                    <Check size={16} style={{ color: '#10b981' }} /> {f}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
+          {/* Features Comparison Table */}
+          <section className="prc-table-section">
+            <h2 className="prc-table-title">Compare Plan Features</h2>
+            <div className="prc-table-container">
+              <table className="prc-table">
+                <thead>
+                  <tr style={{ background: isLight ? '#f9f9fb' : 'rgba(255,255,255,0.02)' }}>
+                    <th className="prc-th">Feature</th>
+                    <th className="prc-th" style={{ width: '150px' }}>Basic</th>
+                    <th className="prc-th" style={{ width: '150px' }}>Business</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PLAN_FEATURES.map((item, index) => (
+                    <tr key={index} className="prc-tr">
+                      <td className="prc-td" style={{ fontWeight: 600 }}>{item.name}</td>
+                      <td className="prc-td">
+                        {item.basic ? (
+                          <span className="prc-check-icon"><Check size={18} /></span>
+                        ) : (
+                          <span className="prc-x-icon"><X size={18} /></span>
+                        )}
+                      </td>
+                      <td className="prc-td">
+                        {item.business ? (
+                          <span className="prc-check-icon"><Check size={18} /></span>
+                        ) : (
+                          <span className="prc-x-icon"><X size={18} /></span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Add-Ons Section */}
+          <section className="prc-addons-section">
+            <h2 className="prc-table-title">Flexible Add-Ons</h2>
+            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 32, fontSize: 14, maxWidth: 600, margin: '0 auto 32px' }}>
+              Only pay for what your business needs. Attach these modules directly to your Basic or Business plan.
+            </p>
+            <div className="prc-addons-grid">
+              {ADD_ONS.map((addon, index) => (
+                <div key={index} className="prc-addon-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="prc-addon-name">{addon.name}</div>
+                    <span className="prc-addon-avail">{addon.available}</span>
+                  </div>
+                  <div className="prc-addon-price">{addon.price}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {/* FAQ Section */}
           <section className="prc-faq">
-            <h2 className="prc-faq-title">Pricing Frequently Asked Questions</h2>
+            <h2 className="prc-faq-title">Frequently Asked Questions</h2>
             
             <div className="prc-faq-item">
-              <h3 className="prc-faq-q">What exactly is a "processed transaction"?</h3>
+              <h3 className="prc-faq-q">Can I upgrade or downgrade my plan?</h3>
               <p className="prc-faq-a">
-                A processed transaction is a raw bank feed narration (e.g. from Gmail parsing or bank webhooks) that is automatically categorized by our proprietary financial AI model, matched to payroll/stock metrics, and logged into your balanced general ledger. Transactions you enter manually are 100% free.
+                Yes, you can upgrade, downgrade, or cancel your subscription plan at any time directly from your Billing Settings page. Subscriptions can be billed daily or monthly.
               </p>
             </div>
 
             <div className="prc-faq-item">
-              <h3 className="prc-faq-q">Is the core platform really free?</h3>
+              <h3 className="prc-faq-q">How does the Payroll Processing add-on work?</h3>
               <p className="prc-faq-a">
-                Yes! We do not charge a base subscription fee. Access to the dashboard, visual charts, reports generation (Profit &amp; Loss, Balance Sheet), direct invoicing drafts, and payroll setup calculators is always free.
+                Basic and Business plans can activate payroll. You are billed ₦100 per active employee per month. If you have 5 employees, you will pay ₦500/month in addition to your base plan.
               </p>
             </div>
 
             <div className="prc-faq-item">
-              <h3 className="prc-faq-q">Are there any hidden costs?</h3>
+              <h3 className="prc-faq-q">Do you assist with tax filing?</h3>
               <p className="prc-faq-a">
-                None at all. All features operate under the single flat rate of ₦10 per transaction processed. Invoicing modules, team onboarding invites, and co-pilot conversational queries carry zero monthly overhead.
+                Yes! We offer VAT Filing Assistance (₦5,000 per filing) and Annual Corporate Tax Filing Assistance (₦10,000–₦20,000 per filing) where local tax consultants review and submit your books directly to FIRS.
               </p>
             </div>
 
             <div className="prc-faq-item">
-              <h3 className="prc-faq-q">How am I billed?</h3>
+              <h3 className="prc-faq-q">Can I buy additional user seats?</h3>
               <p className="prc-faq-a">
-                ROVA operates a prepaid credit wallet model. You deposit funds securely into your billing wallet, and transaction syncs deduct credits automatically. If your wallet balances are empty, automated syncs pause safely, while core dashboard tools remain open.
+                If you are on the Basic Plan, you can add extra seats for team members or your external accountant at ₦500/seat/month. The Business Plan includes unlimited seat allocations by default.
               </p>
             </div>
           </section>
