@@ -1,0 +1,17 @@
+Tenant Isolation / RLS Policies (27 tables)
+ Role-Based Access Control (Owner + Staff Collaboration)
+ Secure Error Handling / Information Disclosure Protection
+ Package Lock Integrity Verification
+ HTTPS Enforcement
+ Parameterized Database Queries
+ AI Prompt Injection Protection
+ Supabase Authentication
+ JWT Validation
+ Secure Session Management
+ Login Rate Limiting (Supabase Auth)
+ Software & Data Integrity Controls
+ Activity Logging / Audit Logs
+ Database Change Tracking
+ Fail-Closed Security Rules
+ Sanitized API Error Messages
+ Password Hashing (Supabase Auth)
