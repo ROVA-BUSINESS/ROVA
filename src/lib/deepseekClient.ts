@@ -99,7 +99,9 @@ export type ChatAction = {
     | 'update_transaction'
     | 'delete_transaction'
     | 'edit_inventory'
-    | 'delete_inventory';
+    | 'delete_inventory'
+    | 'confirm_inventory_allocation'
+    | 'skip_inventory_allocation';
   label: string;
   payload?: Record<string, any>;
 };

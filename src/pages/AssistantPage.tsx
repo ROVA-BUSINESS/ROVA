@@ -206,6 +206,7 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]); // will be set on load or keep default
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [activeInventoryFlow, setActiveInventoryFlow] = useState<any | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize messages with welcome if it doesn't exist
@@ -298,74 +299,78 @@ export default function AssistantPage() {
 
   // ── Handle clarification resolve ────────────────────────────────────────────
 
+  function couldBeInventoryItem(ans: string): boolean {
+    const text = ans.trim().toLowerCase();
+    const nonInventoryKeywords = [
+      'rent', 'electricity', 'bill', 'tax', 'salary', 'payroll', 'wage', 'allowance', 
+      'transport', 'fare', 'sub', 'subscription', 'software', 'ad ', 'ads ', 'marketing', 
+      'consulting', 'service', 'fees', 'legal', 'audit', 'internet', 'airtime', 'data',
+      'transfer to', 'send money', 'payment to', 'refund', 'capital', 'loan', 'interest'
+    ];
+    if (nonInventoryKeywords.some(kw => text.includes(kw))) {
+      return false;
+    }
+    const words = text.split(/\s+/);
+    if (words.length <= 4) {
+      return true;
+    }
+    const inventoryKeywords = ['beans', 'rice', 'stock', 'inventory', 'supply', 'supplies', 'goods', 'product', 'item', 'merchandise', 'purchase for resale', 'resell', 'yam', 'coke', 'sugar', 'drinks', 'cement'];
+    return inventoryKeywords.some(kw => text.includes(kw));
+  }
+
   async function handleResolve(id: string, answer: string, notifId: string | null) {
     await resolveClarification(id, notifId);
     setClarifications(prev => prev.filter(c => c.id !== id));
 
-    // Echo the resolution into the chat
     const clarification = clarifications.find(c => c.id === id);
     if (clarification) {
+      // First update transaction description so it's documented in DB
+      if (clarification.transaction_id) {
+        await supabase
+          .from('transactions')
+          .update({
+            description: answer,
+            notes: `Clarified via ROVA AI. Original: "${clarification.original_description}"`,
+          })
+          .eq('id', clarification.transaction_id);
+
+        setTransactions(prev =>
+          prev.map(t =>
+            t.id === clarification.transaction_id
+              ? { ...t, description: answer, notes: `Clarified via ROVA AI. Original: "${clarification.original_description}"` }
+              : t
+          )
+        );
+      }
+
+      // ALWAYS ask the user if they want to allocate this to inventory
       const userMsg: ChatMessage = {
         id: `u-resolve-${Date.now()}`,
         role: 'user',
         content: answer,
         timestamp: new Date(),
       };
+
       const assistantMsg: ChatMessage = {
-        id: `a-resolve-${Date.now()}`,
+        id: `a-resolve-inv-confirm-${Date.now()}`,
         role: 'assistant',
-        content: `Got it! I've updated the transaction "${clarification.original_description}" to: **${answer}**. The description and classification have been saved.`,
+        content: `Got it! I've updated the transaction description to: **${answer}**.\n\nWould you like to allocate this transaction to **Inventory** and track **${answer}** in your stock?`,
         timestamp: new Date(),
+        actions: [
+          {
+            type: 'confirm_inventory_allocation',
+            label: '📦 Yes, track as inventory',
+            payload: { itemName: answer, clarification },
+          },
+          {
+            type: 'skip_inventory_allocation',
+            label: '❌ No, just record as regular expense',
+            payload: { answer, clarification },
+          }
+        ],
       };
+
       setMessages(prev => [...prev, userMsg, assistantMsg]);
-
-      console.log('ROVA: Resolving clarification:', clarification);
-      if (clarification.transaction_id) {
-        // Update the transaction description in the database with the user's answer
-        supabase
-          .from('transactions')
-          .update({
-            description: answer,
-            notes: `Clarified via ROVA AI. Original: "${clarification.original_description}"`,
-          })
-          .eq('id', clarification.transaction_id)
-          .then(({ error: updateErr }) => {
-            if (updateErr) {
-              console.error("ROVA: Failed to update transaction description:", updateErr);
-              alert(`Error updating transaction description: ${updateErr.message}`);
-            } else {
-              console.log("ROVA: Successfully updated transaction description in DB to:", answer);
-              // Update local state so the UI reflects the change immediately
-              setTransactions(prev =>
-                prev.map(t =>
-                  t.id === clarification.transaction_id
-                    ? { ...t, description: answer, notes: `Clarified via ROVA AI. Original: "${clarification.original_description}"` }
-                    : t
-                )
-              );
-
-              classifyTransaction(
-                {
-                  id: clarification.transaction_id || undefined,
-                  description: answer,
-                  amount: clarification.suggested_amount || undefined,
-                  type: clarification.suggested_intent === 'income' ? 'income' : 'expense',
-                },
-                effectiveUserId!,
-                'full'
-              ).then((result) => {
-                console.log("ROVA: Successfully re-classified transaction:", result);
-              }).catch(err => {
-                console.error("ROVA: Failed to re-classify after clarification:", err);
-              });
-            }
-          });
-      } else {
-        console.warn('ROVA: No transaction_id associated with clarification:', clarification);
-        alert('Warning: No transaction ID associated with this clarification card.');
-      }
-    } else {
-      console.warn('ROVA: Clarification card not found in local state for ID:', id);
     }
   }
 
@@ -958,12 +963,172 @@ export default function AssistantPage() {
         break;
       }
 
+      // ── Confirm Inventory Allocation ────────────────────────────────────────
+      case 'confirm_inventory_allocation': {
+        const { itemName, clarification } = action.payload || {};
+        if (!itemName) break;
+
+        const flow = {
+          step: 'single_message',
+          clarification,
+          itemName: itemName.trim(),
+        };
+        setActiveInventoryFlow(flow);
+
+        const totalAmt = clarification?.suggested_amount;
+        const totalNote = totalAmt ? `\n*(Cost price per unit will be automatically calculated based on your ₦${totalAmt.toLocaleString()} transaction).*` : '';
+
+        setMessages(prev => [...prev, {
+          id: `a-inv-start-${Date.now()}`,
+          role: 'assistant',
+          content: `Great! Let's set up **${itemName.trim()}** in your inventory.${totalNote}\n\nPlease reply in **one message** with your item parameters using comma-separated values (or list them):` +
+            `\n\n**Category, Unit, Quantity, Selling Price, Reorder Level**` +
+            `\n\n*Example:* \`Food, kg, 10, 250, 5\``,
+          timestamp: new Date(),
+        }]);
+        break;
+      }
+
+      // ── Skip Inventory Allocation (just expense) ────────────────────────────
+      case 'skip_inventory_allocation': {
+        const { answer, clarification } = action.payload || {};
+        setMessages(prev => [...prev, {
+          id: `a-inv-skip-${Date.now()}`,
+          role: 'assistant',
+          content: `Understood! The transaction has been recorded as a regular expense for **${answer || 'this purchase'}**. No inventory item was created.`,
+          timestamp: new Date(),
+        }]);
+
+        // Re-classify as regular expense
+        if (clarification?.transaction_id) {
+          classifyTransaction(
+            {
+              id: clarification.transaction_id,
+              description: answer || clarification.original_description,
+              amount: clarification.suggested_amount || undefined,
+              type: 'expense',
+            },
+            effectiveUserId!,
+            'full'
+          ).catch(err => console.error('ROVA: Failed to re-classify skipped clarification:', err));
+        }
+        break;
+      }
+
       default:
         break;
     }
   }
 
   // ── Send message ────────────────────────────────────────────────────────────
+
+  const finalizeInventoryCreation = useCallback(
+    async (flow: any) => {
+      const loadingId = `finalize-loading-${Date.now()}`;
+      setMessages(prev => [...prev, {
+        id: loadingId,
+        role: 'assistant',
+        content: `⏳ Finalizing inventory item **${flow.itemName}**…`,
+        timestamp: new Date(),
+      }]);
+
+      try {
+        // 1. Insert the inventory item
+        const { data: item, error: itemErr } = await supabase
+          .from('inventory_items')
+          .insert({
+            user_id: effectiveUserId,
+            name: flow.itemName,
+            sku: `SKU-${Date.now()}`,
+            category: flow.category || 'General',
+            unit: flow.unit || 'unit',
+            cost_price: flow.cost_price || 0,
+            selling_price: flow.selling_price || 0,
+            current_stock: flow.current_stock || 0,
+            reorder_level: flow.reorder_level || 0,
+            status: 'active',
+          })
+          .select()
+          .single();
+
+        if (itemErr) throw itemErr;
+
+        // 2. Insert the inventory transaction
+        const { error: txErr } = await supabase
+          .from('inventory_transactions')
+          .insert({
+            user_id: effectiveUserId,
+            item_id: item.id,
+            transaction_id: flow.clarification.transaction_id || null,
+            type: 'purchase',
+            quantity: flow.current_stock,
+            unit_cost: flow.cost_price,
+            total_cost: (flow.current_stock || 0) * (flow.cost_price || 0),
+            date: new Date().toISOString().split('T')[0],
+            notes: 'Auto-recorded via ROVA AI clarification interrogation',
+          });
+
+        if (txErr) console.error("Error creating inventory transaction:", txErr);
+
+        // 3. Update the original transaction if exists
+        if (flow.clarification.transaction_id) {
+          const { data: inventoryCat } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('name', 'Inventory')
+            .maybeSingle();
+
+          const updates: any = {};
+          if (inventoryCat) {
+            updates.category_id = inventoryCat.id;
+          }
+          updates.notes = `Clarified and allocated to inventory item "${flow.itemName}". Original: "${flow.clarification.original_description}"`;
+
+          await supabase
+            .from('transactions')
+            .update(updates)
+            .eq('id', flow.clarification.transaction_id);
+
+          setTransactions(prev =>
+            prev.map(t =>
+              t.id === flow.clarification.transaction_id
+                ? { ...t, ...updates, category: inventoryCat || t.category }
+                : t
+            )
+          );
+        }
+
+        loadData();
+
+        setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+          id: `inv-finalize-ok-${Date.now()}`,
+          role: 'assistant',
+          content: `✅ Successfully created inventory item **${flow.itemName}**!\n\n` +
+            `• Category: ${item.category}\n` +
+            `• Unit: ${item.unit}\n` +
+            `• Stock Added: ${item.current_stock} ${item.unit}\n` +
+            `• Cost Price: ₦${item.cost_price.toLocaleString()}\n` +
+            `• Selling Price: ₦${item.selling_price.toLocaleString()}\n` +
+            `• Reorder Level: ${item.reorder_level} ${item.unit}\n\n` +
+            `The original financial transaction has been categorized under Inventory and linked.`,
+          timestamp: new Date(),
+          actions: [{ type: 'view_report', label: '📦 View Inventory', payload: { page: 'inventory' } }],
+        }));
+
+      } catch (err: any) {
+        console.error("Failed to finalize inventory creation:", err);
+        setMessages(prev => prev.filter(m => m.id !== loadingId).concat({
+          id: `inv-finalize-err-${Date.now()}`,
+          role: 'assistant',
+          content: `❌ Failed to create inventory item: ${err.message || err}`,
+          timestamp: new Date(),
+        }));
+      } finally {
+        setTyping(false);
+      }
+    },
+    [effectiveUserId, loadData, setMessages, setTransactions]
+  );
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -977,6 +1142,82 @@ export default function AssistantPage() {
       };
       setMessages(prev => [...prev, userMsg]);
       setInput('');
+
+      if (activeInventoryFlow) {
+        const currentFlow = { ...activeInventoryFlow };
+
+        // Parse 1-message inventory parameters
+        const textClean = text.trim();
+        let category = 'General';
+        let unit = 'unit';
+        let quantity = 0;
+        let sellingPrice = 0;
+        let reorderLevel = 5;
+
+        // Parse Key: Value format if user provided multiline
+        const lines = textClean.split('\n');
+        const kv: Record<string, string> = {};
+        lines.forEach(line => {
+          const parts = line.split(/[:=]/);
+          if (parts.length >= 2) {
+            kv[parts[0].trim().toLowerCase()] = parts.slice(1).join(':').trim();
+          }
+        });
+
+        if (kv['category']) category = kv['category'];
+        if (kv['unit']) unit = kv['unit'];
+        if (kv['quantity'] || kv['qty'] || kv['stock']) {
+          quantity = parseFloat((kv['quantity'] || kv['qty'] || kv['stock']).replace(/,/g, '')) || 0;
+        }
+        if (kv['selling price'] || kv['selling_price'] || kv['price'] || kv['selling']) {
+          sellingPrice = parseFloat((kv['selling price'] || kv['selling_price'] || kv['price'] || kv['selling']).replace(/[₦,\s]/g, '')) || 0;
+        }
+        if (kv['reorder level'] || kv['reorder_level'] || kv['reorder'] || kv['alert']) {
+          reorderLevel = parseFloat((kv['reorder level'] || kv['reorder_level'] || kv['reorder'] || kv['alert']).replace(/,/g, '')) || 5;
+        }
+
+        // Parse comma-separated (Category, Unit, Quantity, Selling Price, Reorder Level)
+        if (quantity === 0 && textClean.includes(',')) {
+          const parts = textClean.split(',').map(s => s.trim());
+          if (parts.length >= 1 && parts[0]) category = parts[0];
+          if (parts.length >= 2 && parts[1]) unit = parts[1];
+          if (parts.length >= 3) quantity = parseFloat(parts[2].replace(/,/g, '')) || 0;
+          if (parts.length >= 4) sellingPrice = parseFloat(parts[3].replace(/[₦,\s]/g, '')) || 0;
+          if (parts.length >= 5) reorderLevel = parseFloat(parts[4].replace(/,/g, '')) || 5;
+        }
+
+        // Fallback: search numbers if quantity wasn't found
+        if (quantity === 0) {
+          const numbers = textClean.match(/\d+(\.\d+)?/g);
+          if (numbers && numbers.length >= 1) {
+            quantity = parseFloat(numbers[0]) || 1;
+            if (numbers.length >= 2) sellingPrice = parseFloat(numbers[1]) || 0;
+            if (numbers.length >= 3) reorderLevel = parseFloat(numbers[2]) || 5;
+          } else {
+            quantity = 1;
+          }
+        }
+
+        currentFlow.category = category;
+        currentFlow.unit = unit;
+        currentFlow.current_stock = quantity > 0 ? quantity : 1;
+        currentFlow.selling_price = sellingPrice;
+        currentFlow.reorder_level = reorderLevel;
+
+        const totalAmount = currentFlow.clarification?.suggested_amount;
+        if (totalAmount && totalAmount > 0 && currentFlow.current_stock > 0) {
+          currentFlow.cost_price = Number((totalAmount / currentFlow.current_stock).toFixed(2));
+        } else {
+          currentFlow.cost_price = 0;
+        }
+
+        setActiveInventoryFlow(null);
+        setTyping(true);
+        finalizeInventoryCreation(currentFlow);
+        return;
+      }
+
+
       setTyping(true);
 
       try {
@@ -1219,7 +1460,7 @@ When I ask to add, remove, or edit stock/inventory of an item:
         setTyping(false);
       }
     },
-    [messages, transactions, accounts, categories, inventoryItems, user, isStaff, typing]
+    [messages, transactions, accounts, categories, inventoryItems, user, isStaff, typing, activeInventoryFlow, finalizeInventoryCreation]
   );
 
   function handleSubmit(e: React.FormEvent) {
