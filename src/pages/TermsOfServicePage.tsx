@@ -168,7 +168,51 @@ export default function TermsOfServicePage() {
       number: '13',
       title: 'Limitation of Liability',
       content: (
-        <p>To the maximum extent permitted by law, ROVA Technologies Ltd., its directors, employees, and partners will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services.</p>
+        <>
+          <p>To the maximum extent permitted by law, ROVA Technologies Ltd., its directors, employees, and partners will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services.</p>
+          <p style={{ marginTop: 12 }}>Nothing in these Terms limits liability where such limitation is prohibited by law.</p>
+        </>
+      ),
+    },
+    {
+      number: '14',
+      title: 'Suspension and Termination',
+      content: (
+        <>
+          <p>ROVA may suspend or terminate your account if:</p>
+          <ul style={{ marginTop: 10, paddingLeft: 20, display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+            {[
+              'You violate these Terms.',
+              'You use the Services illegally.',
+              'Continued access poses a security risk.',
+              'We are required to do so by law.',
+            ].map(item => (
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
+            ))}
+          </ul>
+          <p style={{ marginTop: 14 }}>You may stop using the Services and close your account at any time.</p>
+        </>
+      ),
+    },
+    {
+      number: '15',
+      title: 'Changes to These Terms',
+      content: (
+        <>
+          <p>ROVA may update these Terms from time to time.</p>
+          <p style={{ marginTop: 12 }}>Material changes will be communicated through the website, application, or by email where appropriate.</p>
+          <p style={{ marginTop: 12 }}>Continued use of the Services after the updated Terms take effect constitutes acceptance of the revised Terms.</p>
+        </>
+      ),
+    },
+    {
+      number: '16',
+      title: 'Governing Law',
+      content: (
+        <>
+          <p>These Terms are governed by the laws of the Federal Republic of Nigeria.</p>
+          <p style={{ marginTop: 12 }}>Any disputes arising from these Terms shall be subject to the jurisdiction of the competent courts of Nigeria, unless otherwise required by applicable law.</p>
+        </>
       ),
     },
   ];
