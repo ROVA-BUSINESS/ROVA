@@ -142,7 +142,7 @@ export default function TermsOfServicePage() {
       title: 'Intellectual Property',
       content: (
         <>
-          <p>The ROVA platform, software, trademarks, logos, designs, and content are owned by ROVA Software Ltd. or its licensors and are protected by applicable intellectual property laws.</p>
+          <p>The ROVA platform, software, trademarks, logos, designs, and content are owned by ROVA Technologies Ltd. or its licensors and are protected by applicable intellectual property laws.</p>
           <p style={{ marginTop: 12 }}>These Terms do not grant you ownership of ROVA's intellectual property.</p>
         </>
       ),
@@ -168,7 +168,7 @@ export default function TermsOfServicePage() {
       number: '13',
       title: 'Limitation of Liability',
       content: (
-        <p>To the maximum extent permitted by law, ROVA Software Ltd., its directors, employees, and partners will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services.</p>
+        <p>To the maximum extent permitted by law, ROVA Technologies Ltd., its directors, employees, and partners will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services.</p>
       ),
     },
   ];
@@ -276,7 +276,7 @@ export default function TermsOfServicePage() {
               <Mail size={16} /> Officialrovabusiness@gmail.com
             </a>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, margin: 0 }}>
-              ROVA Software Ltd.
+              ROVA Technologies Ltd.
             </p>
           </div>
         </div>
@@ -286,7 +286,7 @@ export default function TermsOfServicePage() {
           textAlign: 'center', marginTop: 48,
           fontSize: 12, color: 'var(--text-muted)',
         }}>
-          © 2026 ROVA Software Ltd. All rights reserved. · <a href="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</a>
+          © 2026 ROVA Technologies Ltd. All rights reserved. · <a href="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</a>
         </p>
       </div>
     </div>
