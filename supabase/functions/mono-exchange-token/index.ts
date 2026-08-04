@@ -206,16 +206,112 @@ serve(async (req) => {
             currency,
             color: '#9333ea',
             is_active: true,
-          })
+          });
 
         if (insertError) {
-          console.error('accounts insert error:', insertError)
-          return new Response(JSON.stringify({ error: 'Failed to save account to your profile' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          })
+          console.error('accounts insert error:', insertError);
         }
       }
+    }
+
+    // Step 5: Fetch initial transactions history from Mono API and save to DB
+    let transactionsSaved = 0;
+    try {
+      // Find the account ID in our database
+      const { data: targetAccount } = await supabaseClient
+        .from('accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('mono_account_id', monoAccountId)
+        .maybeSingle();
+
+      const targetAccId = targetAccount?.id;
+
+      console.log(`Fetching transactions for Mono account ${monoAccountId}...`);
+      const txResponse = await fetch(`https://api.withmono.com/v2/accounts/${monoAccountId}/transactions?limit=100`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json',
+          'mono-sec-key': MONO_SECRET_KEY,
+        },
+      });
+
+      if (txResponse.ok) {
+        const txData = await txResponse.json();
+        const rawTxs = txData.data || txData.transactions || (Array.isArray(txData) ? txData : []);
+        console.log(`Mono returned ${rawTxs.length} transactions.`);
+
+        for (const rawTx of rawTxs) {
+          const ref = rawTx._id || rawTx.reference || rawTx.id || `MONO-${Date.now()}-${Math.random()}`;
+          const amountInNaira = (rawTx.amount || 0) / 100; // Mono returns amount in kobo
+          const txType = rawTx.type === 'credit' ? 'income' : 'expense';
+          const description = rawTx.narration || rawTx.description || `Mono Transaction (${bankName})`;
+          const txDate = rawTx.date ? new Date(rawTx.date).toISOString() : new Date().toISOString();
+
+          // Deduplicate by reference and account_id
+          const { data: existingTx } = await supabaseClient
+            .from('transactions')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('reference', ref)
+            .maybeSingle();
+
+          if (existingTx) {
+            console.log(`Transaction ref ${ref} already exists, skipping.`);
+            continue;
+          }
+
+          const { data: newTx, error: insertTxErr } = await supabaseClient
+            .from('transactions')
+            .insert({
+              user_id: user.id,
+              account_id: targetAccId || null,
+              amount: amountInNaira,
+              type: txType,
+              description: description,
+              date: txDate,
+              reference: ref,
+              sync_source: 'mono',
+              is_verified: true,
+            })
+            .select()
+            .single();
+
+          if (!insertTxErr && newTx?.id) {
+            transactionsSaved++;
+
+            // Trigger ROVA AI auto-classification
+            try {
+              await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-classify`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({
+                  transaction: {
+                    id: newTx.id,
+                    description: description,
+                    amount: amountInNaira,
+                    type: txType,
+                    date: txDate,
+                  },
+                  userId: user.id,
+                  mode: 'full',
+                }),
+              });
+            } catch (aiErr) {
+              console.error('ai-classify failed for Mono transaction:', aiErr);
+            }
+          }
+        }
+      } else {
+        const txErrText = await txResponse.text();
+        console.warn('Mono transactions fetch failed:', txErrText);
+      }
+    } catch (monoTxErr) {
+      console.error('Error fetching/saving Mono transactions:', monoTxErr);
     }
 
     return new Response(
@@ -225,20 +321,23 @@ serve(async (req) => {
         accountName: displayName,
         bankName,
         balance,
+        transactionsSaved,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
-    )
+    );
   } catch (error) {
-    console.error('Unexpected error:', error)
+    console.error('Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: 'An unexpected error occurred' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       }
-    )
+    );
   }
-})
+});
+
+

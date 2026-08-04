@@ -420,4 +420,26 @@ export type BillPayment = {
   created_at: string;
 };
 
+export async function syncAllBanks(userId?: string) {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return { success: false, error: 'User not authenticated' };
 
+    const [monoRes, emailRes] = await Promise.allSettled([
+      supabase.functions.invoke('mono-sync', {
+        body: { userId },
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      supabase.functions.invoke('email-bank-sync', {
+        body: { userId },
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
+
+    return { success: true, monoRes, emailRes };
+  } catch (err: any) {
+    console.error('Error syncing banks:', err);
+    return { success: false, error: err.message };
+  }
+}
