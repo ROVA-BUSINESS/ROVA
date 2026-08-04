@@ -38,6 +38,35 @@ export default function PrivacyPolicyPage() {
     },
     {
       number: '3',
+      title: 'Google API & OAuth Disclosures',
+      content: (
+        <>
+          <p style={{ fontWeight: 600 }}>Gmail OAuth Synchronization Scopes & Security</p>
+          <p style={{ marginTop: 10 }}>ROVA offers an optional feature that synchronizes with your Google account via OAuth. By linking your Google Account, you grant ROVA permission to read emails matching specific transaction patterns (such as receipt conformations, bank alerts, and invoices) from your designated corporate mailbox.</p>
+          <ul style={{ marginTop: 10, paddingLeft: 20, display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+            <li style={{ color: 'var(--text-secondary)', fontSize: 14 }}><strong style={{ color: 'var(--text-primary)' }}>Minimal Scope Access:</strong> We request the minimum OAuth scopes necessary to locate transaction alerts and attachment invoices.</li>
+            <li style={{ color: 'var(--text-secondary)', fontSize: 14 }}><strong style={{ color: 'var(--text-primary)' }}>Limited Use Compliance:</strong> ROVA's use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy#key-requirements" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-primary)' }}>Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
+            <li style={{ color: 'var(--text-secondary)', fontSize: 14 }}><strong style={{ color: 'var(--text-primary)' }}>No Third-Party Distribution:</strong> We strictly do not share, sell, or rent any data fetched from Google APIs with marketing channels, ad networks, or data brokers.</li>
+            <li style={{ color: 'var(--text-secondary)', fontSize: 14 }}><strong style={{ color: 'var(--text-primary)' }}>Revocability:</strong> You can completely disconnect your Google Account inside the settings panel of the ROVA app or revoke access directly via Google's Third-party Apps permissions page at any time.</li>
+          </ul>
+        </>
+      ),
+    },
+    {
+      number: '4',
+      title: 'Bank Sync Disclosures (Mono Integration)',
+      content: (
+        <>
+          <p>To display a unified operational dashboard, ROVA integrates with bank aggregation protocols (such as Mono.co).</p>
+          <ul style={{ marginTop: 10, paddingLeft: 20, display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+            <li style={{ color: 'var(--text-secondary)', fontSize: 14 }}><strong style={{ color: 'var(--text-primary)' }}>Read-Only Transaction Pulls:</strong> Bank credentials are never saved or stored directly by ROVA. All connections are routed through the secure, licensed aggregation partner (Mono), which provides read-only token keys.</li>
+            <li style={{ color: 'var(--text-secondary)', fontSize: 14 }}><strong style={{ color: 'var(--text-primary)' }}>Bookkeeping Automation:</strong> Synced banking data is solely used to automate double-entry bookkeeping ledger logs, map profit and loss charts, and flag pending invoices.</li>
+          </ul>
+        </>
+      ),
+    },
+    {
+      number: '5',
       title: 'How We Use Your Information',
       content: (
         <>
@@ -61,7 +90,7 @@ export default function PrivacyPolicyPage() {
       ),
     },
     {
-      number: '4',
+      number: '6',
       title: 'Sharing Information',
       content: (
         <>
@@ -83,7 +112,7 @@ export default function PrivacyPolicyPage() {
       ),
     },
     {
-      number: '5',
+      number: '7',
       title: 'Data Security',
       content: (
         <>
@@ -104,14 +133,14 @@ export default function PrivacyPolicyPage() {
       ),
     },
     {
-      number: '6',
+      number: '8',
       title: 'Data Retention',
       content: (
         <p>We retain your information only as long as necessary to provide our services, comply with legal obligations, resolve disputes, and enforce our agreements.</p>
       ),
     },
     {
-      number: '7',
+      number: '9',
       title: 'Your Rights',
       content: (
         <>
@@ -131,21 +160,21 @@ export default function PrivacyPolicyPage() {
       ),
     },
     {
-      number: '8',
+      number: '10',
       title: 'Cookies',
       content: (
         <p>ROVA uses cookies and similar technologies to improve user experience, maintain secure sessions, analyze website performance, and remember preferences.</p>
       ),
     },
     {
-      number: '9',
+      number: '11',
       title: "Children's Privacy",
       content: (
         <p>ROVA is intended for businesses and individuals who are legally permitted to use our services. We do not knowingly collect personal information from children.</p>
       ),
     },
     {
-      number: '10',
+      number: '12',
       title: 'Changes to this Policy',
       content: (
         <p>We may update this Privacy Policy from time to time. Significant changes will be communicated through our website or application.</p>
@@ -251,7 +280,7 @@ export default function PrivacyPolicyPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 13, fontWeight: 800, color: 'var(--accent-primary)', flexShrink: 0,
               }}>
-                11
+                13
               </div>
               <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Contact Us</h2>
             </div>
