@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Mail } from 'lucide-react';
 
 export default function PrivacyPolicyPage() {
   const navigate = useNavigate();
@@ -267,7 +267,7 @@ export default function PrivacyPolicyPage() {
                   textDecoration: 'none',
                 }}
               >
-                📧 Officialrovabusiness@gmail.com
+                <Mail size={16} /> Officialrovabusiness@gmail.com
               </a>
               <p style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, margin: 0 }}>
                 ROVA Software Ltd.
