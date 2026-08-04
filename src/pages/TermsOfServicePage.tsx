@@ -42,7 +42,7 @@ export default function TermsOfServicePage() {
               'Use AI-powered bookkeeping features',
               'Connect with approved third-party financial services',
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
           <p style={{ marginTop: 14, fontWeight: 600, color: 'var(--accent-primary)' }}>
@@ -64,7 +64,7 @@ export default function TermsOfServicePage() {
               'Maintaining the confidentiality of your account',
               'Promptly notifying ROVA of unauthorized access',
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
           <p style={{ marginTop: 14 }}>You are responsible for all activity that occurs under your account.</p>
@@ -117,7 +117,7 @@ export default function TermsOfServicePage() {
               'Reverse engineer or copy the platform except where permitted by law.',
               "Use the Services to commit fraud or infringe another person's rights.",
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
           <p style={{ marginTop: 14, fontWeight: 600, color: 'var(--error)' }}>

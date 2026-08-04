@@ -28,7 +28,7 @@ export default function PrivacyPolicyPage() {
               'Inventory information', 'Invoice and receipt data', 'Device information',
               'IP address', 'Browser information', 'Usage analytics',
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
           <p style={{ marginTop: 14 }}>With your permission, we may also receive financial transaction information through secure third-party providers such as open banking services.</p>
@@ -54,7 +54,7 @@ export default function PrivacyPolicyPage() {
               'Protect user accounts',
               'Comply with legal obligations',
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
         </>
@@ -75,7 +75,7 @@ export default function PrivacyPolicyPage() {
               'Analytics providers',
               'Government authorities where legally required',
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
           <p style={{ marginTop: 12 }}>All partners are expected to maintain appropriate security standards.</p>
@@ -96,7 +96,7 @@ export default function PrivacyPolicyPage() {
               'Secure cloud infrastructure',
               'Continuous monitoring',
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
           <p style={{ marginTop: 12 }}>No system is completely secure, but we continuously improve our security practices.</p>
@@ -124,7 +124,7 @@ export default function PrivacyPolicyPage() {
               'Withdraw consent where applicable',
               'Request a copy of your data',
             ].map(item => (
-              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>• {item}</li>
+              <li key={item} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{item}</li>
             ))}
           </ul>
         </>
