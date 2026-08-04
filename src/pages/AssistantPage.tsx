@@ -297,26 +297,6 @@ export default function AssistantPage() {
     setRefreshing(false);
   }
 
-  // ── Handle clarification resolve ────────────────────────────────────────────
-
-  function _couldBeInventoryItem(ans: string): boolean {
-    const text = ans.trim().toLowerCase();
-    const nonInventoryKeywords = [
-      'rent', 'electricity', 'bill', 'tax', 'salary', 'payroll', 'wage', 'allowance', 
-      'transport', 'fare', 'sub', 'subscription', 'software', 'ad ', 'ads ', 'marketing', 
-      'consulting', 'service', 'fees', 'legal', 'audit', 'internet', 'airtime', 'data',
-      'transfer to', 'send money', 'payment to', 'refund', 'capital', 'loan', 'interest'
-    ];
-    if (nonInventoryKeywords.some(kw => text.includes(kw))) {
-      return false;
-    }
-    const words = text.split(/\s+/);
-    if (words.length <= 4) {
-      return true;
-    }
-    const inventoryKeywords = ['beans', 'rice', 'stock', 'inventory', 'supply', 'supplies', 'goods', 'product', 'item', 'merchandise', 'purchase for resale', 'resell', 'yam', 'coke', 'sugar', 'drinks', 'cement'];
-    return inventoryKeywords.some(kw => text.includes(kw));
-  }
 
   async function handleResolve(id: string, answer: string, notifId: string | null) {
     await resolveClarification(id, notifId);
