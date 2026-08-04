@@ -3,9 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
-  Check, Building, Trash2
+  Check, Building, Trash2, RefreshCw
 } from 'lucide-react';
-import { supabase, type Account } from '../lib/supabase';
+import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [section, setSection] = useState<Section>('profile');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isEmailSyncOpen, setIsEmailSyncOpen] = useState(false);
@@ -38,6 +39,18 @@ export default function SettingsPage() {
       loadAccounts();
     }
   }, [user]);
+
+  async function handleSyncBanks() {
+    setIsSyncing(true);
+    try {
+      await syncAllBanks(user?.id);
+      await loadAccounts();
+    } catch (err) {
+      console.error('Failed to sync banks:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
 
   useEffect(() => {
     if (profile) {
@@ -254,6 +267,9 @@ export default function SettingsPage() {
               <div className="mobile-col mobile-gap-4" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                 <h3 style={{ fontSize: 15, flex: 1 }}>Financial Accounts</h3>
                 <div style={{ display: 'flex', gap: 8 }}>
+                  <Button variant="secondary" size="sm" onClick={handleSyncBanks} loading={isSyncing}>
+                    <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> Sync Banks
+                  </Button>
                   <MonoConnectButton onSuccess={loadAccounts} size="sm" />
                   <Button variant="secondary" size="sm" onClick={() => setIsEmailSyncOpen(true)}>
                     Email Sync

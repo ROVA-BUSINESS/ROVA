@@ -237,12 +237,21 @@ export default function DashboardPage() {
               <Card>
               <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: 14 }}>Accounts</h3>
-                <button 
-                  onClick={() => navigate('/app/settings')}
-                  style={{ color: 'var(--accent-light)', fontSize: 12, fontWeight: 500 }}
-                >
-                  Manage
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button 
+                    onClick={handleSyncBanks}
+                    disabled={isSyncing}
+                    style={{ color: 'var(--accent-primary)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} /> {isSyncing ? 'Syncing...' : 'Sync Now'}
+                  </button>
+                  <button 
+                    onClick={() => navigate('/app/settings')}
+                    style={{ color: 'var(--accent-light)', fontSize: 12, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    Manage
+                  </button>
+                </div>
               </div>
               {accounts.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
