@@ -299,7 +299,7 @@ export default function AssistantPage() {
 
   // ── Handle clarification resolve ────────────────────────────────────────────
 
-  function couldBeInventoryItem(ans: string): boolean {
+  function _couldBeInventoryItem(ans: string): boolean {
     const text = ans.trim().toLowerCase();
     const nonInventoryKeywords = [
       'rent', 'electricity', 'bill', 'tax', 'salary', 'payroll', 'wage', 'allowance', 
