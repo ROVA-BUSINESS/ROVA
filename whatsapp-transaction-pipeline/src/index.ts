@@ -14,6 +14,9 @@ process.on('unhandledRejection', (reason) => {
 const app = express();
 
 // ── Health check FIRST — before any middleware so it always responds ──
+app.get('/', (_req, res) => {
+  res.status(200).json({ service: 'ROVA WhatsApp Pipeline', status: 'ok' });
+});
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
