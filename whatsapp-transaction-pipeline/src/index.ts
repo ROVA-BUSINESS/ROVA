@@ -3,29 +3,41 @@ import { env } from './config/env';
 import webhookRoutes from './webhook/webhook.routes';
 import { TransactionWorker } from './jobs/transaction.worker';
 
+// ── Global crash guards (prevent unhandled rejections from killing the process) ──
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err.message, err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 Unhandled Rejection:', reason);
+});
+
 const app = express();
 
-// Parse JSON bodies, but we also need the raw body for signature verification.
-// We'll use a middleware to attach rawBody to the request object.
+// ── Health check FIRST — before any middleware so it always responds ──
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Parse JSON bodies, attaching raw body for signature verification
 app.use(express.json({
-  verify: (req: any, res, buf) => {
+  verify: (req: any, _res, buf) => {
     req.rawBody = buf;
   }
 }));
 
-// Basic health check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // Register routes
 app.use('/webhook', webhookRoutes);
 
-// Start the BullMQ worker in the same process (can be split to a separate process in production)
-const worker = new TransactionWorker();
-worker.start();
+// Start the BullMQ worker — isolated so crashes don't affect the HTTP server
+try {
+  const worker = new TransactionWorker();
+  worker.start();
+} catch (err: any) {
+  console.error('⚠️  Worker failed to start (HTTP server still running):', err.message);
+}
 
-app.listen(env.PORT, () => {
+// Bind to 0.0.0.0 so Render's health checker can reach the container
+app.listen(Number(env.PORT), '0.0.0.0', () => {
   console.log(`🚀 ROVA WhatsApp Transaction Pipeline running on port ${env.PORT}`);
   console.log(`   Environment: ${env.NODE_ENV}`);
 });
