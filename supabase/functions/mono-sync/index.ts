@@ -44,6 +44,8 @@ serve(async (req) => {
 
         // 1. Fetch updated balance from Mono API v2
         let currentBalance = bank.balance || 0;
+        let fetchedBalance: number | null = null;
+
         const detailsRes = await fetch(`https://api.withmono.com/v2/accounts/${monoAccountId}`, {
           headers: {
             "Content-Type": "application/json",
@@ -53,29 +55,76 @@ serve(async (req) => {
 
         if (detailsRes.ok) {
           const detailsData = await detailsRes.json();
-          const acct = detailsData?.data?.account || detailsData?.account || detailsData;
-          if (acct?.balance !== undefined) {
-            currentBalance = acct.balance / 100; // kobo to Naira
-            // Update connected_banks and accounts table balance
-            await supabaseClient
-              .from("connected_banks")
-              .update({ balance: currentBalance, updated_at: new Date().toISOString() })
-              .eq("id", bank.id);
-
-            await supabaseClient
-              .from("accounts")
-              .update({ balance: currentBalance, last_synced_at: new Date().toISOString() })
-              .eq("mono_account_id", monoAccountId);
+          const acct = detailsData?.data?.account || detailsData?.account || detailsData?.data || detailsData;
+          const rawBal = acct?.balance ?? detailsData?.data?.account?.balance ?? detailsData?.data?.balance ?? detailsData?.account?.balance ?? detailsData?.balance;
+          if (rawBal !== undefined && rawBal !== null) {
+            const num = typeof rawBal === "number" ? rawBal : parseFloat(String(rawBal));
+            if (!isNaN(num)) fetchedBalance = num / 100;
           }
         }
 
+        // Secondary balance check if details response returned no balance or 0
+        if (fetchedBalance === null || fetchedBalance === 0) {
+          try {
+            const balRes = await fetch(`https://api.withmono.com/v2/accounts/${monoAccountId}/balance`, {
+              headers: {
+                "Content-Type": "application/json",
+                "mono-sec-key": MONO_SECRET_KEY,
+              },
+            });
+            if (balRes.ok) {
+              const balData = await balRes.json();
+              const liveRaw = balData?.data?.balance ?? balData?.balance ?? balData?.data?.available_balance;
+              if (liveRaw !== undefined && liveRaw !== null) {
+                const num = typeof liveRaw === "number" ? liveRaw : parseFloat(String(liveRaw));
+                if (!isNaN(num)) fetchedBalance = num / 100;
+              }
+            }
+          } catch (balErr) {
+            console.warn("Mono live balance endpoint error:", balErr);
+          }
+        }
+
+        if (fetchedBalance !== null) {
+          currentBalance = fetchedBalance;
+          // Update connected_banks
+          await supabaseClient
+            .from("connected_banks")
+            .update({ balance: currentBalance, updated_at: new Date().toISOString() })
+            .eq("id", bank.id);
+        }
+
         // Get account ID in database
-        const { data: targetAccount } = await supabaseClient
+        let { data: targetAccount } = await supabaseClient
           .from("accounts")
           .select("id")
           .eq("user_id", userId)
           .eq("mono_account_id", monoAccountId)
           .maybeSingle();
+
+        if (!targetAccount && bank.bank_name) {
+          const { data: fallbackAcc } = await supabaseClient
+            .from("accounts")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("institution", bank.bank_name)
+            .maybeSingle();
+          targetAccount = fallbackAcc;
+        }
+
+        if (targetAccount?.id && fetchedBalance !== null) {
+          await supabaseClient
+            .from("accounts")
+            .update({
+              balance: currentBalance,
+              mono_account_id: monoAccountId,
+              sync_source: "mono",
+              sync_status: "active",
+              last_synced_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", targetAccount.id);
+        }
 
         const accountIdInDb = targetAccount?.id;
 

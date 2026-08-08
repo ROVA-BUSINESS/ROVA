@@ -6,11 +6,13 @@ import {
   Check, Building, Trash2, RefreshCw
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
+import { formatCurrency } from '../lib/format';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { MonoConnectButton } from '../components/MonoConnectButton';
 import EmailSyncSetup from '../components/bank-sync/EmailSyncSetup';
+
 
 type Section = 'profile' | 'accounts' | 'security' | 'appearance';
 
@@ -306,7 +308,7 @@ export default function SettingsPage() {
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{acc.institution} • {acc.currency}</div>
                       </div>
                       <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700 }}>{acc.balance.toLocaleString()}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>{formatCurrency(acc.balance || 0)}</div>
                         <div style={{ fontSize: 10, color: acc.sync_source === 'email' ? 'var(--accent-primary)' : 'var(--text-muted)' }}>
                           {acc.sync_source === 'email' ? 'Email Synced' : acc.sync_source === 'mono' ? 'Mono Synced' : 'Manual'}
                         </div>

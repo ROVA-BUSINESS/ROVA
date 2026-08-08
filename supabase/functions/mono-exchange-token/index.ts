@@ -124,14 +124,18 @@ serve(async (req) => {
 
         // v2 API returns: { status, message, data: { account: { name, institution: { name }, account_number, balance, currency } } }
         // Fall back to older shapes just in case
-        const acct = details?.data?.account || details?.account || details
+        const acct = details?.data?.account || details?.account || details?.data || details
         accountName   = acct.name                     || accountName
         bankName      = acct.institution?.name        || acct.institution || bankName
         accountNumber = acct.account_number           || acct.accountNumber || accountNumber
-        // Mono always returns balance in kobo for NGN — always convert to naira
-        const rawBalance = acct.balance ?? 0
-        balance = rawBalance / 100
-        currency = acct.currency || currency
+        currency      = acct.currency                 || currency
+
+        // Mono returns balance in kobo for NGN — safely convert to naira
+        const rawBal = acct?.balance ?? details?.data?.account?.balance ?? details?.data?.balance ?? details?.account?.balance ?? details?.balance
+        if (rawBal !== undefined && rawBal !== null) {
+          const num = typeof rawBal === 'number' ? rawBal : parseFloat(String(rawBal))
+          if (!isNaN(num)) balance = num / 100
+        }
         console.log(`Parsed account: name=${accountName}, bank=${bankName}, acctNo=${accountNumber}, balance=${balance}`)
       } else {
         const detailsErr = await detailsResponse.text()
@@ -139,7 +143,34 @@ serve(async (req) => {
       }
     } catch (detailsErr) {
       console.warn('Error fetching Mono account details:', detailsErr)
-      // Non-fatal — continue with defaults
+      // Non-fatal — continue
+    }
+
+    // Secondary balance check: if balance is 0, query dedicated live balance endpoint
+    if (balance === 0) {
+      try {
+        console.log('Account balance is 0 or missing from details; calling dedicated live balance endpoint...')
+        const balResponse = await fetch(`https://api.withmono.com/v2/accounts/${monoAccountId}/balance`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+            'mono-sec-key': MONO_SECRET_KEY,
+          },
+        })
+        if (balResponse.ok) {
+          const balData = await balResponse.json()
+          console.log('Mono live balance endpoint response:', JSON.stringify(balData))
+          const liveRaw = balData?.data?.balance ?? balData?.balance ?? balData?.data?.available_balance
+          if (liveRaw !== undefined && liveRaw !== null) {
+            const num = typeof liveRaw === 'number' ? liveRaw : parseFloat(String(liveRaw))
+            if (!isNaN(num)) balance = num / 100
+          }
+          console.log(`Resolved balance from live endpoint: ${balance}`)
+        }
+      } catch (balErr) {
+        console.warn('Error fetching dedicated Mono live balance:', balErr)
+      }
     }
 
     // Step 3: Upsert into connected_banks (full record)
@@ -158,16 +189,16 @@ serve(async (req) => {
 
     if (cbError) {
       console.error('connected_banks upsert error:', cbError)
-      // Non-fatal — still try to upsert accounts
     }
 
     // Step 4: Upsert into accounts table (what the app actually reads)
-    // Use mono_account_id as unique key to prevent duplicates on reconnect
     const displayName = accountNumber
       ? `${bankName} (•••${accountNumber.slice(-4)})`
       : accountName || bankName
 
-    const { error: accError } = await supabaseClient
+    let targetAccId: string | null = null
+
+    const { data: upsertedAcc, error: accError } = await supabaseClient
       .from('accounts')
       .upsert({
         user_id: user.id,
@@ -178,24 +209,52 @@ serve(async (req) => {
         currency,
         color: '#9333ea',
         is_active: true,
+        sync_source: 'mono',
+        sync_status: 'active',
+        last_synced_at: new Date().toISOString(),
         mono_account_id: monoAccountId,
       }, { onConflict: 'mono_account_id' })
+      .select('id')
+      .maybeSingle()
 
-    if (accError) {
-      // mono_account_id column may not exist yet — fall back to plain insert
-      console.warn('accounts upsert with mono_account_id failed, trying plain insert:', accError)
+    if (!accError && upsertedAcc?.id) {
+      targetAccId = upsertedAcc.id
+    } else {
+      console.warn('accounts upsert with mono_account_id failed/fallback:', accError)
 
-      // Check if this mono account already exists in accounts via connected_banks
-      const { data: existingAcc } = await supabaseClient
+      let { data: existingAcc } = await supabaseClient
         .from('accounts')
         .select('id')
         .eq('user_id', user.id)
-        .eq('institution', bankName)
-        .eq('name', displayName)
+        .eq('mono_account_id', monoAccountId)
         .maybeSingle()
 
       if (!existingAcc) {
-        const { error: insertError } = await supabaseClient
+        const { data: nameMatch } = await supabaseClient
+          .from('accounts')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('institution', bankName)
+          .eq('name', displayName)
+          .maybeSingle()
+        existingAcc = nameMatch
+      }
+
+      if (existingAcc?.id) {
+        targetAccId = existingAcc.id
+        await supabaseClient
+          .from('accounts')
+          .update({
+            balance,
+            mono_account_id: monoAccountId,
+            sync_source: 'mono',
+            sync_status: 'active',
+            last_synced_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingAcc.id)
+      } else {
+        const { data: insertedAcc, error: insertError } = await supabaseClient
           .from('accounts')
           .insert({
             user_id: user.id,
@@ -206,10 +265,18 @@ serve(async (req) => {
             currency,
             color: '#9333ea',
             is_active: true,
-          });
+            sync_source: 'mono',
+            sync_status: 'active',
+            last_synced_at: new Date().toISOString(),
+            mono_account_id: monoAccountId,
+          })
+          .select('id')
+          .maybeSingle()
 
-        if (insertError) {
-          console.error('accounts insert error:', insertError);
+        if (insertedAcc?.id) {
+          targetAccId = insertedAcc.id
+        } else if (insertError) {
+          console.error('accounts insert error:', insertError)
         }
       }
     }
@@ -217,15 +284,15 @@ serve(async (req) => {
     // Step 5: Fetch initial transactions history from Mono API and save to DB
     let transactionsSaved = 0;
     try {
-      // Find the account ID in our database
-      const { data: targetAccount } = await supabaseClient
-        .from('accounts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('mono_account_id', monoAccountId)
-        .maybeSingle();
-
-      const targetAccId = targetAccount?.id;
+      if (!targetAccId) {
+        const { data: foundAcc } = await supabaseClient
+          .from('accounts')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('mono_account_id', monoAccountId)
+          .maybeSingle();
+        targetAccId = foundAcc?.id || null;
+      }
 
       console.log(`Fetching transactions for Mono account ${monoAccountId}...`);
       const txResponse = await fetch(`https://api.withmono.com/v2/accounts/${monoAccountId}/transactions?limit=100`, {
