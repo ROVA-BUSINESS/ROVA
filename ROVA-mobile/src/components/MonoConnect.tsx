@@ -94,6 +94,13 @@ export function MonoConnectWidget({ onSuccess }: { onSuccess?: () => void }) {
 
       if (exchangeData && exchangeData.success) {
         console.log('Account linked:', exchangeData.accountName);
+        try {
+          await supabase.functions.invoke('mono-sync', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+        } catch (sErr) {
+          console.warn('Post-connection mobile sync error:', sErr);
+        }
         if (onSuccess) onSuccess();
       }
     } catch (err) {

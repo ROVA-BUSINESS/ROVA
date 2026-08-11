@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, ChevronRight, Wallet } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, ChevronRight, Wallet, RefreshCw } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { supabase, type Transaction, type Account } from '../lib/supabase';
+import { supabase, syncAllBanks, type Transaction, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib/format';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [arBalance, setArBalance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isEmailSyncOpen, setIsEmailSyncOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const isMobile = useMobile(1024);
@@ -29,6 +30,18 @@ export default function DashboardPage() {
   useEffect(() => {
     if (effectiveUserId) loadData();
   }, [effectiveUserId]);
+
+  async function handleSyncBanks() {
+    setIsSyncing(true);
+    try {
+      await syncAllBanks(effectiveUserId);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to sync banks:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -98,6 +111,9 @@ export default function DashboardPage() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Here's what's happening with your business today.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+          <Button variant="secondary" size="sm" onClick={handleSyncBanks} loading={isSyncing} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
+            <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> Sync Banks
+          </Button>
           <Button variant="secondary" size="sm" onClick={() => navigate('/app/transactions')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             View History
           </Button>
@@ -221,12 +237,21 @@ export default function DashboardPage() {
               <Card>
               <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: 14 }}>Accounts</h3>
-                <button 
-                  onClick={() => navigate('/app/settings')}
-                  style={{ color: 'var(--accent-light)', fontSize: 12, fontWeight: 500 }}
-                >
-                  Manage
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button 
+                    onClick={handleSyncBanks}
+                    disabled={isSyncing}
+                    style={{ color: 'var(--accent-primary)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} /> {isSyncing ? 'Syncing...' : 'Sync Now'}
+                  </button>
+                  <button 
+                    onClick={() => navigate('/app/settings')}
+                    style={{ color: 'var(--accent-light)', fontSize: 12, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    Manage
+                  </button>
+                </div>
               </div>
               {accounts.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

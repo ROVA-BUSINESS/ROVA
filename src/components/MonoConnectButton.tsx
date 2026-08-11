@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Connect from '@mono.co/connect.js';
 import Button from './ui/Button';
-import { supabase } from '../lib/supabase';
+import { supabase, syncAllBanks } from '../lib/supabase';
 import { Wallet } from 'lucide-react';
 
 interface MonoConnectButtonProps {
@@ -38,8 +38,6 @@ export function MonoConnectButton({ onSuccess, className, variant = 'primary', s
       onSuccess: async ({ code }: { code: string }) => {
         console.log(`Mono connected. Exchanging code...`);
         try {
-          // Explicitly retrieve the session token to ensure the Authorization
-          // header is always present when calling the edge function (prevents 401)
           const { data: sessionData } = await supabase.auth.getSession();
           const accessToken = sessionData?.session?.access_token;
 
@@ -58,10 +56,8 @@ export function MonoConnectButton({ onSuccess, className, variant = 'primary', s
           });
 
           if (error) {
-            // Try to extract the real error message from the edge function response
             let displayMsg = 'Failed to link account. Please try again.';
             try {
-              // FunctionsHttpError carries the response body
               const body = await (error as any).context?.json?.();
               const realMsg = body?.error || error.message;
               console.error('Token exchange error:', realMsg, '| Full error:', error);
@@ -76,12 +72,18 @@ export function MonoConnectButton({ onSuccess, className, variant = 'primary', s
           if (data && data.success) {
             console.log('Account linked:', data.accountName, '| Balance:', data.balance);
             showStatus(`✓ ${data.accountName || 'Bank account'} linked successfully!`);
+            try {
+              await syncAllBanks();
+            } catch (sErr) {
+              console.warn('Post-connection sync error:', sErr);
+            }
             if (onSuccess) onSuccess();
           } else {
             const errMsg = data?.error || 'Unknown error';
             console.error('Exchange failed:', errMsg);
             showStatus(`Failed to link account: ${errMsg}`, true);
           }
+
         } catch (err) {
           console.error('Unexpected error linking account:', err);
           showStatus('An unexpected error occurred while linking your account.', true);

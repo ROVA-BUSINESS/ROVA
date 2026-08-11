@@ -3,14 +3,16 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
-  Check, Building, Trash2
+  Check, Building, Trash2, RefreshCw
 } from 'lucide-react';
-import { supabase, type Account } from '../lib/supabase';
+import { supabase, syncAllBanks, type Account } from '../lib/supabase';
+import { formatCurrency } from '../lib/format';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { MonoConnectButton } from '../components/MonoConnectButton';
 import EmailSyncSetup from '../components/bank-sync/EmailSyncSetup';
+
 
 type Section = 'profile' | 'accounts' | 'security' | 'appearance';
 
@@ -20,6 +22,7 @@ export default function SettingsPage() {
   const [section, setSection] = useState<Section>('profile');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isEmailSyncOpen, setIsEmailSyncOpen] = useState(false);
@@ -38,6 +41,18 @@ export default function SettingsPage() {
       loadAccounts();
     }
   }, [user]);
+
+  async function handleSyncBanks() {
+    setIsSyncing(true);
+    try {
+      await syncAllBanks(user?.id);
+      await loadAccounts();
+    } catch (err) {
+      console.error('Failed to sync banks:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
 
   useEffect(() => {
     if (profile) {
@@ -254,6 +269,9 @@ export default function SettingsPage() {
               <div className="mobile-col mobile-gap-4" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                 <h3 style={{ fontSize: 15, flex: 1 }}>Financial Accounts</h3>
                 <div style={{ display: 'flex', gap: 8 }}>
+                  <Button variant="secondary" size="sm" onClick={handleSyncBanks} loading={isSyncing}>
+                    <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> Sync Banks
+                  </Button>
                   <MonoConnectButton onSuccess={loadAccounts} size="sm" />
                   <Button variant="secondary" size="sm" onClick={() => setIsEmailSyncOpen(true)}>
                     Email Sync
@@ -290,7 +308,7 @@ export default function SettingsPage() {
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{acc.institution} • {acc.currency}</div>
                       </div>
                       <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700 }}>{acc.balance.toLocaleString()}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>{formatCurrency(acc.balance || 0)}</div>
                         <div style={{ fontSize: 10, color: acc.sync_source === 'email' ? 'var(--accent-primary)' : 'var(--text-muted)' }}>
                           {acc.sync_source === 'email' ? 'Email Synced' : acc.sync_source === 'mono' ? 'Mono Synced' : 'Manual'}
                         </div>

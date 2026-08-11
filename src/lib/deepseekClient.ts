@@ -6,8 +6,18 @@ export type ClassifyResult = {
   category: string;
   type: 'income' | 'expense' | 'transfer';
   intent:
-    | 'salary_payment'
     | 'inventory_purchase'
+    | 'operating_expense'
+    | 'fixed_asset_purchase'
+    | 'loan_repayment'
+    | 'owner_withdrawal'
+    | 'owner_capital'
+    | 'payroll'
+    | 'tax'
+    | 'customer_refund'
+    | 'ar_collection'
+    | 'ap_payment'
+    | 'salary_payment'
     | 'invoice_payment'
     | 'general_expense'
     | 'general_income'
@@ -18,6 +28,13 @@ export type ClassifyResult = {
   quantity: number | null;
   unit_price: number | null;
   client_name: string | null;
+  merchant?: string | null;
+  product_service?: string | null;
+  journal_entry?: {
+    debit: string;
+    credit: string;
+  };
+  accounting_treatment?: string;
   clarification_needed: boolean;
   ai_question: string | null;
   confidence: number;
@@ -99,7 +116,9 @@ export type ChatAction = {
     | 'update_transaction'
     | 'delete_transaction'
     | 'edit_inventory'
-    | 'delete_inventory';
+    | 'delete_inventory'
+    | 'confirm_inventory_allocation'
+    | 'skip_inventory_allocation';
   label: string;
   payload?: Record<string, any>;
 };
