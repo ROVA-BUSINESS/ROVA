@@ -303,7 +303,7 @@ export default function TermsOfServicePage() {
       <footer style={{ padding: '80px 24px', borderTop: '1px solid var(--bg-border)', display: 'flex', justifyContent: 'center', background: isLight ? '#ffffff' : '#000000' }}>
         <div style={{ maxWidth: 1200, width: '100%', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 24 }}>
           <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 48 }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>© 2026 ROVA Business. All rights reserved.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>© 2026 ROVA SOFTWARE LIMITED. All rights reserved.</p>
         </div>
       </footer>
     </div>
