@@ -388,6 +388,7 @@ export default function PricingPage() {
               <h3 className="prc-faq-q">Can I buy additional user seats?</h3>
               <p className="prc-faq-a">
                 If you are on the Basic Plan, you can add extra seats for team members or your external accountant at ₦500/seat/month. The Business Plan includes unlimited seat allocations by default.
+              </p>
             </div>
           </section>
 
