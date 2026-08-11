@@ -405,6 +405,8 @@ export type Bill = {
   created_at: string;
   category?: any;
   agreement?: any;
+};
+
 export type BillPayment = {
   id: string;
   user_id: string;
