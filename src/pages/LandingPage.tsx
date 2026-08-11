@@ -1703,7 +1703,7 @@ export default function LandingPage() {
             </div>
 
             <div style={{ paddingTop: 28, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>© 2026 ROVA Business. All rights reserved.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>© 2026 ROVA SOFTWARE LIMITED. All rights reserved.</p>
             </div>
           </div>
         </footer>
