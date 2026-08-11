@@ -407,14 +407,6 @@ export type Bill = {
   agreement?: any;
 };
 
-export type BillPayment = {
-  id: string;
-  user_id: string;
-  bill_id: string;
-  payment_date: string;
-  amount: number;
-  payment_method: string | null;
-  reference_number: string | null;
 export type AiInsight = {
   id: string;
   user_id: string;
