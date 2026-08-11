@@ -142,7 +142,7 @@ export default function TermsOfServicePage() {
       title: 'Intellectual Property',
       content: (
         <>
-          <p>The ROVA platform, software, trademarks, logos, designs, and content are owned by ROVA Technologies Ltd. or its licensors and are protected by applicable intellectual property laws.</p>
+          <p>The ROVA platform, software, trademarks, logos, designs, and content are owned by ROVA SOFTWARE LIMITED or its licensors and are protected by applicable intellectual property laws.</p>
           <p style={{ marginTop: 12 }}>These Terms do not grant you ownership of ROVA's intellectual property.</p>
         </>
       ),
@@ -169,7 +169,7 @@ export default function TermsOfServicePage() {
       title: 'Limitation of Liability',
       content: (
         <>
-          <p>To the maximum extent permitted by law, ROVA Technologies Ltd., its directors, employees, and partners will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services.</p>
+          <p>To the maximum extent permitted by law, ROVA SOFTWARE LIMITED, its directors, employees, and partners will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services.</p>
           <p style={{ marginTop: 12 }}>Nothing in these Terms limits liability where such limitation is prohibited by law.</p>
         </>
       ),
@@ -320,7 +320,7 @@ export default function TermsOfServicePage() {
               <Mail size={16} /> Officialrovabusiness@gmail.com
             </a>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, margin: 0 }}>
-              ROVA Technologies Ltd.
+              ROVA SOFTWARE LIMITED
             </p>
           </div>
         </div>
@@ -330,7 +330,7 @@ export default function TermsOfServicePage() {
           textAlign: 'center', marginTop: 48,
           fontSize: 12, color: 'var(--text-muted)',
         }}>
-          © 2026 ROVA Technologies Ltd. All rights reserved. · <a href="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</a>
+          © 2026 ROVA SOFTWARE LIMITED. All rights reserved. · <a href="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</a>
         </p>
       </div>
     </div>

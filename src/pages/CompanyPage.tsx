@@ -237,6 +237,26 @@ export default function CompanyPage() {
             </div>
           </div>
 
+          {/* Corporate Registration & Legal Entity Information */}
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--bg-border)',
+            borderRadius: 'var(--radius-xl)',
+            padding: 36,
+            marginBottom: 60,
+            textAlign: 'center',
+          }}>
+            <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, color: 'var(--text-primary)', fontFamily: "'Roboto', sans-serif" }}>
+              ROVA SOFTWARE LIMITED
+            </h2>
+            <p style={{ fontSize: 16, color: 'var(--accent-light)', fontWeight: 600, marginBottom: 16 }}>
+              ROVA is a financial management platform for businesses.
+            </p>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 650, margin: '0 auto', lineHeight: 1.6 }}>
+              ROVA SOFTWARE LIMITED is registered with the Corporate Affairs Commission (CAC). We empower modern enterprises and growing businesses with automated bookkeeping, invoicing, payroll processing, and statutory compliance management.
+            </p>
+          </div>
+
           {/* CTA Footer */}
           <div style={{
             background: 'linear-gradient(135deg, var(--accent-primary) 0%, #3b82f6 100%)',
@@ -255,6 +275,10 @@ export default function CompanyPage() {
               Get Started for Free <ArrowRight size={16} />
             </Link>
           </div>
+
+          <footer style={{ marginTop: 60, paddingTop: 28, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>© 2026 ROVA SOFTWARE LIMITED. All rights reserved.</p>
+          </footer>
         </div>
       </div>
     </>

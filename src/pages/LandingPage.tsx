@@ -1653,7 +1653,7 @@ export default function LandingPage() {
               <div style={{ maxWidth: 340 }}>
                 <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ height: 52, marginBottom: 18 }} />
                 <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, fontSize: 14, marginBottom: 20 }}>
-                  The intelligent financial operating system for African SMEs.
+                  ROVA SOFTWARE LIMITED — The financial management platform for businesses.
                 </p>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <input
@@ -1703,7 +1703,7 @@ export default function LandingPage() {
             </div>
 
             <div style={{ paddingTop: 28, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>© 2026 ROVA Business. All rights reserved.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>© 2026 ROVA SOFTWARE LIMITED. All rights reserved.</p>
             </div>
           </div>
         </footer>

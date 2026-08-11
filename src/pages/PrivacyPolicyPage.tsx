@@ -299,7 +299,7 @@ export default function PrivacyPolicyPage() {
                 <Mail size={16} /> Officialrovabusiness@gmail.com
               </a>
               <p style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, margin: 0 }}>
-                ROVA Software Ltd.
+                ROVA SOFTWARE LIMITED
               </p>
             </div>
           </div>
@@ -310,7 +310,7 @@ export default function PrivacyPolicyPage() {
           textAlign: 'center', marginTop: 48,
           fontSize: 12, color: 'var(--text-muted)',
         }}>
-          © 2026 ROVA Software Ltd. All rights reserved.
+          © 2026 ROVA SOFTWARE LIMITED. All rights reserved.
         </p>
       </div>
     </div>

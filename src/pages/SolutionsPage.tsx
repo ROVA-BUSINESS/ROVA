@@ -272,6 +272,10 @@ export default function SolutionsPage() {
               Get Started for Free <ArrowRight size={16} />
             </Link>
           </div>
+
+          <footer style={{ marginTop: 60, paddingTop: 28, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>© 2026 ROVA SOFTWARE LIMITED. All rights reserved.</p>
+          </footer>
         </div>
       </div>
     </>
