@@ -161,6 +161,16 @@ export default function CompanyPage() {
 
           <div className="com-about-section">
             <div>
+              <div style={{
+                background: isLight ? 'rgba(147,51,234,0.04)' : 'rgba(147,51,234,0.08)',
+                border: '1px solid rgba(147,51,234,0.2)',
+                borderRadius: 12, padding: 20, marginBottom: 28
+              }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>ROVA SOFTWARE LIMITED</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+                  ROVA is a financial management platform for businesses.
+                </p>
+              </div>
               <h2 className="com-about-title">Headquartered in Lagos, Nigeria</h2>
               <p className="com-about-p">
                 African founders and growing companies deserve a class of tools that keep up with their rapid execution. Traditional banking systems, offline ledger uploads, and slow administrative loops shouldn't limit growth.
@@ -276,7 +286,9 @@ export default function CompanyPage() {
             </Link>
           </div>
 
+          {/* Footer */}
           <footer style={{ marginTop: 60, paddingTop: 28, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>
+            <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA" style={{ height: 40, marginBottom: 16 }} />
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>© 2026 ROVA SOFTWARE LIMITED. All rights reserved.</p>
           </footer>
         </div>
