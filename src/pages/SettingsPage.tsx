@@ -255,7 +255,7 @@ export default function SettingsPage() {
                 </div>
 
                 <a
-                  href={`https://wa.me/2349069578785?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions.`}
+                  href={`https://wa.me/2349132957881?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions.`}
                   target="_blank"
                   rel="noreferrer"
                   style={{

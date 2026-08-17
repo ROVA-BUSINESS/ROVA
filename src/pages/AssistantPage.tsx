@@ -645,7 +645,7 @@ export default function AssistantPage() {
       }
 
       case 'open_whatsapp_bot':
-        window.open('https://wa.me/2349069578785?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions.', '_blank');
+        window.open('https://wa.me/2349132957881?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions.', '_blank');
         break;
 
       // ── Reports ────────────────────────────────────────────────────────────

@@ -22,8 +22,8 @@ This guide outlines the complete setup for running the **ROVA WhatsApp AI Bot** 
 ## 2. WhatsApp Business Phone & Permanent Access Token
 
 1. Go to **WhatsApp** → **API Setup**.
-2. Note down your **Phone Number ID**: `1592924479114776` and **WhatsApp Business Account ID**: `1367279925558995`.
-3. Direct Bot Link: `https://wa.me/2349069578785`
+2. Note down your **Phone Number ID**: `1168220643050432` and **WhatsApp Business Account ID**: `1367279925558995`.
+3. Direct Bot Link: `https://wa.me/2349132957881`
 4. To generate a **Permanent System User Access Token** (never expires):
    - Go to **Business Settings** → **Users** → **System Users**.
    - Create or select a System User with `Admin` role.
@@ -40,7 +40,7 @@ Set the following secrets in Supabase (via Supabase CLI or Dashboard → Project
 
 ```bash
 supabase secrets set WHATSAPP_VERIFY_TOKEN="rova-whatsapp-webhook-2026"
-supabase secrets set WHATSAPP_PHONE_NUMBER_ID="1592924479114776"
+supabase secrets set WHATSAPP_PHONE_NUMBER_ID="1168220643050432"
 supabase secrets set WHATSAPP_BUSINESS_ACCOUNT_ID="1367279925558995"
 supabase secrets set WHATSAPP_ACCESS_TOKEN="<PERMANENT_SYSTEM_USER_ACCESS_TOKEN>"
 supabase secrets set OPENAI_API_KEY="<YOUR_OPENAI_KEY>" # For Whisper Voice STT & Vision OCR

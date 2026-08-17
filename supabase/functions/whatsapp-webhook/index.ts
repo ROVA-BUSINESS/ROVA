@@ -46,6 +46,8 @@ serve(async (req) => {
     const fromNumber = message.from || ""; // User's WhatsApp Phone Number (e.g. "2348012345678")
     const messageType = message.type; // 'text' | 'image' | 'audio' | 'voice'
 
+    console.log(`[WhatsApp Webhook Received] From: ${fromNumber} | Type: ${messageType}`);
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -56,6 +58,10 @@ serve(async (req) => {
     const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
     const PADDLE_OCR_URL = Deno.env.get("PADDLE_OCR_URL"); // Optional custom PaddleOCR microservice URL
 
+    if (!WHATSAPP_ACCESS_TOKEN) {
+      console.warn("⚠️ WHATSAPP_ACCESS_TOKEN secret is not set in Supabase. Messages cannot be sent back to WhatsApp.");
+    }
+
     // Normalize phone number for lookup (+234..., 234..., 0...)
     const cleanPhone = fromNumber.replace(/\D/g, "");
     const withPlus = `+${cleanPhone}`;
@@ -64,12 +70,13 @@ serve(async (req) => {
     // Find User by Phone Number
     const { data: profile } = await supabaseClient
       .from("profiles")
-      .select("id, full_name, user_id")
+      .select("id, full_name")
       .or(`phone.eq.${cleanPhone},phone.eq.${withPlus},phone.eq.${localPhone}`)
       .maybeSingle();
 
-    const userId = profile?.user_id || profile?.id;
+    const userId = profile?.id;
     if (!userId) {
+      console.log(`[WhatsApp Webhook] Unlinked phone number ${fromNumber}. Sending setup prompt.`);
       await sendWhatsAppMessage(fromNumber, "⚠️ Welcome to ROVA Bot! Your WhatsApp number is not linked to a ROVA account yet.\n\nPlease log in to https://www.rovabusiness.com, go to Settings → Business Profile, and update your Business Phone number to enable instant WhatsApp accounting.", WHATSAPP_ACCESS_TOKEN);
       return new Response(JSON.stringify({ status: "user_not_found" }), { headers: corsHeaders, status: 200 });
     }
@@ -88,7 +95,7 @@ serve(async (req) => {
       
       if (imageId && WHATSAPP_ACCESS_TOKEN) {
         // Fetch media URL from WhatsApp API
-        const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${imageId}`, {
+        const mediaRes = await fetch(`https://graph.facebook.com/v20.0/${imageId}`, {
           headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
         });
         const mediaData = await mediaRes.json();
@@ -147,7 +154,7 @@ serve(async (req) => {
       const audioId = message.audio?.id || message.voice?.id;
 
       if (audioId && WHATSAPP_ACCESS_TOKEN && OPENAI_API_KEY) {
-        const mediaRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
+        const mediaRes = await fetch(`https://graph.facebook.com/v20.0/${audioId}`, {
           headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
         });
         const mediaData = await mediaRes.json();
@@ -238,14 +245,20 @@ serve(async (req) => {
 // Helper: Send WhatsApp Message via Meta Cloud API
 async function sendWhatsAppMessage(to: string, text: string, accessToken?: string) {
   if (!accessToken) {
-    console.log(`[DEV WhatsApp Simulation] To: ${to} | Message:\n${text}`);
+    console.warn(`[WhatsApp API Skipped] No WHATSAPP_ACCESS_TOKEN set. Would have sent to ${to}: ${text}`);
     return;
   }
   const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-  if (!PHONE_NUMBER_ID) return;
+  if (!PHONE_NUMBER_ID) {
+    console.warn("[WhatsApp API Skipped] No WHATSAPP_PHONE_NUMBER_ID set.");
+    return;
+  }
+
+  // Clean recipient phone number (remove leading + if present)
+  const recipient = to.replace(/\D/g, "");
 
   try {
-    await fetch(`https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`, {
+    const response = await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
@@ -253,12 +266,20 @@ async function sendWhatsAppMessage(to: string, text: string, accessToken?: strin
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        to: to,
+        recipient_type: "individual",
+        to: recipient,
         type: "text",
         text: { body: text },
       }),
     });
+
+    const resData = await response.json();
+    if (!response.ok) {
+      console.error(`[WhatsApp API Error ${response.status}]`, JSON.stringify(resData));
+    } else {
+      console.log(`[WhatsApp Message Sent Successfully] To: ${recipient} | Msg ID: ${resData.messages?.[0]?.id}`);
+    }
   } catch (err) {
-    console.error("Failed to send WhatsApp message:", err);
+    console.error("Failed to send WhatsApp message fetch error:", err);
   }
 }
