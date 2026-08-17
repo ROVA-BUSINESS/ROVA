@@ -330,16 +330,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Technical status */}
-                <div style={{ padding: 14, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--bg-border)', fontSize: 12 }}>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Meta WhatsApp Webhook Status</div>
-                  <div style={{ color: 'var(--text-muted)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    <span>⚡ Mode: <b>Production Live</b></span>
-                    <span>🔒 Verify Token: <code>rova-whatsapp-webhook-2026</code></span>
-                    <span>🤖 AI Engine: <b>ROVA Accounting Engine (DeepSeek + Whisper + Vision OCR)</b></span>
-                  </div>
-                </div>
               </div>
             </Card>
           )}
