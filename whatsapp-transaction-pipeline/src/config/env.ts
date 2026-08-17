@@ -12,6 +12,7 @@ const envSchema = z.object({
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string(),
   WHATSAPP_ACCESS_TOKEN: z.string(),
   WHATSAPP_PHONE_NUMBER_ID: z.string(),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
   
   // Supabase Config
   SUPABASE_URL: z.string().url(),

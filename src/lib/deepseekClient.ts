@@ -118,7 +118,8 @@ export type ChatAction = {
     | 'edit_inventory'
     | 'delete_inventory'
     | 'confirm_inventory_allocation'
-    | 'skip_inventory_allocation';
+    | 'skip_inventory_allocation'
+    | 'open_whatsapp_bot';
   label: string;
   payload?: Record<string, any>;
 };

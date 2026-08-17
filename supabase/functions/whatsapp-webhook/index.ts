@@ -19,7 +19,7 @@ serve(async (req) => {
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") || "rova_whatsapp_secure_token";
+    const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") || "rova-whatsapp-webhook-2026";
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
       console.log("WhatsApp Webhook verified successfully.");
@@ -43,8 +43,8 @@ serve(async (req) => {
       });
     }
 
-    const fromNumber = message.from; // User's WhatsApp Phone Number
-    const messageType = message.type; // 'text' | 'image' | 'audio'
+    const fromNumber = message.from || ""; // User's WhatsApp Phone Number (e.g. "2348012345678")
+    const messageType = message.type; // 'text' | 'image' | 'audio' | 'voice'
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -56,16 +56,21 @@ serve(async (req) => {
     const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
     const PADDLE_OCR_URL = Deno.env.get("PADDLE_OCR_URL"); // Optional custom PaddleOCR microservice URL
 
+    // Normalize phone number for lookup (+234..., 234..., 0...)
+    const cleanPhone = fromNumber.replace(/\D/g, "");
+    const withPlus = `+${cleanPhone}`;
+    const localPhone = cleanPhone.startsWith("234") ? `0${cleanPhone.slice(3)}` : cleanPhone;
+
     // Find User by Phone Number
     const { data: profile } = await supabaseClient
       .from("profiles")
       .select("id, full_name, user_id")
-      .or(`phone.eq.${fromNumber},phone.eq.+${fromNumber}`)
+      .or(`phone.eq.${cleanPhone},phone.eq.${withPlus},phone.eq.${localPhone}`)
       .maybeSingle();
 
     const userId = profile?.user_id || profile?.id;
     if (!userId) {
-      await sendWhatsAppMessage(fromNumber, "⚠️ Welcome to ROVA! Your WhatsApp number is not linked to a ROVA account yet. Please register at https://www.rovabusiness.com and add your phone number in Settings.", WHATSAPP_ACCESS_TOKEN);
+      await sendWhatsAppMessage(fromNumber, "⚠️ Welcome to ROVA Bot! Your WhatsApp number is not linked to a ROVA account yet.\n\nPlease log in to https://www.rovabusiness.com, go to Settings → Business Profile, and update your Business Phone number to enable instant WhatsApp accounting.", WHATSAPP_ACCESS_TOKEN);
       return new Response(JSON.stringify({ status: "user_not_found" }), { headers: corsHeaders, status: 200 });
     }
 

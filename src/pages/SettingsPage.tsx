@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
-  Check, Building, Trash2, RefreshCw
+  Check, Building, Trash2, RefreshCw,
+  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
@@ -14,7 +15,7 @@ import { MonoConnectButton } from '../components/MonoConnectButton';
 import EmailSyncSetup from '../components/bank-sync/EmailSyncSetup';
 
 
-type Section = 'profile' | 'accounts' | 'security' | 'appearance';
+type Section = 'profile' | 'whatsapp' | 'accounts' | 'security' | 'appearance';
 
 export default function SettingsPage() {
   const { user, profile, updateProfile } = useAuth();
@@ -116,13 +117,14 @@ export default function SettingsPage() {
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 12px 100px' }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Settings</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Manage your account, financial connections, and app preferences.</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Manage your account, WhatsApp AI bot connections, and app preferences.</p>
       </div>
 
       {/* Mobile & Tablet Horizontal Scrollable Pills */}
       <div className="mobile-nav-tabs mobile-only" style={{ display: 'none' }}>
         {[
           { id: 'profile', label: 'Profile' },
+          { id: 'whatsapp', label: 'WhatsApp Bot' },
           { id: 'accounts', label: 'Linked Accounts' },
           { id: 'security', label: 'Security' },
           { id: 'appearance', label: 'Appearance' }
@@ -145,6 +147,7 @@ export default function SettingsPage() {
         }} className="mobile-hide">
           {[
             { id: 'profile', label: 'Business Profile', icon: <Building size={18} /> },
+            { id: 'whatsapp', label: 'WhatsApp Bot', icon: <MessageSquare size={18} /> },
             { id: 'accounts', label: 'Linked Accounts', icon: <CreditCard size={18} /> },
             { id: 'security', label: 'Security', icon: <Shield size={18} /> },
             { id: 'appearance', label: 'Appearance', icon: <Sun size={18} /> }
@@ -225,6 +228,118 @@ export default function SettingsPage() {
                 >
                   {saved ? <><Check size={18} /> Saved</> : 'Save Changes'}
                 </Button>
+              </div>
+            </Card>
+          )}
+
+          {section === 'whatsapp' && (
+            <Card>
+              <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 800 }}>ROVA WhatsApp Bot Integration</h3>
+                    <span style={{
+                      padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                      background: profileForm.phone ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                      color: profileForm.phone ? '#10b981' : '#f59e0b',
+                      border: profileForm.phone ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(245,158,11,0.3)',
+                      display: 'inline-flex', alignItems: 'center', gap: 4
+                    }}>
+                      <CheckCircle2 size={12} />
+                      {profileForm.phone ? 'WhatsApp Number Linked' : 'Phone Required'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    Record expenses, upload receipt photos, and send voice notes directly to ROVA on WhatsApp.
+                  </p>
+                </div>
+
+                <a
+                  href={`https://wa.me/2349069578785?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions.`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '10px 16px', borderRadius: 10,
+                    background: '#25D366', color: '#fff', fontSize: 13, fontWeight: 700,
+                    textDecoration: 'none', boxShadow: '0 4px 12px rgba(37,211,102,0.25)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  <MessageSquare size={16} /> Launch ROVA Bot on WhatsApp <ExternalLink size={14} />
+                </a>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Phone linking box */}
+                <div style={{
+                  padding: 16, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--bg-border)'
+                }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>
+                    Your WhatsApp Phone Number
+                  </label>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                    This number is used to identify your account when you text, record audio, or send receipt photos to ROVA Bot.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, maxWidth: 460 }}>
+                    <Input
+                      value={profileForm.phone}
+                      onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      placeholder="e.g. +2348012345678 or 08012345678"
+                    />
+                    <Button variant="primary" onClick={handleSaveProfile} loading={saving}>
+                      {saved ? 'Saved!' : 'Save Phone'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Capabilities grid */}
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>
+                    What You Can Send to ROVA Bot:
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                    <div style={{ padding: 14, background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--bg-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--accent-primary)', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+                        <Zap size={16} /> 1. Text Messages
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                        &ldquo;Paid ₦15,000 for generator fuel at Mobil station&rdquo;<br />
+                        &ldquo;Received ₦250,000 payment from Client X&rdquo;
+                      </p>
+                    </div>
+
+                    <div style={{ padding: 14, background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--bg-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f59e0b', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+                        <Mic size={16} /> 2. Voice Notes
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                        Hold down the voice record button and say:<br />
+                        &ldquo;Hey ROVA, I just spent 45,000 Naira buying office supplies.&rdquo;
+                      </p>
+                    </div>
+
+                    <div style={{ padding: 14, background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--bg-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#10b981', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+                        <Image size={16} /> 3. Receipt Photos
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                        Snap a photo of your paper receipt or invoice. ROVA AI OCR extracts line items, totals, and merchants automatically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Technical status */}
+                <div style={{ padding: 14, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--bg-border)', fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Meta WhatsApp Webhook Status</div>
+                  <div style={{ color: 'var(--text-muted)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <span>⚡ Mode: <b>Production Live</b></span>
+                    <span>🔒 Verify Token: <code>rova-whatsapp-webhook-2026</code></span>
+                    <span>🤖 AI Engine: <b>ROVA Accounting Engine (DeepSeek + Whisper + Vision OCR)</b></span>
+                  </div>
+                </div>
               </div>
             </Card>
           )}

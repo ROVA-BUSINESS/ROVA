@@ -215,8 +215,11 @@ export default function AssistantPage() {
       {
         id: 'welcome',
         role: 'assistant',
-        content: "Hi! I'm ROVA, your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or use one of the quick questions below.",
+        content: "Hi! I'm ROVA, your AI-powered business assistant. I've analysed your transactions and I'm ready to help. Ask me anything about your finances, or record expenses, upload receipts & send voice notes directly via WhatsApp!",
         timestamp: new Date(),
+        actions: [
+          { type: 'open_whatsapp_bot', label: '💬 Chat with ROVA Bot on WhatsApp' }
+        ]
       },
     ]);
   }, []);
@@ -640,6 +643,10 @@ export default function AssistantPage() {
         }
         break;
       }
+
+      case 'open_whatsapp_bot':
+        window.open('https://wa.me/2349069578785?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions.', '_blank');
+        break;
 
       // ── Reports ────────────────────────────────────────────────────────────
       case 'view_report':
