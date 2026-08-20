@@ -43,7 +43,7 @@ serve(async (req) => {
       });
     }
 
-    const fromNumber = message.from || ""; // User's WhatsApp Phone Number (e.g. "2348012345678")
+    const fromNumber = message.from || ""; // User's WhatsApp Phone Number
     const messageType = message.type; // 'text' | 'image' | 'audio' | 'voice'
 
     console.log(`[WhatsApp Webhook Received] From: ${fromNumber} | Type: ${messageType}`);
@@ -54,47 +54,48 @@ serve(async (req) => {
     );
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    const DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY");
     const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-    const PADDLE_OCR_URL = Deno.env.get("PADDLE_OCR_URL"); // Optional custom PaddleOCR microservice URL
+    const PADDLE_OCR_URL = Deno.env.get("PADDLE_OCR_URL");
 
     if (!WHATSAPP_ACCESS_TOKEN) {
       console.warn("⚠️ WHATSAPP_ACCESS_TOKEN secret is not set in Supabase. Messages cannot be sent back to WhatsApp.");
     }
 
-    // Normalize phone number for lookup (+234..., 234..., 0...)
+    // ── SINGLE IDENTITY LOOKUP (Shared User / Business Account) ────────────────
     const cleanPhone = fromNumber.replace(/\D/g, "");
     const withPlus = `+${cleanPhone}`;
     const localPhone = cleanPhone.startsWith("234") ? `0${cleanPhone.slice(3)}` : cleanPhone;
 
-    // Find User by Phone Number
     const { data: profile } = await supabaseClient
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, business_name")
       .or(`phone.eq.${cleanPhone},phone.eq.${withPlus},phone.eq.${localPhone}`)
       .maybeSingle();
 
     const userId = profile?.id;
     if (!userId) {
       console.log(`[WhatsApp Webhook] Unlinked phone number ${fromNumber}. Sending setup prompt.`);
-      await sendWhatsAppMessage(fromNumber, "⚠️ Welcome to ROVA Bot! Your WhatsApp number is not linked to a ROVA account yet.\n\nPlease log in to https://www.rovabusiness.com, go to Settings → Business Profile, and update your Business Phone number to enable instant WhatsApp accounting.", WHATSAPP_ACCESS_TOKEN);
+      await sendWhatsAppMessage(
+        fromNumber,
+        "⚠️ Welcome to ROVA! Your WhatsApp phone number is not linked to a ROVA account yet.\n\nPlease log in to https://www.rovabusiness.com, go to Settings → Business Profile, and update your Business Phone number to enable instant WhatsApp accounting.",
+        WHATSAPP_ACCESS_TOKEN
+      );
       return new Response(JSON.stringify({ status: "user_not_found" }), { headers: corsHeaders, status: 200 });
     }
 
     let extractedText = "";
-    let mediaTypeSource = "text";
+    let mediaTypeSource = "Text message";
 
-    // ── STEP A: INPUT PROCESSING (Text / PaddleOCR / Whisper) ───────────────────
+    // ── STEP A: MULTI-MODAL INPUT PROCESSING (Text / OCR / Whisper STT) ──────
 
     if (messageType === "text") {
       extractedText = message.text?.body || "";
       mediaTypeSource = "Text message";
     } else if (messageType === "image") {
-      mediaTypeSource = "Receipt / Image (OCR)";
+      mediaTypeSource = "Receipt / Document Image";
       const imageId = message.image?.id;
-      
+
       if (imageId && WHATSAPP_ACCESS_TOKEN) {
-        // Fetch media URL from WhatsApp API
         const mediaRes = await fetch(`https://graph.facebook.com/v20.0/${imageId}`, {
           headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
         });
@@ -102,12 +103,10 @@ serve(async (req) => {
         const mediaUrl = mediaData.url;
 
         if (mediaUrl) {
-          // Fetch raw image bytes
           const imgBlob = await fetch(mediaUrl, {
             headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
-          }).then(res => res.arrayBuffer());
+          }).then((res) => res.arrayBuffer());
 
-          // Check if custom PaddleOCR microservice endpoint is available
           if (PADDLE_OCR_URL) {
             try {
               const ocrRes = await fetch(PADDLE_OCR_URL, {
@@ -118,17 +117,16 @@ serve(async (req) => {
               const ocrData = await ocrRes.json();
               extractedText = ocrData.text || ocrData.extracted_text || "";
             } catch (err) {
-              console.error("PaddleOCR microservice call failed:", err);
+              console.error("PaddleOCR call failed:", err);
             }
           }
 
-          // Fallback to OpenAI Vision OCR if PaddleOCR is not active
           if (!extractedText && OPENAI_API_KEY) {
             const base64Img = btoa(String.fromCharCode(...new Uint8Array(imgBlob)));
             const visionRes = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
               headers: {
-                "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
@@ -137,7 +135,7 @@ serve(async (req) => {
                   {
                     role: "user",
                     content: [
-                      { type: "text", text: "Transcribe all text from this receipt or document image clearly. List items, amounts, merchant name, date, and total." },
+                      { type: "text", text: "Transcribe all text from this receipt/document image clearly. List items, amounts, merchant name, date, and total." },
                       { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Img}` } },
                     ],
                   },
@@ -150,7 +148,7 @@ serve(async (req) => {
         }
       }
     } else if (messageType === "audio" || messageType === "voice") {
-      mediaTypeSource = "Voice note (Whisper Speech-to-Text)";
+      mediaTypeSource = "Voice Note (Whisper Speech-to-Text)";
       const audioId = message.audio?.id || message.voice?.id;
 
       if (audioId && WHATSAPP_ACCESS_TOKEN && OPENAI_API_KEY) {
@@ -163,9 +161,8 @@ serve(async (req) => {
         if (mediaUrl) {
           const audioBuffer = await fetch(mediaUrl, {
             headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
-          }).then(res => res.arrayBuffer());
+          }).then((res) => res.arrayBuffer());
 
-          // Call OpenAI Whisper API for Speech-to-Text
           const formData = new FormData();
           formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
           formData.append("model", "whisper-1");
@@ -182,57 +179,39 @@ serve(async (req) => {
     }
 
     if (!extractedText.trim()) {
-      await sendWhatsAppMessage(fromNumber, "⚠️ ROVA could not extract readable text from your input. Please send a clearer text message, receipt photo, or voice note.", WHATSAPP_ACCESS_TOKEN);
+      await sendWhatsAppMessage(
+        fromNumber,
+        "⚠️ ROVA could not extract readable text from your input. Please send a clearer text message, receipt photo, or voice note.",
+        WHATSAPP_ACCESS_TOKEN
+      );
       return new Response(JSON.stringify({ status: "extraction_empty" }), { headers: corsHeaders, status: 200 });
     }
 
-    // ── STEP B: INTENT DETECTION & ACCOUNTING ENGINE (ROVA AI) ──────────────────
+    // ── STEP B: ROUTE TO UNIFIED CENTRAL ROVA AI AGENT BRAIN ─────────────────
+    console.log(`[WhatsApp Webhook -> Central ROVA AI Agent] Processing query for User ${userId}: "${extractedText}"`);
 
-    // Invoke ROVA AI Classification logic
-    const classifyRes = await fetch(`${url.origin}/functions/v1/ai-classify`, {
+    const agentRes = await fetch(`${url.origin}/functions/v1/ai-chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": req.headers.get("Authorization") || `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        Authorization: req.headers.get("Authorization") || `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       },
       body: JSON.stringify({
-        transaction: { description: extractedText },
-        userId: userId,
-        mode: "execute",
+        messages: [{ role: "user", content: extractedText }],
+        context: { userId: userId },
       }),
-    }).then(res => res.json()).catch(err => ({ error: err.message }));
+    }).then((res) => res.json()).catch((err) => ({ reply: `⚠️ ROVA AI Agent Error: ${err.message}` }));
 
-    const result = classifyRes?.result || {};
-    const confidence = result.confidence ?? 0.5;
+    const replyText = agentRes.reply || "ROVA AI could not process your request. Please try again.";
 
-    // ── STEP C: DATABASE & WHATSAPP REPLY GENERATION ────────────────────────────
+    // ── STEP C: SEND RESPONSE BACK VIA WHATSAPP API ────────────────────────────
+    const formattedWhatsAppReply = `${replyText}\n\n🌐 *View full dashboard*: https://www.rovabusiness.com`;
+    await sendWhatsAppMessage(fromNumber, formattedWhatsAppReply, WHATSAPP_ACCESS_TOKEN);
 
-    let replyMessage = "";
-
-    if (confidence >= 0.90 && !result.clarification_needed) {
-      // Automatic Processing (High Confidence)
-      replyMessage = `✅ *Transaction Recorded by ROVA AI*\n\n` +
-        `📥 *Source*: ${mediaTypeSource}\n` +
-        `📝 *Extracted*: "${extractedText}"\n` +
-        `🏷️ *Category*: ${result.category || "General"}\n` +
-        `⚖️ *Journal Entry*: Debit ${result.journal_entry?.debit || "Account"} | Credit ${result.journal_entry?.credit || "Cash"}\n` +
-        `🎯 *Confidence*: ${(confidence * 100).toFixed(0)}%\n\n` +
-        `View updated financial reports on https://www.rovabusiness.com`;
-    } else {
-      // Clarification Required (Confidence < 90%)
-      replyMessage = `🤔 *ROVA AI Needs Clarification*\n\n` +
-        `📥 *Source*: ${mediaTypeSource}\n` +
-        `📝 *Extracted*: "${extractedText}"\n\n` +
-        `❓ *Question*: ${result.ai_question || `What was this transaction of "${extractedText}" for?`}\n\n` +
-        `Reply directly to this WhatsApp message with details (or type e.g., "Food, kg, 10, 250, 5" if it was inventory stock).`;
-    }
-
-    await sendWhatsAppMessage(fromNumber, replyMessage, WHATSAPP_ACCESS_TOKEN);
-
-    return new Response(JSON.stringify({ success: true, extractedText, result }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({ success: true, extractedText, reply: replyText }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+    );
   } catch (error: any) {
     console.error("WhatsApp webhook error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
@@ -254,14 +233,13 @@ async function sendWhatsAppMessage(to: string, text: string, accessToken?: strin
     return;
   }
 
-  // Clean recipient phone number (remove leading + if present)
   const recipient = to.replace(/\D/g, "");
 
   try {
     const response = await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

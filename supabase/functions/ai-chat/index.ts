@@ -1,30 +1,66 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function formatCurrency(amount: number): string {
+  return `₦${Number(amount || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { messages, context } = body;
+    const { messages, message, context } = body;
     const { transactions, accounts, userId, isStaff } = context ?? {};
 
-    if (!messages || !userId) throw new Error("Missing messages or userId");
+    const activeUserId = userId || body.userId;
 
-    // ── Build financial summary for context ───────────────────────────────────
+    if (!activeUserId) {
+      throw new Error("Missing userId in request body or context");
+    }
+
+    // Standardize input message array
+    let conversationMessages = messages ?? [];
+    if (!conversationMessages.length && message) {
+      conversationMessages = [{ role: "user", content: message }];
+    }
+
+    const lastUserMsg = conversationMessages.filter((m) => m.role === "user").pop()?.content || "";
+
+    // ── 1. REAL-TIME FINANCIAL CONTEXT FETCHING ─────────────────────────────────
+    const [txRes, accRes, invRes, invcRes] = await Promise.all([
+      supabaseClient
+        .from("transactions")
+        .select("*")
+        .eq("user_id", activeUserId)
+        .order("date", { ascending: false })
+        .limit(50),
+      supabaseClient.from("accounts").select("*").eq("user_id", activeUserId),
+      supabaseClient.from("inventory_items").select("*").eq("user_id", activeUserId).eq("status", "active"),
+      supabaseClient.from("invoices").select("*").eq("user_id", activeUserId).neq("status", "paid"),
+    ]);
+
+    const txs = txRes.data ?? transactions ?? [];
+    const accs = accRes.data ?? accounts ?? [];
+    const inventoryItems = invRes.data ?? [];
+    const outstandingInvoices = invcRes.data ?? [];
+
     const now = new Date();
     const thisMonth = now.getMonth();
     const thisYear = now.getFullYear();
-
-    const txs = transactions ?? [];
-    const accs = accounts ?? [];
 
     const thisMonthTx = txs.filter((t) => {
       const d = new Date(t.date);
@@ -32,316 +68,158 @@ serve(async (req) => {
     });
 
     const totalBalance = accs.reduce((s, a) => s + (a.balance ?? 0), 0);
-    const thisIncome = thisMonthTx
-      .filter((t) => t.type === "income")
-      .reduce((s, t) => s + t.amount, 0);
-    const thisExpense = thisMonthTx
-      .filter((t) => t.type === "expense")
-      .reduce((s, t) => s + t.amount, 0);
+    const thisIncome = thisMonthTx.filter((t) => t.type === "income").reduce((s, t) => s + (t.amount || 0), 0);
+    const thisExpense = thisMonthTx.filter((t) => t.type === "expense").reduce((s, t) => s + (t.amount || 0), 0);
     const net = thisIncome - thisExpense;
 
-    const recentTx = txs
-      .slice(0, 50)
-      .map((t) => `- [id:${t.id}] ${t.date?.slice(0, 10)} | ${t.type} | ₦${t.amount?.toLocaleString()} | ${t.description} | Category: ${t.category?.name || 'Uncategorized'}`)
-      .join("\n");
+    const totalOutstandingAmount = outstandingInvoices.reduce((s, i) => s + ((i.total || 0) - (i.amount_paid || 0)), 0);
 
     const financialCtx = `
-Current financial snapshot (Nigerian Naira):
-- Total balance across all accounts: ₦${totalBalance.toLocaleString()}
-- This month income: ₦${thisIncome.toLocaleString()}
-- This month expenses: ₦${thisExpense.toLocaleString()}
-- Net this month: ₦${net.toLocaleString()}
-- Total transactions on record: ${txs.length}
-
-Recent transactions:
-${recentTx || "No recent transactions."}
+Current ROVA Financial Snapshot (Single Source of Truth Database):
+- Total Account Balance: ₦${totalBalance.toLocaleString()}
+- This Month Income: ₦${thisIncome.toLocaleString()}
+- This Month Expenses: ₦${thisExpense.toLocaleString()}
+- Net Profit/Loss This Month: ₦${net.toLocaleString()}
+- Total Active Inventory Items: ${inventoryItems.length}
+- Outstanding Client Receivables: ₦${totalOutstandingAmount.toLocaleString()} (${outstandingInvoices.length} unpaid invoices)
 `.trim();
 
     const staffRestriction = isStaff
-      ? "You are in STAFF mode. You MUST NOT share profit margins, total revenue, historical comparisons, or payroll data. Only answer questions about individual transactions they are authorised to see."
+      ? "STAFF MODE STRICT RULE: You MUST NOT reveal total profit margins, total net income, or tax liabilities. Only answer transaction and operational inventory queries."
       : "";
 
-    // Compute avg monthly expense for runway
-    const avgMonthlyExpense = thisExpense > 0 ? thisExpense : 1;
-    const runwayMonths = totalBalance > 0 ? (totalBalance / avgMonthlyExpense).toFixed(1) : "N/A";
+    // ── 2. SYSTEM PROMPT & CORE BUSINESS FUNCTION TOOLS DEFINITION ──────────────
+    const systemPrompt = `You are ROVA AI, the single unified AI Agent and financial brain for Nigerian businesses.
+Whether the user interacts via the ROVA Website or WhatsApp, you execute operations on the exact same underlying database.
 
-    const systemPrompt = `You are ROVA AI, an autonomous accounting assistant for Nigerian SMEs.
-Your job is to understand every financial transaction and determine BOTH the transaction category and accounting treatment.
-
-You have real-time access to the user's financial data shown below.
 ${staffRestriction}
 
 ${financialCtx}
-- Computed runway (totalBalance / avg monthly expenses): ${runwayMonths} months
 
 -------------------------
-ROVA AI ACCOUNTING RULES
+ROVA CORE TOOL EXECUTIONS
 -------------------------
+You have access to 8 core business tools:
+1. recordSale(amount, description, clientName, itemId, quantity) -> Record a sales revenue transaction and update inventory if applicable.
+2. createInvoice(clientName, clientEmail, clientAddress, dueDate, taxRate, items, paymentStatus, amountPaid) -> Create an official invoice.
+3. recordExpense(amount, description, categoryName, merchant) -> Record a business expense.
+4. getSales(period) -> Query sales revenue summary ('today', 'this_week', 'this_month', 'last_month', 'this_year').
+5. getExpenses(period, categoryName) -> Query expenses and spending breakdown.
+6. getInventory(search) -> Query stock levels, valuations, and low-stock alerts.
+7. getOutstandingInvoices() -> Query unpaid client invoices and receivables.
+8. calculateTax(period) -> Calculate VAT (7.5%), Companies Income Tax (CIT), and net taxable profit.
 
-1. INVENTORY PURCHASE (Beans, Rice, Drinks, Flour, Cement, Products for resale)
-   - Accounting: Debit Inventory, Credit Cash / Accounts Payable.
-   - Inventory increases. DO NOT recognize as expense immediately. Move to COGS when sold.
-2. OPERATING EXPENSE (Fuel, Repairs, Electricity, Internet, Transport, Advertising, Supplies, Water, Rent, Bank Charges)
-   - Accounting: Debit Expense, Credit Cash / Accounts Payable.
-   - Recognize full amount immediately in P&L. Do NOT add to inventory.
-3. FIXED ASSET PURCHASE (Generator, Laptop, Vehicle, Freezer, Machinery, Furniture, POS Terminal)
-   - Accounting: Debit Fixed Assets, Credit Cash / Accounts Payable.
-   - Create asset record (cost, date, category, useful life, salvage value) and calculate depreciation.
-4. PAYROLL: Debit Salary Expense, Credit Cash.
-5. OWNER WITHDRAWAL: Reduce Owner's Equity. Not a business expense.
-6. OWNER CAPITAL INJECTION: Increase Owner's Equity. Not Revenue.
-7. TAX: Post to Tax Expense or Tax Liability.
-8. CUSTOMER PAYMENT (AR Collection): Reduce Accounts Receivable, Increase Cash. Do NOT recognize Revenue again if sale already recorded.
-9. SUPPLIER PAYMENT (AP Payment): Reduce Accounts Payable, Reduce Cash. Do NOT create another expense if purchase already recorded.
-
-CONFIDENCE & CLARIFICATION RULES:
-- Assign confidence score (0% to 100%).
-- If confidence >= 90%, process automatically.
-- If confidence < 90%, ask ONE concise follow-up question. Never ask unnecessary questions.
-
-Your capabilities:
-1. Answer financial questions clearly and concisely using double-entry accounting rules.
-2. Detect action intents and return them in your response JSON so the UI can show action buttons.
-3. Directly create invoices, process payroll, update inventory, and clarify transactions.
-4. Always respond in valid JSON with this shape:
+Respond strictly in JSON format with this shape:
 {
-  "reply": "your clear message here",
-  "actions": []
-}
+  "reply": "your detailed response string",
+  "tool_call": {
+    "name": "recordSale" | "createInvoice" | "recordExpense" | "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "calculateTax",
+    "parameters": {}
+  } | null,
+  "actions": [
+    { "type": "string", "label": "string", "payload": {} }
+  ]
+}`;
 
-Action object shape:
-{
-  "type": "create_invoice" | "add_inventory" | "add_employee" | "record_payroll" | "clarify_transaction" | "view_report" | "update_transaction" | "delete_transaction",
-  "label": "human-readable button label",
-  "payload": {}
-}
-
-CRITICAL RULES — follow these exactly:
-
-INVOICE CREATION:
-- When a user expresses intent to create an invoice (e.g. "create an invoice", "I want to invoice someone", etc.), you MUST ask for and gather ALL of the following 9 pieces of information before you can return the 'create_invoice' action:
-  1. Client's Name ('client_name')
-  2. Client's Email ('client_email')
-  3. Client's Address ('client_address')
-  4. Due Date ('due_date' in YYYY-MM-DD format)
-  5. Tax Rate ('tax_rate' as a percentage number, e.g. 7.5 for 7.5%)
-  6. Description of goods/services ('description')
-  7. Number of goods / Quantity ('quantity' as a number)
-  8. Unit Price ('unit_price' as a number)
-  9. Payment Status ('payment_status' which MUST be exactly one of: 'paid_in_full', 'part_payment', or 'unpaid').
-- If the payment status is 'part_payment' (partially paid), you MUST also ask for the amount that has been paid so far ('amount_paid'). For 'paid_in_full', set 'amount_paid' to quantity * unit_price * (1 + tax_rate / 100). For 'unpaid', set 'amount_paid' to 0.
-- You MUST check the conversation history to see which fields have already been provided by the user. If ANY of these fields are missing, you MUST NOT return the 'create_invoice' action yet. Instead, politely and clearly ask the user to provide the specific missing fields. You can list all the missing fields so the user can answer them together (e.g., "To create the invoice, I just need a few details: 1. Client's Name...").
-- Only when ALL 9 fields are fully gathered, return the 'create_invoice' action in your JSON response with the following payload structure:
-  {
-    "type": "create_invoice",
-    "label": "Create Invoice",
-    "payload": {
-      "client_name": "<client name>",
-      "client_email": "<client email>",
-      "client_address": "<client address>",
-      "due_date": "<YYYY-MM-DD>",
-      "tax_rate": <number>,
-      "payment_status": "paid_in_full" | "part_payment" | "unpaid",
-      "amount_paid": <number>,
-      "items": [
-        {
-          "description": "<description>",
-          "quantity": <number>,
-          "unit_price": <number>
-        }
-      ]
-    }
-  }
-
-INVENTORY ITEM CREATION:
-- When a user expresses intent to add or create a new inventory item (e.g. "add a product to inventory", "create a product", etc.), you MUST ask for and gather ALL of the following 8 pieces of information before you can return the 'add_inventory' action:
-  1. Item Name ('name')
-  2. SKU / Code ('sku')
-  3. Category ('category')
-  4. Unit ('unit', e.g., 'unit', 'kg', 'litre')
-  5. Cost Price ('cost_price' as a number)
-  6. Selling Price ('selling_price' as a number)
-  7. Current Stock ('current_stock' as a number)
-  8. Reorder Level ('reorder_level' as a number)
-- You MUST check the conversation history to see which fields have already been provided. If ANY are missing, you MUST NOT return the 'add_inventory' action yet. Instead, politely and clearly ask the user to provide the specific missing fields. You can list all the missing fields so the user can answer them together.
-- Only when ALL 8 fields are fully gathered, return the 'add_inventory' action in your JSON response with the following payload structure:
-  {
-    "type": "add_inventory",
-    "label": "Add Inventory Item",
-    "payload": {
-      "name": "<item name>",
-      "sku": "<sku code>",
-      "category": "<category>",
-      "unit": "<unit>",
-      "cost_price": <number>,
-      "selling_price": <number>,
-      "current_stock": <number>,
-      "reorder_level": <number>
-    }
-  }
-
-EMPLOYEE REGISTRATION:
-- When a user expresses intent to add or register an employee/team member (e.g. "add employee", "register a worker", "add staff member", etc.), you MUST ask for and gather ALL of the following 12 pieces of information before you can return the 'add_employee' action:
-  1. Full Name ('full_name')
-  2. Email ('email')
-  3. Phone Number ('phone')
-  4. Role / Title ('role')
-  5. Department ('department')
-  6. Employment Type ('employment_type' which MUST be exactly one of: 'full_time', 'part_time', or 'contract')
-  7. Start Date ('start_date' in YYYY-MM-DD format)
-  8. Gross Monthly Salary ('gross_salary' as a number)
-  9. PAYE Rate ('paye_rate' as a percentage, default to 7.5 if not specified)
-  10. Pension Rate ('pension_rate' as a percentage, default to 8.0 if not specified)
-  11. Bank Name ('bank_name')
-  12. Bank Account Number ('bank_account')
-- You MUST check the conversation history to see which fields have already been provided. If ANY are missing, you MUST NOT return the 'add_employee' action yet. Instead, politely and clearly ask the user to provide the specific missing fields. You can list all the missing fields so the user can answer them together.
-- Only when ALL 12 fields are fully gathered, return the 'add_employee' action in your JSON response with the following payload structure:
-  {
-    "type": "add_employee",
-    "label": "Add Employee",
-    "payload": {
-      "full_name": "<full name>",
-      "email": "<email>",
-      "phone": "<phone>",
-      "role": "<role>",
-      "department": "<department>",
-      "employment_type": "full_time" | "part_time" | "contract",
-      "start_date": "<YYYY-MM-DD>",
-      "gross_salary": <number>,
-      "paye_rate": <number>,
-      "pension_rate": <number>,
-      "bank_name": "<bank name>",
-      "bank_account": "<bank account number>"
-    }
-  }
-
-PAYROLL PROCESSING:
-- If the user asks to process, pay, or run salary/payroll for a named person with an amount (e.g. "Process Chinedu's monthly salary of ₦150,000"), extract the details immediately.
-- Return a record_payroll action with payload: { "employee_name": "<extracted name>", "gross_amount": <number> }
-- Do NOT ask for confirmation. Process it directly.
-- Calculate and mention in your reply: PAYE = gross × 7.5%, Pension = gross × 8%, Net = gross - PAYE - pension.
-
-RUNWAY / BURN RATE:
-- Always state the exact runway figure: "${runwayMonths} months" based on current balance ÷ this month's expenses.
-- Include a view_report action with label "View Financial Report" when answering burn rate or runway questions.
-
-TRANSACTION CLARIFICATION:
-- When a user tells you what a vague/unclear transaction was for (e.g. "the TRANSFER (60526976...) was for internet subscription"), you MUST return a 'clarify_transaction' action.
-- Look through the recent transactions in your context to find the matching transaction by description, amount, or date.
-- The payload MUST include:
-  {
-    "type": "clarify_transaction",
-    "label": "Update Transaction",
-    "payload": {
-      "transaction_id": "<the id of the transaction being clarified>",
-      "description": "<the user's clarified description, e.g. 'Internet Subscription'>",
-      "original_description": "<the original bank narration, e.g. 'TRANSFER (60526976...)'>",
-      "amount": <the transaction amount>,
-      "type": "income" | "expense"
-    }
-  }
-- This is CRITICAL: always include the transaction_id so the system can update the description in the database.
-- If the user tells you what multiple transactions are for, return a separate clarify_transaction action for each one.
-
-TRANSACTION UPDATES / EDITS:
-- When a user asks to change, edit, or update a transaction's category, description, amount, or date (e.g. "change the category of transaction 'Payment for INV-609928' to 'Revenue'", "change description of transaction for ₦77,000 on June 29 to Salary payment", "update the amount to 15,000"), you MUST return an 'update_transaction' action.
-- Search the recent transactions in your context to find the transaction that matches the user's request (by matching description, amount, date, or category).
-- The payload MUST contain the 'transaction_id' of the matched transaction.
-- The payload should include only the fields to be updated:
-  {
-    "type": "update_transaction",
-    "label": "Update Transaction",
-    "payload": {
-      "transaction_id": "<id of matched transaction>",
-      "category_name": "<new category name, optional>",
-      "description": "<new description, optional>",
-      "amount": <new amount number, optional>,
-      "date": "<new date in YYYY-MM-DD format, optional>"
-    }
-  }
-- In your reply, state clearly what fields you are updating for that transaction.
-
-TRANSACTION DELETION:
-- When a user asks to delete, remove, or cancel a transaction (e.g., "delete the duplicate salary payment of ₦77,000", "remove transaction for 12,000", "delete transaction [id:...]"), you MUST return a 'delete_transaction' action.
-- Search the recent transactions in your context to find the transaction that matches the user's request (by matching description, amount, date, or category).
-- The payload MUST contain the 'transaction_id' of the matched transaction.
-  {
-    "type": "delete_transaction",
-    "label": "Delete Transaction",
-    "payload": {
-      "transaction_id": "<id of matched transaction>"
-    }
-  }
-- In your reply, confirm that you have deleted that transaction (e.g., "I've removed the duplicate salary payment of ₦77,000 to Boss Baby on June 29, 2026. Your records have been updated.").
-
-GENERAL:
-- Use ₦ for amounts. Format large numbers with commas.
-- Be warm and professional.
-- Always include an action button where it makes sense.
-- Reply ONLY with valid JSON.`;
-
-    // ── Call DeepSeek (or fallback) ─────────────────────────────────────────────
+    // ── 3. INTENT DETECTION AND TOOL EXECUTION ENGINE ───────────────────────────
     let reply = "";
     let actions = [];
+    let toolCall = null;
+    let toolExecuted = false;
 
-    if (DEEPSEEK_API_KEY) {
+    // Check if AI API is available (DeepSeek or OpenAI)
+    const apiKey = DEEPSEEK_API_KEY || OPENAI_API_KEY;
+    const apiEndpoint = DEEPSEEK_API_KEY
+      ? "https://api.deepseek.com/chat/completions"
+      : "https://api.openai.com/v1/chat/completions";
+    const apiModel = DEEPSEEK_API_KEY ? "deepseek-chat" : "gpt-4o-mini";
+
+    if (apiKey) {
       try {
-        const deepseekMessages = [
-          { role: "system", content: systemPrompt },
-          ...messages.map((m) => ({
-            role: m.role === "assistant" ? "assistant" : "user",
-            content: m.content,
-          })),
-        ];
+        const response = await fetch(apiEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: apiModel,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...conversationMessages.map((m) => ({
+                role: m.role === "assistant" ? "assistant" : "user",
+                content: m.content,
+              })),
+            ],
+            temperature: 0.2,
+            response_format: { type: "json_object" },
+          }),
+        });
 
-        const deepseekResponse = await fetch(
-          "https://api.deepseek.com/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${DEEPSEEK_API_KEY}`,
-            },
-            body: JSON.stringify({
-              model: "deepseek-chat",
-              messages: deepseekMessages,
-              temperature: 0.3,
-              response_format: {
-                type: "json_object",
-              },
-            }),
-          }
-        );
-
-        if (!deepseekResponse.ok) {
-          const errText = await deepseekResponse.text();
-          throw new Error(`DeepSeek API error: ${deepseekResponse.status} ${errText}`);
+        if (response.ok) {
+          const resData = await response.json();
+          const rawContent = resData.choices?.[0]?.message?.content ?? "{}";
+          const parsed = JSON.parse(rawContent);
+          reply = parsed.reply || "";
+          actions = parsed.actions || [];
+          toolCall = parsed.tool_call || null;
         }
-
-        const deepseekData = await deepseekResponse.json();
-        const raw = deepseekData.choices?.[0]?.message?.content ?? "{}";
-
-        try {
-          const parsed = JSON.parse(raw);
-          reply = parsed.reply ?? "I couldn't generate a response. Please try again.";
-          actions = parsed.actions ?? [];
-        } catch {
-          reply = raw;
-        }
-      } catch (deepseekError) {
-        console.error("DeepSeek API call failed. Using keyword fallback chat.", deepseekError);
-        const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() ?? "";
-        reply = keywordFallbackChat(lastMsg, totalBalance, thisIncome, thisExpense, net, txs.length);
-        actions = detectActions(lastMsg);
+      } catch (err) {
+        console.error("AI API call failed, invoking direct rule-based tool engine:", err);
       }
-    } else {
-      // No API key: keyword fallback
-      const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() ?? "";
-      reply = keywordFallbackChat(lastMsg, totalBalance, thisIncome, thisExpense, net, txs.length);
-      actions = detectActions(lastMsg);
     }
 
-    return new Response(JSON.stringify({ reply, actions }), {
+    // Rule-based Fallback Tool Detection if LLM call failed or didn't specify tool call
+    if (!toolCall) {
+      toolCall = detectRuleBasedToolCall(lastUserMsg);
+    }
+
+    // ── 4. EXECUTE SHARED CORE BUSINESS FUNCTION ────────────────────────────────
+    if (toolCall && toolCall.name) {
+      const toolName = toolCall.name;
+      const params = toolCall.parameters || {};
+
+      console.log(`[ROVA Core Agent] Executing shared business function: ${toolName}`, params);
+
+      try {
+        let execResult;
+        if (toolName === "recordSale") {
+          execResult = await executeRecordSale(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "createInvoice") {
+          execResult = await executeCreateInvoice(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "recordExpense") {
+          execResult = await executeRecordExpense(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "getSales") {
+          execResult = await executeGetSales(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "getExpenses") {
+          execResult = await executeGetExpenses(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "getInventory") {
+          execResult = await executeGetInventory(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "getOutstandingInvoices") {
+          execResult = await executeGetOutstandingInvoices(supabaseClient, activeUserId);
+        } else if (toolName === "calculateTax") {
+          execResult = await executeCalculateTax(supabaseClient, activeUserId, params);
+        }
+
+        if (execResult && execResult.formattedSummary) {
+          reply = execResult.formattedSummary;
+          if (execResult.actions) {
+            actions = [...actions, ...execResult.actions];
+          }
+          toolExecuted = true;
+        }
+      } catch (execErr) {
+        console.error(`Error executing tool ${toolName}:`, execErr);
+        reply = `⚠️ Error executing ${toolName}: ${execErr.message}`;
+      }
+    }
+
+    // Default response fallback if no reply generated
+    if (!reply.trim()) {
+      reply = `Hello! I'm your ROVA AI Assistant. I can help you record sales, create invoices, log expenses, track inventory, check outstanding customer payments, and calculate taxes. What would you like to do?`;
+    }
+
+    return new Response(JSON.stringify({ reply, actions, toolExecuted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
@@ -354,51 +232,320 @@ GENERAL:
   }
 });
 
-// ── Keyword fallback chat (no DeepSeek key) ───────────────────────────────────
-function fmt(n) {
-  return `₦${n.toLocaleString("en-NG")}`;
+// ── RULE-BASED TOOL INTENT DETECTOR ───────────────────────────────────────────
+function detectRuleBasedToolCall(text: string) {
+  const q = text.toLowerCase();
+
+  // 1. Record Sale ("I sold 50000 today", "sold shoes for 20000", "recorded sale of 10000")
+  if (/\b(sold|sale|recorded sale)\b/.test(q)) {
+    const amtMatch = q.match(/(?:₦|naira|ngn|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+    const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : 0;
+    return {
+      name: "recordSale",
+      parameters: { amount, description: text },
+    };
+  }
+
+  // 2. Create Invoice ("create invoice for John", "invoice 200000")
+  if (/\b(create invoice|new invoice|invoice for|invoice client)\b/.test(q)) {
+    const clientMatch = q.match(/(?:for|to)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|$)/i);
+    const amtMatch = q.match(/(?:₦|naira|ngn|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+    const clientName = clientMatch ? clientMatch[1].trim() : "Client";
+    const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : 50000;
+    return {
+      name: "createInvoice",
+      parameters: { clientName, amount, description: text },
+    };
+  }
+
+  // 3. Record Expense ("I spent 25000 on fuel", "bought fuel for 15000", "expense of 5000")
+  if (/\b(spent|expense|bought|fuel|paid for|cost)\b/.test(q) && !/\b(inventory|stock)\b/.test(q)) {
+    const amtMatch = q.match(/(?:₦|naira|ngn|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+    const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : 0;
+    return {
+      name: "recordExpense",
+      parameters: { amount, description: text },
+    };
+  }
+
+  // 4. Get Sales ("how much did I sell", "check sales", "total sales")
+  if (/\b(sales|how much did i sell|revenue|check sales)\b/.test(q)) {
+    let period = "this_month";
+    if (q.includes("today")) period = "today";
+    else if (q.includes("week")) period = "this_week";
+    else if (q.includes("year")) period = "this_year";
+    return { name: "getSales", parameters: { period } };
+  }
+
+  // 5. Get Expenses ("how much did i spend", "check expenses", "total expenses")
+  if (/\b(expenses|how much did i spend|check expenses|spending)\b/.test(q)) {
+    let period = "this_month";
+    if (q.includes("today")) period = "today";
+    else if (q.includes("week")) period = "this_week";
+    return { name: "getExpenses", parameters: { period } };
+  }
+
+  // 6. Get Inventory ("how much inventory", "check stock", "stock levels")
+  if (/\b(inventory|stock|products|items in stock)\b/.test(q)) {
+    return { name: "getInventory", parameters: {} };
+  }
+
+  // 7. Get Outstanding Invoices ("who owes me", "how much do customers owe", "outstanding invoices")
+  if (/\b(owe|debtors|receivables|outstanding|unpaid invoices)\b/.test(q)) {
+    return { name: "getOutstandingInvoices", parameters: {} };
+  }
+
+  // 8. Calculate Tax ("how much tax", "tax information", "vat", "cit")
+  if (/\b(tax|vat|cit|tax liability|tax owe)\b/.test(q)) {
+    return { name: "calculateTax", parameters: { period: "this_year" } };
+  }
+
+  return null;
 }
 
-function keywordFallbackChat(q, balance, income, expense, net, txCount) {
-  const prefix = "*(Offline Mode)* ";
-  if (/\b(balance|how much)\b/.test(q)) {
-    return `${prefix}Your total account balance is ${fmt(balance)}.`;
-  }
-  if (/\b(income|earn|revenue)\b/.test(q)) {
-    return `${prefix}This month you've earned ${fmt(income)} in income, with ${fmt(expense)} in expenses. Net: ${fmt(net)}.`;
-  }
-  if (/\b(expense|spent|spending)\b/.test(q)) {
-    return `${prefix}This month you've spent ${fmt(expense)} in total. Your net position is ${fmt(net)}.`;
-  }
-  if (/\b(profit|margin|net)\b/.test(q)) {
-    const margin = income > 0 ? ((net / income) * 100).toFixed(1) : "0.0";
-    return `${prefix}This month: Income ${fmt(income)}, Expenses ${fmt(expense)}, Net ${fmt(net)} (${margin}% margin).`;
-  }
-  if (/\binvoice\b/.test(q)) {
-    return `${prefix}I can help you create an invoice! Please tell me the client's name, email, items, and the amount.`;
-  }
-  if (/\b(salary|payroll|pay)\b/.test(q)) {
-    return `${prefix}Sure! To record a salary payment, go to Payroll and add a payslip, or tell me the employee name and amount and I'll guide you.`;
-  }
-  if (/\b(inventory|stock|item)\b/.test(q)) {
-    return `${prefix}I can update your inventory. Tell me the item name, quantity, and cost price.`;
-  }
-  if (/\b(hi|hello|hey)\b/.test(q)) {
-    return `${prefix}Hi! I'm ROVA, your financial assistant. You have ${txCount} transactions on record and a total balance of ${fmt(balance)}. How can I help you today?`;
-  }
-  return `${prefix}I'm having trouble connecting to my AI brain right now, but I can still help with basic questions about your income, expenses, profits, invoices, payroll, or inventory. Your current balance is ${fmt(balance)}.`;
+// ── SHARED BUSINESS FUNCTION EXECUTORS ───────────────────────────────────────
+
+async function executeRecordSale(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const amount = params.amount || extractAmount(rawMsg) || 0;
+  const description = params.description || rawMsg || "Sale";
+  const saleDate = new Date().toISOString().split("T")[0];
+
+  const { data: transaction, error } = await supabaseClient
+    .from("transactions")
+    .insert({
+      user_id: userId,
+      amount: Math.abs(amount),
+      type: "income",
+      description: description,
+      date: saleDate,
+      reference: `SALE-${Date.now().toString().slice(-6)}`,
+      ai_category: "Business Revenue",
+      is_verified: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: todayTxs } = await supabaseClient
+    .from("transactions")
+    .select("amount")
+    .eq("user_id", userId)
+    .eq("type", "income")
+    .gte("date", todayStr);
+
+  const todayTotal = (todayTxs || []).reduce((s: number, t: any) => s + t.amount, 0);
+
+  return {
+    formattedSummary: `✅ **Sale Recorded**: ${formatCurrency(amount)} for "${description}".\n📊 Today's Total Sales: **${formatCurrency(todayTotal)}**.`,
+    actions: [{ type: "view_report", label: "View Sales Report", payload: {} }],
+  };
 }
 
-function detectActions(q) {
-  const actions = [];
-  if (q.includes("invoice")) {
-    actions.push({ type: "create_invoice", label: "Create Invoice", payload: {} });
-  }
-  if (q.includes("inventory") || q.includes("stock")) {
-    actions.push({ type: "add_inventory", label: "Add Inventory", payload: {} });
-  }
-  if (q.includes("salary") || q.includes("payroll")) {
-    actions.push({ type: "record_payroll", label: "Record Payroll", payload: {} });
-  }
-  return actions;
+async function executeCreateInvoice(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const clientName = params.clientName || "Client";
+  const amount = params.amount || extractAmount(rawMsg) || 100000;
+  const description = params.description || "Services / Products rendered";
+  const dueDate = new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
+  const taxRate = params.taxRate || 7.5;
+  const subtotal = amount;
+  const taxAmount = subtotal * (taxRate / 100);
+  const total = subtotal + taxAmount;
+  const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+
+  const { data: invoice, error } = await supabaseClient
+    .from("invoices")
+    .insert({
+      user_id: userId,
+      invoice_number: invoiceNumber,
+      client_name: clientName,
+      issue_date: new Date().toISOString().split("T")[0],
+      due_date: dueDate,
+      status: "sent",
+      subtotal: subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total: total,
+      amount_paid: 0,
+      currency: "NGN",
+      notes: "Generated by ROVA Unified AI Engine",
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  await supabaseClient.from("invoice_items").insert({
+    invoice_id: invoice.id,
+    description: description,
+    quantity: 1,
+    unit_price: subtotal,
+    amount: subtotal,
+  });
+
+  return {
+    formattedSummary: `📄 **Invoice #${invoiceNumber} Created** for **${clientName}**!\n• Subtotal: ${formatCurrency(subtotal)}\n• Tax (${taxRate}%): ${formatCurrency(taxAmount)}\n• **Total Amount**: **${formatCurrency(total)}**\n• Due Date: ${dueDate}`,
+    actions: [{ type: "view_invoice", label: "View Invoice", payload: { invoice_id: invoice.id } }],
+  };
+}
+
+async function executeRecordExpense(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const amount = params.amount || extractAmount(rawMsg) || 0;
+  const description = params.description || rawMsg || "Expense";
+  const expenseDate = new Date().toISOString().split("T")[0];
+
+  const { data: transaction, error } = await supabaseClient
+    .from("transactions")
+    .insert({
+      user_id: userId,
+      amount: Math.abs(amount),
+      type: "expense",
+      description: description,
+      date: expenseDate,
+      reference: `EXP-${Date.now().toString().slice(-6)}`,
+      ai_category: params.categoryName || "Operating Expense",
+      is_verified: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
+  const { data: monthTxs } = await supabaseClient
+    .from("transactions")
+    .select("amount")
+    .eq("user_id", userId)
+    .eq("type", "expense")
+    .gte("date", startOfMonth);
+
+  const monthTotal = (monthTxs || []).reduce((s: number, t: any) => s + t.amount, 0);
+
+  return {
+    formattedSummary: `💸 **Expense Recorded**: ${formatCurrency(amount)} for "${description}".\n📊 Total Expenses This Month: **${formatCurrency(monthTotal)}**.`,
+    actions: [{ type: "view_report", label: "View Expense Report", payload: {} }],
+  };
+}
+
+async function executeGetSales(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const period = params.period || "this_month";
+  const now = new Date();
+  let startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+  if (period === "today") startDate = now.toISOString().split("T")[0];
+
+  const { data: txs, error } = await supabaseClient
+    .from("transactions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("type", "income")
+    .gte("date", startDate);
+
+  if (error) throw error;
+
+  const salesList = txs || [];
+  const totalAmount = salesList.reduce((s: number, t: any) => s + t.amount, 0);
+
+  return {
+    formattedSummary: `📈 **Sales Summary (${period.toUpperCase().replace("_", " ")})**\n• Total Sales Revenue: **${formatCurrency(totalAmount)}**\n• Total Sales Recorded: **${salesList.length}**`,
+  };
+}
+
+async function executeGetExpenses(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const period = params.period || "this_month";
+  const now = new Date();
+  let startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+  if (period === "today") startDate = now.toISOString().split("T")[0];
+
+  const { data: txs, error } = await supabaseClient
+    .from("transactions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("type", "expense")
+    .gte("date", startDate);
+
+  if (error) throw error;
+
+  const expenseList = txs || [];
+  const totalAmount = expenseList.reduce((s: number, t: any) => s + t.amount, 0);
+
+  return {
+    formattedSummary: `📉 **Expense Summary (${period.toUpperCase().replace("_", " ")})**\n• Total Expenses: **${formatCurrency(totalAmount)}**\n• Total Transactions: **${expenseList.length}**`,
+  };
+}
+
+async function executeGetInventory(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const { data: items, error } = await supabaseClient
+    .from("inventory_items")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "active");
+
+  if (error) throw error;
+
+  const inventoryList = items || [];
+  const totalValuation = inventoryList.reduce((s: number, i: any) => s + (i.current_stock || 0) * (i.cost_price || 0), 0);
+  const lowStock = inventoryList.filter((i: any) => (i.current_stock || 0) <= (i.reorder_level || 5));
+
+  const sampleList = inventoryList
+    .slice(0, 5)
+    .map((i: any) => `• **${i.name}**: ${i.current_stock} ${i.unit || 'units'}`)
+    .join("\n");
+
+  return {
+    formattedSummary: `📦 **Inventory Status**\n• Total Stock Items: **${inventoryList.length}**\n• Total Stock Valuation: **${formatCurrency(totalValuation)}**\n• Low Stock Items: **${lowStock.length}**\n\n${sampleList || "No items in stock."}`,
+    actions: [{ type: "add_inventory", label: "Add Inventory Item", payload: {} }],
+  };
+}
+
+async function executeGetOutstandingInvoices(supabaseClient: any, userId: string) {
+  const { data: invoices, error } = await supabaseClient
+    .from("invoices")
+    .select("*")
+    .eq("user_id", userId)
+    .neq("status", "paid");
+
+  if (error) throw error;
+
+  const unpaidList = invoices || [];
+  const totalOwed = unpaidList.reduce((s: number, i: any) => s + ((i.total || 0) - (i.amount_paid || 0)), 0);
+
+  const clientList = unpaidList
+    .map((i: any) => `• **${i.client_name}**: Owed ${formatCurrency((i.total || 0) - (i.amount_paid || 0))} (Due: ${i.due_date || 'N/A'})`)
+    .join("\n");
+
+  return {
+    formattedSummary: `📋 **Outstanding Customer Receivables**\n• Total Customer Debt Owed to You: **${formatCurrency(totalOwed)}**\n• Pending Invoices: **${unpaidList.length}**\n\n${clientList || "🎉 No outstanding client debts!"}`,
+  };
+}
+
+async function executeCalculateTax(supabaseClient: any, userId: string, params: any) {
+  const startOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
+
+  const { data: txs, error } = await supabaseClient
+    .from("transactions")
+    .select("amount, type")
+    .eq("user_id", userId)
+    .gte("date", startOfYear);
+
+  if (error) throw error;
+
+  const allTxs = txs || [];
+  const grossIncome = allTxs.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + t.amount, 0);
+  const allowableExpenses = allTxs.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + t.amount, 0);
+  const netProfit = Math.max(0, grossIncome - allowableExpenses);
+
+  const vatLiability = grossIncome * 0.075;
+  const citRate = grossIncome > 100000000 ? 0.30 : grossIncome >= 25000000 ? 0.20 : 0.0;
+  const estimatedCIT = netProfit * citRate;
+  const totalTax = vatLiability + estimatedCIT;
+
+  return {
+    formattedSummary: `🏛️ **ROVA Tax Liability Estimation (THIS YEAR)**\n• Gross Revenue: **${formatCurrency(grossIncome)}**\n• Allowable Expenses: **${formatCurrency(allowableExpenses)}**\n• Net Taxable Profit: **${formatCurrency(netProfit)}**\n\n📊 **Tax Breakdown:**\n• VAT (7.5%): **${formatCurrency(vatLiability)}**\n• Companies Income Tax (CIT): **${formatCurrency(estimatedCIT)}**\n• **Total Estimated Tax Owed**: **${formatCurrency(totalTax)}**`,
+  };
+}
+
+function extractAmount(text: string): number {
+  const m = text.match(/(?:₦|naira|ngn|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+  return m ? parseFloat(m[1].replace(/,/g, "")) : 0;
 }

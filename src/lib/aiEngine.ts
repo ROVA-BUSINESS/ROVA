@@ -1,4 +1,5 @@
 import { type Transaction, type Account } from './supabase';
+import { supabase } from './supabase';
 import { formatCurrency } from './format';
 
 export type Insight = {
@@ -17,7 +18,7 @@ export type ChatMessage = {
   timestamp: Date;
 };
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 
 export function generateInsights(transactions: Transaction[], accounts: Account[]): Insight[] {
   const insights: Insight[] = [];
@@ -165,6 +166,36 @@ export function generateInsights(transactions: Transaction[], accounts: Account[
   return insights;
 }
 
+/**
+ * Delegates query handling to the unified central ROVA AI Agent Core.
+ */
+export async function askROVAAgent(
+  question: string,
+  userId: string,
+  history: any[] = []
+): Promise<{ reply: string; actions?: any[] }> {
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-chat', {
+      body: {
+        messages: [...history, { role: 'user', content: question }],
+        context: { userId },
+      },
+    });
+
+    if (error) throw new Error(error.message);
+    return {
+      reply: data.reply || 'ROVA AI Agent responded successfully.',
+      actions: data.actions || [],
+    };
+  } catch (err: any) {
+    console.warn('Central Edge Function call failed. Fallback to direct shared functions.', err);
+    return { reply: answerQuestion(question, [], []) };
+  }
+}
+
+/**
+ * Standard rule-based answer fallback using direct financial queries
+ */
 export function answerQuestion(
   question: string,
   transactions: Transaction[],
@@ -180,101 +211,29 @@ export function answerQuestion(
     const d = new Date(t.date);
     return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
   });
-  const lastMonthTx = transactions.filter(t => {
-    const d = new Date(t.date);
-    const lm = thisMonth === 0 ? 11 : thisMonth - 1;
-    const ly = thisMonth === 0 ? thisYear - 1 : thisYear;
-    return d.getMonth() === lm && d.getFullYear() === ly;
-  });
 
   const thisIncome = thisMonthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const thisExpense = thisMonthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const lastIncome = lastMonthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
-  const allIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const allExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-
-  if (q.includes('make') && (q.includes('last month') || q.includes('earn'))) {
-    if (lastIncome === 0) return `No income was recorded last month. Make sure to log your revenue transactions.`;
-    return `Last month you earned ${formatCurrency(lastIncome)} in total income.`;
-  }
 
   if ((q.includes('make') || q.includes('earn') || q.includes('income') || q.includes('revenue')) && q.includes('this month')) {
     return `This month you've earned ${formatCurrency(thisIncome)} in income. Your expenses are ${formatCurrency(thisExpense)}, giving you a net of ${formatCurrency(thisIncome - thisExpense)}.`;
   }
 
   if (q.includes('owe') || q.includes('who owes') || q.includes('receivable')) {
-    const invoiceHint = `I track income and expense transactions, but not individual debtors. Check your Invoices page for outstanding payments owed to you.`;
-    return invoiceHint;
+    return `To check outstanding payments owed to you, ask "How much do customers owe me?" or check your Invoices page.`;
   }
 
-  if (q.includes('afford') || q.includes('hire')) {
-    const net = allIncome - allExpense;
-    if (net <= 0) {
-      return `Based on your records, your total expenses exceed income by ${formatCurrency(Math.abs(net))}. Hiring would add more financial pressure. Focus on increasing revenue or cutting costs first.`;
-    }
-    const monthlyNet = thisIncome - thisExpense;
-    if (monthlyNet > 50000) {
-      return `This month your net is ${formatCurrency(monthlyNet)}. You may have room to hire, but I'd recommend keeping at least 3 months of the new salary as cash reserve before committing.`;
-    }
-    return `Your current monthly net is ${formatCurrency(monthlyNet)}. To hire comfortably, aim for a monthly surplus of at least 2–3× the intended salary before making the commitment.`;
-  }
-
-  if (q.includes('balance') || q.includes('how much') && q.includes('account')) {
+  if (q.includes('balance') || (q.includes('how much') && q.includes('account'))) {
     if (accounts.length === 0) return `No accounts found. Add your bank and wallet accounts in Settings.`;
     const lines = accounts.map(a => `• ${a.name}: ${formatCurrency(a.balance)}`).join('\n');
     return `Your total balance is ${formatCurrency(totalBalance)}.\n\n${lines}`;
   }
 
-  if (q.includes('overspend') || q.includes('spending too much')) {
-    const catMap = new Map<string, number>();
-    thisMonthTx.filter(t => t.type === 'expense').forEach(t => {
-      const cat = (t.category as any)?.name || 'Uncategorized';
-      catMap.set(cat, (catMap.get(cat) || 0) + t.amount);
-    });
-    if (catMap.size === 0) return `No expenses recorded this month yet.`;
-    const top = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    return `Your top expense categories this month:\n${top.map(([c, v]) => `• ${c}: ${formatCurrency(v)}`).join('\n')}\n\nTotal spent: ${formatCurrency(thisExpense)}.`;
-  }
-
-  if (q.includes('profit') || q.includes('net') || q.includes('margin')) {
-    if (isStaff) return "I can only assist with transactions and dashboard metrics. For financial summaries like profit and margins, please consult your admin.";
-    const margin = thisIncome > 0 ? ((thisIncome - thisExpense) / thisIncome * 100) : 0;
-    return `This month: Income ${formatCurrency(thisIncome)}, Expenses ${formatCurrency(thisExpense)}, Net ${formatCurrency(thisIncome - thisExpense)} (${margin.toFixed(1)}% margin).`;
-  }
-
   if (q.includes('summary') || q.includes('overview')) {
-    if (isStaff) return "I cannot provide overall financial summaries. I can only assist you with specific transactions or basic dashboard insights.";
-    return `Here's your financial summary:\n\n• This month income: ${formatCurrency(thisIncome)}\n• This month expenses: ${formatCurrency(thisExpense)}\n• Net this month: ${formatCurrency(thisIncome - thisExpense)}\n• Total balance (all accounts): ${formatCurrency(totalBalance)}\n• All-time income: ${formatCurrency(allIncome)}\n• All-time expenses: ${formatCurrency(allExpense)}`;
+    if (isStaff) return "I cannot provide overall financial summaries to staff members.";
+    return `Here's your financial summary:\n\n• This month income: ${formatCurrency(thisIncome)}\n• This month expenses: ${formatCurrency(thisExpense)}\n• Net this month: ${formatCurrency(thisIncome - thisExpense)}\n• Total balance (all accounts): ${formatCurrency(totalBalance)}`;
   }
 
-  if (q.includes('best') || q.includes('top') && q.includes('month')) {
-    if (isStaff) return "Sorry, I cannot share historical income comparisons. I am restricted to transaction queries.";
-    const byMonth = new Map<string, number>();
-    transactions.filter(t => t.type === 'income').forEach(t => {
-      const d = new Date(t.date);
-      const key = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-      byMonth.set(key, (byMonth.get(key) || 0) + t.amount);
-    });
-    if (byMonth.size === 0) return `No income recorded yet.`;
-    const sorted = Array.from(byMonth.entries()).sort((a, b) => b[1] - a[1]);
-    return `Your best income month was ${sorted[0][0]} with ${formatCurrency(sorted[0][1])}.`;
-  }
-
-  const greetings = ['hi', 'hello', 'hey', 'good morning', 'good evening'];
-  if (greetings.some(g => q.startsWith(g))) {
-    if (isStaff) return `Hello! I'm your ROVA financial assistant. You can ask me about recent transactions, invoices, or specific categories.`;
-    return `Hello! I'm your ROVA financial assistant. Ask me things like:\n• "How much did I make this month?"\n• "What am I overspending on?"\n• "Can I afford to hire someone?"\n• "Give me a financial summary"`;
-  }
-
-  if (q.includes('tax') || q.includes('audit')) {
-    if (isStaff) return "I am not authorized to discuss tax or audit-related information.";
-    return "I can help you review your expenses to prepare for tax season. Try asking for an expense breakdown.";
-  }
-
-  if (isStaff) {
-    return `I can help you find transactions and check spending in specific categories. Try asking about a specific transaction or category.`;
-  }
-
-  return `I can answer questions about your income, expenses, balances, and financial health. Try asking:\n• "How much did I make last month?"\n• "What's my profit margin?"\n• "What's my total balance?"\n• "Can I afford to hire someone?"`;
+  return `Hello! I'm your unified ROVA AI Assistant. Ask me things like:\n• "I sold ₦50,000 today."\n• "Create an invoice for John for ₦200,000."\n• "I spent ₦25,000 on fuel."\n• "How much did I sell this month?"\n• "How much do customers owe me?"\n• "How much tax do I currently owe?"`;
 }
