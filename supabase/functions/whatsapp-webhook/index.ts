@@ -49,7 +49,11 @@ serve(async (req) => {
     console.log(`[WhatsApp Webhook Received] From: ${fromNumber} | Type: ${messageType}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const serviceRoleKey =
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+      Deno.env.get("SERVICE_ROLE_KEY") ||
+      Deno.env.get("SUPABASE_ANON_KEY") ||
+      "";
 
     const supabaseClient = createClient(supabaseUrl, serviceRoleKey);
 
@@ -187,23 +191,24 @@ serve(async (req) => {
       return new Response(JSON.stringify({ status: "extraction_empty" }), { headers: corsHeaders, status: 200 });
     }
 
-    // ── STEP B: ROUTE TO UNIFIED CENTRAL ROVA AI AGENT BRAIN ─────────────────
+    // ── STEP B: ROUTE TO UNIFIED CENTRAL ROVA AI AGENT BRAIN VIA SUPABASE SDK ─
     console.log(`[WhatsApp Webhook -> Central ROVA AI Agent] Processing query for User ${userId}: "${extractedText}"`);
 
-    const agentRes = await fetch(`${url.origin}/functions/v1/ai-chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceRoleKey}`,
-        "apikey": serviceRoleKey,
-      },
-      body: JSON.stringify({
+    const { data: agentData, error: agentError } = await supabaseClient.functions.invoke("ai-chat", {
+      body: {
         messages: [{ role: "user", content: extractedText }],
         context: { userId: userId },
-      }),
-    }).then((res) => res.json()).catch((err) => ({ reply: `⚠️ ROVA AI Agent Error: ${err.message}` }));
+      },
+    });
 
-    const replyText = agentRes.reply || "ROVA AI could not process your request. Please try again.";
+    let replyText = agentData?.reply;
+
+    if (agentError || !replyText) {
+      console.error("[WhatsApp Webhook] Error from ai-chat agent:", agentError || agentData);
+      replyText = agentError?.message
+        ? `⚠️ ROVA AI Error: ${agentError.message}`
+        : (agentData?.error || "ROVA AI could not process your request. Please check your query and try again.");
+    }
 
     // ── STEP C: SEND RESPONSE BACK VIA WHATSAPP API ────────────────────────────
     const formattedWhatsAppReply = `${replyText}\n\n🌐 *View full dashboard*: https://www.rovabusiness.com`;
