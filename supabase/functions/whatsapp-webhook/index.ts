@@ -48,10 +48,10 @@ serve(async (req) => {
 
     console.log(`[WhatsApp Webhook Received] From: ${fromNumber} | Type: ${messageType}`);
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey);
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
@@ -194,7 +194,8 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: req.headers.get("Authorization") || `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Authorization": `Bearer ${serviceRoleKey}`,
+        "apikey": serviceRoleKey,
       },
       body: JSON.stringify({
         messages: [{ role: "user", content: extractedText }],
