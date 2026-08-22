@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import ReportsPage from './pages/ReportsPage';
 import TaxPage from './pages/TaxPage';
+import NrsCitWizardPage from './pages/tax/NrsCitWizardPage';
 import InvoicesPage from './pages/InvoicesPage';
 import SettingsPage from './pages/SettingsPage';
 import AccountingHubPage from './pages/accounting/AccountingHubPage';
@@ -108,6 +109,8 @@ export default function App() {
             <Route path="expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
             <Route path="bills" element={<Navigate to="/app/expenses?tab=bills" replace />} />
             <Route path="tax" element={<AdminRoute><TaxPage /></AdminRoute>} />
+            <Route path="tax/cit/new" element={<AdminRoute><NrsCitWizardPage /></AdminRoute>} />
+            <Route path="tax/cit/:filingId" element={<AdminRoute><NrsCitWizardPage /></AdminRoute>} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="accounting" element={<AdminRoute><AccountingHubPage /></AdminRoute>} />
             <Route path="ledger" element={<AdminRoute><GeneralLedgerPage /></AdminRoute>} />

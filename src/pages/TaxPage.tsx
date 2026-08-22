@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download, FileCheck } from 'lucide-react';
 import { supabase, type TaxRecord, type Transaction } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
@@ -118,6 +119,7 @@ const statusBadge: Record<TaxRecord['status'], 'warning' | 'success' | 'error' |
 };
 
 export default function TaxPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [records, setRecords] = useState<TaxRecord[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -243,6 +245,25 @@ export default function TaxPage() {
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{citLabel(totalIncome)}</div>
         </Card>
       </div>
+
+      <Card style={{ marginBottom: 20, padding: 20, border: '1px solid var(--accent-border)', background: 'linear-gradient(135deg, var(--accent-dim), var(--bg-elevated))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FileCheck size={22} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>NRS Companies Income Tax (CIT) Return Generator</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                Data-driven minimal question flow — answer only what's required for your business, generate instant NRS schedules.
+              </p>
+            </div>
+          </div>
+          <Button variant="primary" icon={<FileCheck size={16} />} onClick={() => navigate('/app/tax/cit/new')} style={{ minWidth: 'fit-content' }}>
+            Start NRS CIT Filing
+          </Button>
+        </div>
+      </Card>
 
       <Card style={{ marginBottom: 20, padding: '14px 16px', border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
