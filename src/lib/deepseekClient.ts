@@ -65,24 +65,7 @@ export type PendingClarification = {
   created_at: string;
 };
 
-// ── Classify a transaction via the edge function ──────────────────────────────
-
-export async function classifyTransaction(
-  transaction: TransactionInput,
-  userId: string,
-  mode: 'preview' | 'full' = 'full'
-): Promise<ClassifyResult> {
-  const { data, error } = await supabase.functions.invoke('ai-classify', {
-    body: { transaction, userId, mode },
-  });
-
-  if (error) throw new Error(error.message);
-  if (!data?.result) throw new Error('No classification result returned');
-
-  return data.result as ClassifyResult;
-}
-
-// ── Chat with DeepSeek via edge function ──────────────────────────────────────
+// ── Chat Types ────────────────────────────────────────────────────────────────
 
 export type ChatPayload = {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
@@ -97,11 +80,18 @@ export type ChatPayload = {
     externalWorkers?: any[];
     serviceAgreements?: any[];
   };
+  confirmed?: boolean;
+  cancelled?: boolean;
+  pendingToolCall?: { name: string; parameters: Record<string, any> } | null;
 };
 
 export type ChatResponse = {
   reply: string;
   actions?: ChatAction[];
+  requiresConfirmation?: boolean;
+  confirmationSummary?: string;
+  pendingToolCall?: { name: string; parameters: Record<string, any> } | null;
+  toolExecuted?: boolean;
 };
 
 export type ChatAction = {
@@ -119,14 +109,78 @@ export type ChatAction = {
     | 'delete_inventory'
     | 'confirm_inventory_allocation'
     | 'skip_inventory_allocation'
-    | 'open_whatsapp_bot';
+    | 'open_whatsapp_bot'
+    | 'create_customer'
+    | 'view_customer'
+    | 'send_invoice'
+    | 'select_inventory_item'
+    | 'confirm_action'
+    | 'cancel_action';
   label: string;
   payload?: Record<string, any>;
 };
 
+// ── Classify a transaction via the edge function ──────────────────────────────
+
+export async function classifyTransaction(
+  transaction: TransactionInput,
+  userId: string,
+  mode: 'preview' | 'full' = 'full'
+): Promise<ClassifyResult> {
+  const { data, error } = await supabase.functions.invoke('ai-classify', {
+    body: { transaction, userId, mode },
+  });
+
+  if (error) throw new Error(error.message);
+  if (!data?.result) throw new Error('No classification result returned');
+
+  return data.result as ClassifyResult;
+}
+
+// ── Chat with ROVA AI via edge function ───────────────────────────────────────
+
 export async function chatWithAssistant(payload: ChatPayload): Promise<ChatResponse> {
   const { data, error } = await supabase.functions.invoke('ai-chat', {
-    body: payload,
+    body: { ...payload, source: 'web' },
+  });
+
+  if (error) throw new Error(error.message);
+  return data as ChatResponse;
+}
+
+// ── Confirm a pending AI action ───────────────────────────────────────────────
+
+export async function confirmPendingAction(
+  payload: ChatPayload,
+  pendingToolCall: { name: string; parameters: Record<string, any> }
+): Promise<ChatResponse> {
+  const { data, error } = await supabase.functions.invoke('ai-chat', {
+    body: {
+      ...payload,
+      source: 'web',
+      confirmed: true,
+      // Re-pass the pending tool call so the edge function knows what to execute
+      tool_call: pendingToolCall,
+    },
+  });
+
+  if (error) throw new Error(error.message);
+  return data as ChatResponse;
+}
+
+// ── Cancel a pending AI action ────────────────────────────────────────────────
+
+export async function cancelPendingAction(
+  payload: ChatPayload,
+  toolName: string
+): Promise<ChatResponse> {
+  const { data, error } = await supabase.functions.invoke('ai-chat', {
+    body: {
+      ...payload,
+      source: 'web',
+      cancelled: true,
+      tool_call: { name: toolName, parameters: {} },
+    },
   });
 
   if (error) throw new Error(error.message);
@@ -153,13 +207,11 @@ export async function resolveClarification(
   clarificationId: string,
   notificationId: string | null
 ): Promise<void> {
-  // Mark clarification as resolved
   await supabase
     .from('ai_pending_clarifications')
     .update({ status: 'resolved', resolved_at: new Date().toISOString() })
     .eq('id', clarificationId);
 
-  // Dismiss the associated notification (so it doesn't show in the notifications page)
   if (notificationId) {
     await supabase
       .from('notifications')
@@ -168,7 +220,7 @@ export async function resolveClarification(
   }
 }
 
-// ── Dismiss a clarification without answering ────────────────────────────────
+// ── Dismiss a clarification without answering ─────────────────────────────────
 
 export async function dismissClarification(
   clarificationId: string,
@@ -197,7 +249,6 @@ export async function applyInventoryIntent(params: {
   transactionId?: string;
   date: string;
 }): Promise<{ success: boolean; itemId?: string; error?: string }> {
-  // Try to find an existing inventory item matching the name
   const { data: existing } = await supabase
     .from('inventory_items')
     .select('id, current_stock')
@@ -208,7 +259,6 @@ export async function applyInventoryIntent(params: {
   let itemId: string;
 
   if (existing) {
-    // Update stock
     const { error } = await supabase
       .from('inventory_items')
       .update({ current_stock: existing.current_stock + params.quantity })
@@ -216,7 +266,6 @@ export async function applyInventoryIntent(params: {
     if (error) return { success: false, error: error.message };
     itemId = existing.id;
   } else {
-    // Create new item
     const { data: newItem, error } = await supabase
       .from('inventory_items')
       .insert({
@@ -236,7 +285,6 @@ export async function applyInventoryIntent(params: {
     itemId = newItem.id;
   }
 
-  // Record inventory transaction
   await supabase.from('inventory_transactions').insert({
     user_id: params.userId,
     item_id: itemId,
@@ -252,7 +300,7 @@ export async function applyInventoryIntent(params: {
   return { success: true, itemId };
 }
 
-// ── Apply payroll intent: link to existing employee or flag for creation ──────
+// ── Apply payroll intent ──────────────────────────────────────────────────────
 
 export async function findEmployeeByName(userId: string, name: string): Promise<any | null> {
   const { data } = await supabase
@@ -271,34 +319,29 @@ export async function applyPayrollIntent(params: {
   transactionId: string;
   date: string;
 }): Promise<{ success: boolean; payslipId?: string; error?: string }> {
-  // 1. Find employee
   const employee = await findEmployeeByName(params.userId, params.employeeName);
   if (!employee) {
     return { success: false, error: `Employee "${params.employeeName}" not found.` };
   }
 
-  // 2. Determine period dates and label from date
   const txDate = new Date(params.date);
   const year = txDate.getFullYear();
-  const month = txDate.getMonth(); // 0-indexed
+  const month = txDate.getMonth();
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'July', 'August', 'September', 'October', 'November', 'December',
   ];
   const monthLabel = `${monthNames[month]} ${year}`;
 
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-
   const periodStart = firstDay.toISOString().split('T')[0];
   const periodEnd = lastDay.toISOString().split('T')[0];
 
-  // Calculate deductions
   const paye = params.amount * ((employee.paye_rate || 7.5) / 100);
   const pension = params.amount * ((employee.pension_rate || 8.0) / 100);
   const net = params.amount - paye - pension;
 
-  // 3. Find or create payroll run for this period
   let runId: string;
   const { data: existingRun } = await supabase
     .from('payroll_runs')
@@ -309,7 +352,6 @@ export async function applyPayrollIntent(params: {
 
   if (existingRun) {
     runId = existingRun.id;
-    // Update existing run totals
     await supabase
       .from('payroll_runs')
       .update({
@@ -321,7 +363,6 @@ export async function applyPayrollIntent(params: {
       })
       .eq('id', runId);
   } else {
-    // Create new payroll run
     const { data: newRun, error: runErr } = await supabase
       .from('payroll_runs')
       .insert({
@@ -345,7 +386,6 @@ export async function applyPayrollIntent(params: {
     runId = newRun.id;
   }
 
-  // 4. Create payslip
   const { data: payslip, error: slipErr } = await supabase
     .from('payslips')
     .insert({
@@ -365,7 +405,6 @@ export async function applyPayrollIntent(params: {
 
   if (slipErr) return { success: false, error: slipErr.message };
 
-  // 5. Update transaction category to "Payroll" if a match is found
   const { data: payrollCat } = await supabase
     .from('categories')
     .select('id')

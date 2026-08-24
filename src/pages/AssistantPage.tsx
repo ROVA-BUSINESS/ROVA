@@ -10,6 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   classifyTransaction,
   chatWithAssistant,
+  confirmPendingAction,
+  cancelPendingAction,
   fetchPendingClarifications,
   resolveClarification,
   dismissClarification,
@@ -52,10 +54,12 @@ const ACTION_COLORS: Record<string, string> = {
 
 const STARTERS = [
   'How much did I make this month?',
-  'What am I overspending on?',
-  'Give me a financial summary',
+  'What are my total expenses this week?',
+  'Who owes me money?',
+  'How many staff are on my payroll?',
+  'Show me my inventory stock levels',
+  'Who are my customers?',
   'I want to create an invoice',
-  'Can I afford to hire someone?',
   "What's my profit margin?",
 ];
 
@@ -207,6 +211,7 @@ export default function AssistantPage() {
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [activeInventoryFlow, setActiveInventoryFlow] = useState<any | null>(null);
+  const [pendingToolCall, setPendingToolCall] = useState<{ name: string; parameters: Record<string, any> } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize messages with welcome if it doesn't exist
@@ -1002,6 +1007,67 @@ export default function AssistantPage() {
         break;
       }
 
+      // ── Select Inventory Item (disambiguation) ───────────────────────────
+      case 'select_inventory_item': {
+        const payload = action.payload || {};
+        setMessages(prev => [...prev, {
+          id: `a-inv-select-${Date.now()}`,
+          role: 'assistant',
+          content: `Got it! You selected **${payload.item_name}**. It currently has **${payload.current_stock} units** in stock. What would you like to do with it?`,
+          timestamp: new Date(),
+          actions: [
+            { type: 'edit_inventory', label: '📦 Update Stock', payload: { item_id: payload.item_id, is_movement: true } },
+          ],
+        }]);
+        break;
+      }
+
+      // ── Confirm / Cancel pending AI action ───────────────────────────────
+      case 'confirm_action': {
+        if (!pendingToolCall) break;
+        const ptc = pendingToolCall;
+        setPendingToolCall(null);
+        setTyping(true);
+        try {
+          const history = messages
+            .filter(m => !m.isTyping)
+            .slice(-10)
+            .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+          const response = await confirmPendingAction(
+            { messages: history, context: { transactions: transactions.slice(0, 50), accounts, userId: effectiveUserId!, isStaff } },
+            ptc
+          );
+          setMessages(prev => [...prev, {
+            id: `a-confirmed-${Date.now()}`,
+            role: 'assistant',
+            content: response.reply,
+            timestamp: new Date(),
+            actions: response.actions ?? [],
+          }]);
+        } catch (err: any) {
+          setMessages(prev => [...prev, {
+            id: `a-confirm-err-${Date.now()}`,
+            role: 'assistant',
+            content: `❌ Action failed: ${err.message || err}`,
+            timestamp: new Date(),
+          }]);
+        } finally {
+          setTyping(false);
+        }
+        break;
+      }
+
+      case 'cancel_action': {
+        setPendingToolCall(null);
+        setMessages(prev => [...prev, {
+          id: `a-cancel-${Date.now()}`,
+          role: 'assistant',
+          content: `No problem — action cancelled. Let me know if there's anything else I can help with.`,
+          timestamp: new Date(),
+        }]);
+        break;
+      }
+
       default:
         break;
     }
@@ -1258,6 +1324,24 @@ When I ask to add, remove, or edit stock/inventory of an item:
         });
 
         const responseActions = response.actions ?? [];
+
+        // ── Handle confirmation-required responses ────────────────────────
+        if (response.requiresConfirmation && response.pendingToolCall) {
+          setPendingToolCall(response.pendingToolCall);
+          const confirmActions: ChatAction[] = [
+            { type: 'confirm_action', label: '✅ Yes, proceed', payload: {} },
+            { type: 'cancel_action', label: '❌ Cancel', payload: {} },
+          ];
+          setMessages(prev => [...prev, {
+            id: `a-${Date.now()}`,
+            role: 'assistant',
+            content: response.reply,
+            timestamp: new Date(),
+            actions: confirmActions,
+          }]);
+          setTyping(false);
+          return;
+        }
 
         setMessages(prev => [
           ...prev,

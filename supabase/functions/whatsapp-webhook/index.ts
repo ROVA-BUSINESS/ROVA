@@ -197,7 +197,8 @@ serve(async (req) => {
     const { data: agentData, error: agentError } = await supabaseClient.functions.invoke("ai-chat", {
       body: {
         messages: [{ role: "user", content: extractedText }],
-        context: { userId: userId },
+        context: { userId: userId, source: "whatsapp" },
+        source: "whatsapp",
       },
     });
 
