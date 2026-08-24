@@ -21,6 +21,7 @@ const ASSET_RATES: Record<AssetCategory, { salvagePct: number; usefulLife: numbe
 
 const INITIAL_STATE: RovaTaxState = {
   assets: [],
+  hasFixedAssets: null,
   mneCfc: { isMNE: null, isCFC: null },
   yearOfAssessment: '',
   sector: '',

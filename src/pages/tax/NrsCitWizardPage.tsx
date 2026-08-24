@@ -62,46 +62,87 @@ export default function NrsCitWizardPage() {
       case 'fixed_assets':
         return (
           <div>
-            <div style={{ marginBottom: 16 }}>
-              {state.assets.map((asset, idx) => {
-                const calc = computed.assetCalcs[idx];
-                return (
-                  <AssetEntryCard
-                    key={asset.id}
-                    asset={asset}
-                    salvageValue={calc?.salvageValue || 0}
-                    annualDepreciation={calc?.annualDepreciation || 0}
-                    onChange={(updated) => {
-                      const newAssets = [...state.assets];
-                      newAssets[idx] = updated;
-                      updateState(prev => ({ ...prev, assets: newAssets }));
-                    }}
-                    onRemove={() => {
-                      updateState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== asset.id) }));
-                    }}
-                  />
-                );
-              })}
+            {/* Gate question */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
+                Do you have new additional fixed assets for the year?
+              </label>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>
+                (buildings, machinery, vehicles, computer hardware, etc.)
+              </p>
+              <ChipSelect
+                isMulti={false}
+                options={['Yes', 'No']}
+                selectedOptions={
+                  state.hasFixedAssets === true ? ['Yes'] : state.hasFixedAssets === false ? ['No'] : []
+                }
+                onChange={([val]) => {
+                  const hasAssets = val === 'Yes';
+                  updateState(prev => ({
+                    ...prev,
+                    hasFixedAssets: hasAssets,
+                    // If switching to No, clear any previously added assets
+                    assets: hasAssets ? prev.assets : [],
+                  }));
+                }}
+              />
             </div>
-            <button
-              onClick={() => {
-                updateState(prev => ({
-                  ...prev,
-                  assets: [...prev.assets, { id: Date.now().toString(), dateFirstUsed: '', cost: 0, description: '', category: '' }]
-                }));
-              }}
-              style={{
-                padding: '10px 16px', background: 'var(--bg-elevated)', border: '1px dashed var(--bg-border)',
-                borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontWeight: 600,
-                cursor: 'pointer', width: '100%'
-              }}
-            >
-              + Add another asset
-            </button>
-            <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total capital allowance: </span>
-              <strong style={{ fontSize: 16, color: 'var(--text-primary)' }}>₦{computed.totalCapitalAllowance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-            </div>
+
+            {/* If Yes — show asset entry cards */}
+            {state.hasFixedAssets === true && (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  {state.assets.map((asset, idx) => {
+                    const calc = computed.assetCalcs[idx];
+                    return (
+                      <AssetEntryCard
+                        key={asset.id}
+                        asset={asset}
+                        salvageValue={calc?.salvageValue || 0}
+                        annualDepreciation={calc?.annualDepreciation || 0}
+                        onChange={(updated) => {
+                          const newAssets = [...state.assets];
+                          newAssets[idx] = updated;
+                          updateState(prev => ({ ...prev, assets: newAssets }));
+                        }}
+                        onRemove={() => {
+                          updateState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== asset.id) }));
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => {
+                    updateState(prev => ({
+                      ...prev,
+                      assets: [...prev.assets, { id: Date.now().toString(), dateFirstUsed: '', cost: 0, description: '', category: '' }]
+                    }));
+                  }}
+                  style={{
+                    padding: '10px 16px', background: 'var(--bg-elevated)', border: '1px dashed var(--bg-border)',
+                    borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontWeight: 600,
+                    cursor: 'pointer', width: '100%'
+                  }}
+                >
+                  + Add another asset
+                </button>
+                <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total capital allowance: </span>
+                  <strong style={{ fontSize: 16, color: 'var(--text-primary)' }}>₦{computed.totalCapitalAllowance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                </div>
+              </>
+            )}
+
+            {/* If No — confirmation */}
+            {state.hasFixedAssets === false && (
+              <div style={{ padding: 16, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <HelpCircle size={16} color="var(--text-muted)" />
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  No fixed assets to declare. Capital allowance will be ₦0.00. Click <strong>Next</strong> to continue.
+                </span>
+              </div>
+            )}
           </div>
         );
 

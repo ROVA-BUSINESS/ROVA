@@ -48,6 +48,7 @@ export type Sector =
 
 export interface RovaTaxState {
   assets: FixedAsset[];
+  hasFixedAssets: boolean | null;
   mneCfc: {
     isMNE: boolean | null;
     isCFC: boolean | null;
