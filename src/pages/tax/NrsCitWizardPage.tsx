@@ -1,658 +1,543 @@
-import { useEffect, useState, useTransition } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Save, CheckCircle, HelpCircle } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { flowConfig, evaluateShowIf, syncComputedEngineState } from '../../lib/nrsFlowEngine';
-import type { AnswerStore, Stage } from '../../types/nrsQuestionFlow';
-import { ChipSelectAmount } from '../../components/tax/ChipSelectAmount';
-import { DerivedConfirmCard } from '../../components/tax/DerivedConfirmCard';
-import { LiveBalanceWarning } from '../../components/tax/LiveBalanceWarning';
-import { NrsSummaryPreview } from '../../components/tax/NrsSummaryPreview';
 
-const LOCAL_STORAGE_KEY_PREFIX = 'rova_nrs_cit_draft_';
+import { useState } from 'react';
+import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useRovaTaxFlow } from './useRovaTaxFlow';
+import { AssetEntryCard } from '../../components/tax/AssetEntryCard';
+import { ChipSelect } from '../../components/tax/ChipSelect';
+import { ChipSelectAmount } from '../../components/tax/ChipSelectAmount';
+import { GateBlock } from '../../components/tax/GateBlock';
+import { LiveLedgerSidebar } from '../../components/tax/LiveLedgerSidebar';
+import type { Sector } from '../../types/rovaTaxFlow';
+
+const STAGES = [
+  { id: 'fixed_assets', label: 'Capital allowance', title: 'Fixed assets' },
+  { id: 'mne_cfc', label: 'Group structure', title: 'MNE / CFC check' },
+  { id: 'year', label: 'Filing period', title: 'Year of assessment' },
+  { id: 'sector', label: 'Classification', title: 'Business sector' },
+  { id: 'revenue', label: 'Added — confirmed', title: 'Revenue' },
+  { id: 'cost_of_sales', label: 'Direct cost', title: 'Cost of sales' },
+  { id: 'pnl', label: 'Computed', title: 'Profit or Loss' },
+  { id: 'sfp', label: 'Balance sheet', title: 'Statement of Financial Position' },
+  { id: 'adjustment', label: 'Add-backs & deductions', title: 'Profit adjustment' },
+  { id: 'admin', label: 'Select any applicable', title: 'Administrative expense' },
+  { id: 'done', label: 'Review & sign', title: 'Done' }
+];
+
+const SECTORS: Sector[] = [
+  'MANUFACTURING', 'AGRICULTURE FORESTRY & FISHING', 'MINING & QUARRY', 'ELECTRICITY',
+  'WATER SUPPLY SEWERAGE & WASTE MANAGEMENT', 'CONSTRUCTION', 'WHOLESALE AND RETAIL TRADE',
+  'TRANSPORTATION AND HAULAGE', 'ACCOMMODATION AND FOOD SERVICE ACTIVITIES', 'COMMUNICATION & INFORMATION',
+  'BANKS & OTHER FINANCIAL ACTIVITIES', 'INSURANCE ACTIVITIES', 'REAL ESTATE ACTIVITIES',
+  'PROFESSIONAL SCIENTIFIC AND TECHNICAL ACTIVITIES', 'ADMINISTRATIVE AND SUPPORT ACTIVITIES',
+  'EDUCATION', 'OIL AND GAS', 'NGOs NFPOs RELIGIOUS INSTITUTIONS', 'ART ENTERTAINMENT AND RECREATION',
+  'DIGITAL AND VIRTUAL ASSETS', 'Others'
+];
 
 export default function NrsCitWizardPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const { filingId } = useParams<{ filingId?: string }>();
-  const [_isPending, startTransition] = useTransition();
+  const { state, computed, updateState } = useRovaTaxFlow();
+  const [currentStep, setCurrentStep] = useState(0);
 
-  // Load initial sparse state
-  const [answers, setAnswers] = useState<AnswerStore>(() => {
-    const cached = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}${filingId || 'new'}`);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (_e) {
-        /* fallback */
-      }
-    }
-    return { year_of_assessment: 2026 };
-  });
+  const stage = STAGES[currentStep];
 
-  const [currentStageId, setCurrentStageId] = useState<string>('profile');
-  const [saving, setSaving] = useState<boolean>(false);
-  const [submitting, setSubmitting] = useState<boolean>(false);
-
-  // Sync derived/calculated engine state on answers change
-  const activeComputedState = syncComputedEngineState(answers, flowConfig);
-
-  // Active stages filtered by show_if
-  const activeStages = flowConfig.stages.filter(
-    (stg) => stg.always_show || evaluateShowIf(stg.show_if, activeComputedState)
-  );
-
-  const currentStageIndex = Math.max(
-    0,
-    activeStages.findIndex((s) => s.id === currentStageId)
-  );
-  const currentStage: Stage = activeStages[currentStageIndex] || activeStages[0];
-
-  // 1. Dual-Layer Persistence: Write-through cache to localStorage (1s debounce)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      localStorage.setItem(
-        `${LOCAL_STORAGE_KEY_PREFIX}${filingId || 'new'}`,
-        JSON.stringify(answers)
-      );
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [answers, filingId]);
-
-  // 2. Periodic sync to Supabase (30s timer)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      saveDraftToSupabase();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [answers, currentStageId]);
-
-  const saveDraftToSupabase = async () => {
-    if (!user) return;
-    setSaving(true);
-
-    const yearOfAssessment = Number(answers.year_of_assessment) || 2026;
-    const grossIncome = Number(activeComputedState.total_revenue) || 0;
-    const taxableIncome = Number(activeComputedState.profit_for_year) || 0;
-
-    const recordPayload = {
-      user_id: user.id,
-      tax_type: 'CIT' as const,
-      period_start: `${yearOfAssessment - 1}-01-01`,
-      period_end: `${yearOfAssessment - 1}-12-31`,
-      gross_income: grossIncome,
-      deductions: Number(activeComputedState.cost_of_sales_total) || 0,
-      taxable_income: taxableIncome,
-      calculated_tax: Number(activeComputedState.tax_paid_or_payable) || 0,
-      paid_tax: 0,
-      status: 'pending' as const,
-      notes: `NRS CIT Filing Draft (Stage: ${currentStageId})`,
-    };
-
-    if (filingId && filingId !== 'new') {
-      await supabase.from('tax_records').update(recordPayload).eq('id', filingId);
-    } else {
-      const { data } = await supabase
-        .from('tax_records')
-        .insert(recordPayload)
-        .select()
-        .single();
-      if (data?.id && !filingId) {
-        startTransition(() => {
-          navigate(`/app/tax/cit/${data.id}`, { replace: true });
-        });
-      }
-    }
-    setSaving(false);
-  };
-
-  const updateAnswer = (key: string, val: any) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [key]: val,
-    }));
-  };
-
-  const handleNextStage = () => {
-    if (currentStageIndex < activeStages.length - 1) {
-      const nextStage = activeStages[currentStageIndex + 1];
-      setCurrentStageId(nextStage.id);
-      saveDraftToSupabase();
+  const handleNext = () => {
+    if (currentStep < STAGES.length - 1) {
+      setCurrentStep(s => s + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  const handlePrevStage = () => {
-    if (currentStageIndex > 0) {
-      const prevStage = activeStages[currentStageIndex - 1];
-      setCurrentStageId(prevStage.id);
+  const handlePrev = () => {
+    if (currentStep > 0) {
+      setCurrentStep(s => s - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  const handleSubmitFiling = async () => {
-    setSubmitting(true);
-    await saveDraftToSupabase();
-    localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}${filingId || 'new'}`);
+  const mneCfcFlagged = state.mneCfc.isMNE === true || state.mneCfc.isCFC === true;
 
-    if (filingId && filingId !== 'new') {
-      await supabase.from('tax_records').update({ status: 'filed' }).eq('id', filingId);
-    }
-
-    setSubmitting(false);
-    navigate('/app/tax');
-  };
-
-  return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
-      {/* Top Bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 20,
-          gap: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => navigate('/app/tax')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          <ArrowLeft size={16} /> Exit to Tax Hub
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            type="button"
-            onClick={() => saveDraftToSupabase()}
-            disabled={saving}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--bg-border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            <Save size={14} /> {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-        </div>
-      </div>
-
-      {/* Wizard Header & Stepper */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)' }}>
-          NRS Company Income Tax (CIT) Filing Wizard
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Minimal FIRS CIT filing generator — answering only relevant questions for your business
-        </p>
-
-        {/* Stage Progress Bar & Stepper */}
-        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--accent-light)',
-            }}
-          >
-            <span>
-              Stage {currentStageIndex + 1} of {activeStages.length}: {currentStage.title}
-            </span>
-            <span>{Math.round(((currentStageIndex + 1) / activeStages.length) * 100)}% Completed</span>
-          </div>
-
-          <div
-            style={{
-              height: 6,
-              background: 'var(--bg-border)',
-              borderRadius: 3,
-              overflow: 'hidden',
-            }}
-          >
-            <div
+  const renderStepContent = () => {
+    switch (stage.id) {
+      case 'fixed_assets':
+        return (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              {state.assets.map((asset, idx) => {
+                const calc = computed.assetCalcs[idx];
+                return (
+                  <AssetEntryCard
+                    key={asset.id}
+                    asset={asset}
+                    salvageValue={calc?.salvageValue || 0}
+                    annualDepreciation={calc?.annualDepreciation || 0}
+                    onChange={(updated) => {
+                      const newAssets = [...state.assets];
+                      newAssets[idx] = updated;
+                      updateState(prev => ({ ...prev, assets: newAssets }));
+                    }}
+                    onRemove={() => {
+                      updateState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== asset.id) }));
+                    }}
+                  />
+                );
+              })}
+            </div>
+            <button
+              onClick={() => {
+                updateState(prev => ({
+                  ...prev,
+                  assets: [...prev.assets, { id: Date.now().toString(), dateFirstUsed: '', cost: 0, description: '', category: '' }]
+                }));
+              }}
               style={{
-                height: '100%',
-                width: `${((currentStageIndex + 1) / activeStages.length) * 100}%`,
-                background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-light))',
-                borderRadius: 3,
-                transition: 'width 0.3s ease',
+                padding: '10px 16px', background: 'var(--bg-elevated)', border: '1px dashed var(--bg-border)',
+                borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontWeight: 600,
+                cursor: 'pointer', width: '100%'
+              }}
+            >
+              + Add another asset
+            </button>
+            <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total capital allowance: </span>
+              <strong style={{ fontSize: 16, color: 'var(--text-primary)' }}>₦{computed.totalCapitalAllowance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </div>
+          </div>
+        );
+
+      case 'mne_cfc':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Are you part of a Multinational Enterprise (MNE) Group?</label>
+              <ChipSelect
+                isMulti={false}
+                options={['Yes', 'No']}
+                selectedOptions={state.mneCfc.isMNE === true ? ['Yes'] : state.mneCfc.isMNE === false ? ['No'] : []}
+                onChange={([val]) => updateState(prev => ({ ...prev, mneCfc: { ...prev.mneCfc, isMNE: val === 'Yes' } }))}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Is any of your constituent entities a Controlled Foreign Company (CFC)?</label>
+              <ChipSelect
+                isMulti={false}
+                options={['Yes', 'No']}
+                selectedOptions={state.mneCfc.isCFC === true ? ['Yes'] : state.mneCfc.isCFC === false ? ['No'] : []}
+                onChange={([val]) => updateState(prev => ({ ...prev, mneCfc: { ...prev.mneCfc, isCFC: val === 'Yes' } }))}
+              />
+            </div>
+            {mneCfcFlagged && (
+              <div style={{ padding: 16, background: 'var(--error-dim)', border: '1px solid var(--error-border)', borderRadius: 'var(--radius-md)', color: 'var(--error)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, marginBottom: 8 }}>
+                  <AlertTriangle size={18} /> Please consult a tax professional
+                </div>
+                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+                  This filing path doesn't cover CFC / MNE cases. It is highly recommended that you reach out to a tax professional to complete your filing.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'year':
+        return (
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Year of assessment</label>
+            <input
+              type="text"
+              placeholder="e.g. 2026"
+              value={state.yearOfAssessment}
+              onChange={e => updateState(prev => ({ ...prev, yearOfAssessment: e.target.value }))}
+              style={{
+                width: '100%', maxWidth: 300, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)'
               }}
             />
           </div>
+        );
 
-          {/* Stepper Tabs */}
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingTop: 8 }}>
-            {activeStages.map((stg, idx) => {
-              const isActive = stg.id === currentStageId;
-              const isCompleted = idx < currentStageIndex;
+      case 'sector':
+        return (
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Business sector</label>
+            <ChipSelect
+              isMulti={false}
+              options={SECTORS}
+              selectedOptions={state.sector ? [state.sector] : []}
+              onChange={([val]) => updateState(prev => ({ ...prev, sector: (val as Sector) || '' }))}
+            />
+          </div>
+        );
 
-              return (
-                <button
-                  key={stg.id}
-                  type="button"
-                  onClick={() => setCurrentStageId(stg.id)}
+      case 'revenue':
+        return (
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>What was your total revenue for the year?</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={state.revenue === null ? '' : state.revenue}
+                onChange={e => updateState(prev => ({ ...prev, revenue: e.target.value ? Number(e.target.value) : null }))}
+                style={{
+                  width: '100%', maxWidth: 300, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)'
+                }}
+              />
+            </div>
+          </div>
+        );
+
+      case 'cost_of_sales':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <GateBlock title="Opening inventory" isOpen>
+              <ChipSelectAmount
+                options={['Raw materials', 'Work in progress', 'Finished goods']}
+                value={state.costOfSales.openingInventory}
+                onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, openingInventory: val } }))}
+              />
+            </GateBlock>
+            <GateBlock title="Purchases (raw materials / finished goods)">
+              <ChipSelectAmount
+                options={['Local Purchases', 'Import Purchases']}
+                value={state.costOfSales.purchases}
+                onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, purchases: val } }))}
+              />
+            </GateBlock>
+            <GateBlock title="Other direct cost">
+              <ChipSelectAmount
+                options={['Direct wages', 'Direct expenses', 'Other Direct costs']}
+                value={state.costOfSales.otherDirectCost}
+                onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, otherDirectCost: val } }))}
+              />
+            </GateBlock>
+            <GateBlock title="Factory overheads">
+              <ChipSelectAmount
+                options={['Factory Rent', 'Factory Rates', 'Fuel and Power', 'Indirect Wages', 'Other Factory Overheads']}
+                value={state.costOfSales.factoryOverheads}
+                onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, factoryOverheads: val } }))}
+              />
+            </GateBlock>
+            <GateBlock title="Closing inventory">
+              <ChipSelectAmount
+                options={['Raw materials', 'Work In Progress', 'Finished goods']}
+                value={state.costOfSales.closingInventory}
+                onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, closingInventory: val } }))}
+              />
+            </GateBlock>
+          </div>
+        );
+
+      case 'pnl':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: 12, background: 'var(--accent-dim)', color: 'var(--accent-light)', fontSize: 13, borderRadius: 'var(--radius-md)' }}>
+              <HelpCircle size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+              Profit before and after tax are the same figure under the Tax Act 2025.
+            </div>
+            <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)', padding: '16px 24px' }}>
+              <PnlRow label="Revenue" value={computed.revenue} />
+              <PnlRow label="Direct Cost" value={computed.directCost} isNegative />
+              <hr style={{ borderTop: '1px solid var(--bg-border)', borderBottom: 'none', margin: '8px 0' }} />
+              <PnlRow label="Gross Profit" value={computed.grossProfit} bold />
+              <PnlRow label="Administrative expenses" value={computed.adminExpensesTotal} isNegative />
+              <hr style={{ borderTop: '1px solid var(--bg-border)', borderBottom: 'none', margin: '8px 0' }} />
+              <PnlRow label="Operating Income" value={computed.operatingIncome} bold />
+              <PnlRow label="Finance Cost" value={computed.financeCost} isNegative />
+              <hr style={{ borderTop: '1px solid var(--bg-border)', borderBottom: 'none', margin: '8px 0' }} />
+              <PnlRow label="Operating Profit Before Tax" value={computed.opbt} bold />
+              <PnlRow label="Taxation" value={computed.taxation} isNegative />
+              <hr style={{ borderTop: '1px solid var(--bg-border)', borderBottom: 'none', margin: '8px 0' }} />
+              <PnlRow label="Profit After Tax" value={computed.profitAfterTax} bold />
+              <PnlRow label="Other Comprehensive Income" value={computed.oci} />
+              <hr style={{ borderTop: '1px solid var(--bg-border)', borderBottom: 'none', margin: '8px 0' }} />
+              <PnlRow label="Profit For The Year" value={computed.profitForYear} bold />
+            </div>
+          </div>
+        );
+
+      case 'sfp':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Properties, Plants and Equipment</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={state.sfp.propertiesPlantsEquipment === null ? '' : state.sfp.propertiesPlantsEquipment}
+                  onChange={e => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, propertiesPlantsEquipment: e.target.value ? Number(e.target.value) : null } }))}
                   style={{
-                    padding: '6px 12px',
-                    borderRadius: 16,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                    border: isActive
-                      ? '1px solid var(--accent-primary)'
-                      : '1px solid var(--bg-border)',
-                    background: isActive
-                      ? 'var(--accent-dim)'
-                      : isCompleted
-                      ? 'var(--bg-elevated)'
-                      : 'var(--bg-base)',
-                    color: isActive
-                      ? 'var(--accent-light)'
-                      : isCompleted
-                      ? 'var(--text-secondary)'
-                      : 'var(--text-disabled)',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
+                    width: '100%', maxWidth: 300, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)'
                   }}
-                >
-                  {isCompleted && <CheckCircle size={12} color="var(--success)" />}
-                  {idx + 1}. {stg.title}
-                </button>
-              );
-            })}
+                />
+              </div>
+            </div>
+            
+            <GateBlock title="Investments">
+              <ChipSelectAmount
+                options={['Investment in securities', 'Investment in stock and bonds', 'Investment in Properties', 'Investment in Associate & Joint Ventures', 'Investment in Subsidiaries', 'Investment in finance lease', 'Investment in staff loan', 'Investment in digital assets', 'Investment in Commodities', 'Others']}
+                value={state.sfp.investments}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, investments: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Intangible assets">
+              <ChipSelectAmount
+                options={['Goodwill', 'Patent', 'Trademarks', 'Terminal and service concession rights', 'Brands', 'Customer relationships', 'Right of use', 'Copyrights', 'Others']}
+                value={state.sfp.intangibleAssets}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, intangibleAssets: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Other non-current assets">
+              <ChipSelectAmount
+                options={['Lease-hold Land', 'Lease-hold Building', 'Building and Real estate lease', 'Other leases', 'Non-Current Assets Held for Sale', 'Contract assets', 'Deferred tax asset', 'Other financial assets', 'Others']}
+                value={state.sfp.otherNonCurrentAssets}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherNonCurrentAssets: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Other current assets">
+              <ChipSelectAmount
+                options={['Other Receivables', 'Trade receivables', 'Withholding tax receivables', 'Prepaid Expenses', 'Goods in transit', 'Others']}
+                value={state.sfp.otherCurrentAssets}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherCurrentAssets: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Cash and cash equivalents">
+              <ChipSelectAmount
+                options={['Cash in hand', 'Cash at Bank', 'marketable securities', 'Others']}
+                value={state.sfp.cashAndEquivalents}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, cashAndEquivalents: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Other current liabilities">
+              <ChipSelectAmount
+                options={['Other payables', 'Financial liabilities', 'Accruals', 'Unearned income (advance from customers)', 'Interest payable', 'Short-term debt', 'Provisions', 'Dividend payable', 'Others']}
+                value={state.sfp.otherCurrentLiabilities}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherCurrentLiabilities: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Non-current liabilities">
+              <ChipSelectAmount
+                options={['Long Term Debt', 'Long term Borrowings', 'Pension and Employee Benefit obligation', 'Deferred Tax Liabilities', 'Lease liabilities', 'Others']}
+                value={state.sfp.nonCurrentLiabilities}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, nonCurrentLiabilities: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Other reserves">
+              <ChipSelectAmount
+                options={['Contingency reserve', 'Cumulative Translation Adjustment', 'Share based payment reserve', 'Reserve for bonus issue', 'Capital reserve', 'Others']}
+                value={state.sfp.otherReserves}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherReserves: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Trade Payables & current tax liabilities">
+              <ChipSelectAmount
+                options={['Trade Payables', 'Current tax liabilities']}
+                value={state.sfp.tradePayablesAndCurrentTax}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, tradePayablesAndCurrentTax: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Equity">
+              <ChipSelectAmount
+                options={['Issued Share Capital', 'Share premium', 'Revaluation reserve', 'Statutory reserve', 'Non-controlling interest']}
+                value={state.sfp.equity}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, equity: val } }))}
+              />
+              <div style={{ marginTop: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+                Retained earnings carried forward is derived from Q6 [Profit or Loss] — not re-entered. 
+                (₦{computed.profitForYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+              </div>
+            </GateBlock>
+          </div>
+        );
+
+      case 'adjustment':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Do you have any add backs?</label>
+              <ChipSelect
+                isMulti={false}
+                options={['Yes', 'No']}
+                selectedOptions={state.profitAdjustment.hasAddbacks === true ? ['Yes'] : state.profitAdjustment.hasAddbacks === false ? ['No'] : []}
+                onChange={([val]) => updateState(prev => ({ ...prev, profitAdjustment: { ...prev.profitAdjustment, hasAddbacks: val === 'Yes' } }))}
+              />
+              {state.profitAdjustment.hasAddbacks && (
+                <div style={{ marginTop: 16 }}>
+                  <ChipSelectAmount
+                    searchable
+                    options={['Depreciation', 'Expenses Related To Exempt Income', 'Donations (To The Extent Not Allowed)', 'Unrealised Foreign Exchange Loss', 'Loss On Disposal Of Fixed Assets', 'Entertainment Expenses (To The Extent Not Allowed)', 'Capital Repaid/Withdrawn', 'Expenses of Capital Nature', 'Expenditure on assets not used for the purpose of trade', 'Sum recoverable under an insurance or contract of indemnity', 'Taxes on Profit or Incomes', 'Payment to any unapproved retirement fund or scheme under the Pension Reform Act', 'Any sum reserved out of profits subject to the provisions of section 20(1)(h) of this Act', 'Any payment to a related party that contravenes the Transfer Pricing Regulations', 'Any expense incurred in deriving an income that is exempt from income tax', 'Any expense allowable as a deduction in determining chargeable gains', 'Penalty or fine imposed under any law', 'Expenses liable to VAT or import duties but not charged or paid', 'Compensating payments in regulated securities lending that qualify as dividends or interest under this Act', 'Others']}
+                    value={state.profitAdjustment.addbacks}
+                    onChange={val => updateState(prev => ({ ...prev, profitAdjustment: { ...prev.profitAdjustment, addbacks: val } }))}
+                  />
+                </div>
+              )}
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
+
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Do you have any deductions?</label>
+              <ChipSelect
+                isMulti={false}
+                options={['Yes', 'No']}
+                selectedOptions={state.profitAdjustment.hasDeductions === true ? ['Yes'] : state.profitAdjustment.hasDeductions === false ? ['No'] : []}
+                onChange={([val]) => updateState(prev => ({ ...prev, profitAdjustment: { ...prev.profitAdjustment, hasDeductions: val === 'Yes' } }))}
+              />
+              {state.profitAdjustment.hasDeductions && (
+                <div style={{ marginTop: 16 }}>
+                  <ChipSelectAmount
+                    options={['Deduct Non Taxable Items', 'Profit From Sales Of Fixed Assets', 'Frank Investment Income', 'Unrealised Gains', 'Others']}
+                    value={state.profitAdjustment.deductions}
+                    onChange={val => updateState(prev => ({ ...prev, profitAdjustment: { ...prev.profitAdjustment, deductions: val } }))}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'admin':
+        return (
+          <div>
+            <ChipSelectAmount
+              searchable
+              options={['Salary and Wages', 'Employee Benefit Expenses', 'Staff Allowances', 'Pension and Gratuity', 'Other staff & related Cost', 'depreciation', 'Government and regulatory costs', 'Advertisement & Promotion', 'Bad Debt written off', 'Bank charges', 'Interest Expense', 'Audit fees', 'Entertainment expenses', 'Fuel expenses', 'Generator expenses', 'Internet Cost', 'Rent & Rates', 'Repairs and Maintenance', 'Security expenses', 'Selling & Distribution Expenses', 'Service Charge', 'Public Relation', 'Permits', 'Telephone', 'Training and Development', 'Transport of supplies', 'Utilities', 'Website Design & Maintenance', 'Software maintenance', 'Cleaning & Janitory Services', 'Freight & Transport Expenses', 'Subscription & Dues', 'Stationeries expenses', 'other professional fees', 'Fines', 'penalties', 'Electricity & Power', 'PMS', 'Health safety and environmental expenses', 'Licences & leases charges', 'Other statutory charges & levies', 'AGO-Diesel', 'Travel Expenses', 'Others']}
+              value={state.adminExpense}
+              onChange={val => updateState(prev => ({ ...prev, adminExpense: val }))}
+            />
+          </div>
+        );
+
+      case 'done':
+        return (
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Review & Submit</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 32 }}>
+              Please ensure all ledger values reflect your business's true state for the {state.yearOfAssessment} filing period. 
+              Submitting will record this in the ROVA app.
+            </p>
+            <button
+              onClick={() => {
+                alert("Tax filed successfully in ROVA! (Note: backend integration to tax authority API is planned for a future update).");
+                navigate('/app/tax');
+              }}
+              style={{
+                padding: '12px 32px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
+                color: '#fff', border: 'none', borderRadius: 'var(--radius-lg)', fontSize: 16, fontWeight: 700,
+                cursor: 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.25)'
+              }}
+            >
+              Sign and submit
+            </button>
+          </div>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
+      
+      {/* Header & Controls */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <button
+          onClick={() => navigate('/app/tax')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+        >
+          <ArrowLeft size={16} /> Exit to Tax Hub
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)' }}>NRS Company Income Tax (CIT) Filing Wizard</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>ROVA unified tax filing flow</p>
+
+        <div style={{ marginTop: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: 'var(--accent-light)', marginBottom: 8 }}>
+            <span>Step {currentStep + 1} of {STAGES.length}: {stage.label}</span>
+            <span>{Math.round(((currentStep + 1) / STAGES.length) * 100)}%</span>
+          </div>
+          <div style={{ height: 6, background: 'var(--bg-border)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${((currentStep + 1) / STAGES.length) * 100}%`, background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-light))', transition: 'width 0.3s ease' }} />
           </div>
         </div>
       </div>
 
-      {/* Main Stage Content */}
-      <div
-        style={{
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--bg-border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 24,
-          marginBottom: 24,
-        }}
-      >
-        {currentStage.id === 'review_and_submit' ? (
-          <NrsSummaryPreview
-            answers={activeComputedState}
-            onSubmit={handleSubmitFiling}
-            submitting={submitting}
-          />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {/* Stage Title */}
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                {currentStage.title}
-              </h2>
-            </div>
+      {/* Main Layout Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
+        
+        {/* Main Content Area */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', padding: 32, minHeight: 400 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 24px 0', color: 'var(--text-primary)' }}>{stage.title}</h2>
+            {renderStepContent()}
+          </div>
+          
+          {/* Bottom Nav */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+            <button
+              onClick={handlePrev}
+              style={{
+                padding: '10px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
+                borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)',
+                cursor: currentStep > 0 ? 'pointer' : 'not-allowed', opacity: currentStep > 0 ? 1 : 0.5,
+                display: 'inline-flex', alignItems: 'center', gap: 6
+              }}
+              disabled={currentStep === 0}
+            >
+              <ArrowLeft size={16} /> Previous
+            </button>
 
-            {/* Render Derived Confirm Cards (Add-backs & Deductions) */}
-            {currentStage.derived && currentStage.derived.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-light)' }}>
-                  Derived Tax Adjustments (Add-backs & Deductions)
-                </div>
-                {currentStage.derived.map((der) => {
-                  if (!evaluateShowIf(der.show_if, activeComputedState)) return null;
-
-                  const derivedVal = Number(activeComputedState[der.id]) || 0;
-                  const overrideVal = answers[`override_${der.id}`];
-
-                  return (
-                    <DerivedConfirmCard
-                      key={der.id}
-                      derived={der}
-                      derivedValue={derivedVal}
-                      overrideValue={overrideVal}
-                      onOverrideChange={(newVal) => updateAnswer(`override_${der.id}`, newVal)}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Render Questions */}
-            {currentStage.questions?.map((q) => {
-              if (!evaluateShowIf(q.show_if, activeComputedState)) return null;
-
-              return (
-                <div
-                  key={q.id}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    padding: 16,
-                    background: 'var(--bg-base)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--bg-border)',
-                  }}
-                >
-                  <label
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    {q.prompt}
-                    {q.required && <span style={{ color: 'var(--error)' }}>*</span>}
-                  </label>
-
-                  {q.note && (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: 'var(--text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                    >
-                      <HelpCircle size={13} color="var(--accent-light)" /> {q.note}
-                    </div>
-                  )}
-
-                  {/* Question Type Input Handlers */}
-
-                  {q.type === 'number' && (
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={answers[q.id] !== undefined ? answers[q.id] : ''}
-                      onChange={(e) => updateAnswer(q.id, e.target.value)}
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-elevated)',
-                        border: '1px solid var(--bg-border)',
-                        borderRadius: 'var(--radius-md)',
-                        color: 'var(--text-primary)',
-                        fontSize: 14,
-                        outline: 'none',
-                      }}
-                    />
-                  )}
-
-                  {q.type === 'single_select' && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {q.options?.map((opt) => {
-                        const isSelected = answers[q.id] === opt;
-                        return (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => updateAnswer(q.id, opt)}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: 'var(--radius-md)',
-                              fontSize: 13,
-                              fontWeight: 500,
-                              border: isSelected
-                                ? '1px solid var(--accent-primary)'
-                                : '1px solid var(--bg-border)',
-                              background: isSelected ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-                              color: isSelected ? 'var(--accent-light)' : 'var(--text-secondary)',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {opt}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {q.type === 'multi_select_searchable' && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {q.options?.map((opt) => {
-                        const selected: string[] = answers[q.id] || [];
-                        const isSelected = selected.includes(opt);
-
-                        const toggle = () => {
-                          if (isSelected) {
-                            updateAnswer(
-                              q.id,
-                              selected.filter((s) => s !== opt)
-                            );
-                          } else {
-                            updateAnswer(q.id, [...selected, opt]);
-                          }
-                        };
-
-                        return (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={toggle}
-                            style={{
-                              padding: '6px 14px',
-                              borderRadius: 20,
-                              fontSize: 13,
-                              fontWeight: 500,
-                              border: isSelected
-                                ? '1px solid var(--accent-primary)'
-                                : '1px solid var(--bg-border)',
-                              background: isSelected ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-                              color: isSelected ? 'var(--accent-light)' : 'var(--text-secondary)',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {opt}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {q.type === 'number_repeat_per_selection' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {(answers.sectors || ['Main Revenue']).map((sector: string, idx: number) => {
-                        const sectorRev = (answers.revenue_per_sector || [])[idx] || '';
-                        return (
-                          <div
-                            key={sector}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 12,
-                            }}
-                          >
-                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                              Revenue for <strong>{sector}</strong>:
-                            </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>₦</span>
-                              <input
-                                type="number"
-                                placeholder="0.00"
-                                value={sectorRev}
-                                onChange={(e) => {
-                                  const arr = [...(answers.revenue_per_sector || [])];
-                                  arr[idx] = Number(e.target.value) || 0;
-                                  updateAnswer('revenue_per_sector', arr);
-                                }}
-                                style={{
-                                  width: 180,
-                                  padding: '8px 12px',
-                                  background: 'var(--bg-elevated)',
-                                  border: '1px solid var(--bg-border)',
-                                  borderRadius: 'var(--radius-sm)',
-                                  color: 'var(--text-primary)',
-                                  fontSize: 14,
-                                  fontWeight: 600,
-                                  textAlign: 'right',
-                                  outline: 'none',
-                                }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {q.type === 'boolean' && (
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <button
-                        type="button"
-                        onClick={() => updateAnswer(q.id, true)}
-                        style={{
-                          padding: '8px 24px',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          border:
-                            answers[q.id] === true
-                              ? '1px solid var(--accent-primary)'
-                              : '1px solid var(--bg-border)',
-                          background:
-                            answers[q.id] === true ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-                          color:
-                            answers[q.id] === true ? 'var(--accent-light)' : 'var(--text-secondary)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateAnswer(q.id, false)}
-                        style={{
-                          padding: '8px 24px',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          border:
-                            answers[q.id] === false
-                              ? '1px solid var(--accent-primary)'
-                              : '1px solid var(--bg-border)',
-                          background:
-                            answers[q.id] === false ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-                          color:
-                            answers[q.id] === false ? 'var(--accent-light)' : 'var(--text-secondary)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        No
-                      </button>
-                    </div>
-                  )}
-
-                  {q.type === 'chip_select_then_amount' && (
-                    <ChipSelectAmount
-                      question={q}
-                      value={answers[q.id] || {}}
-                      onChange={(val) => updateAnswer(q.id, val)}
-                      sectors={answers.sectors || []}
-                    />
-                  )}
-
-                  {q.type === 'chip_select_then_amount_nested' && (
-                    <ChipSelectAmount
-                      question={q}
-                      value={answers[q.id] || {}}
-                      onChange={(val) => updateAnswer(q.id, val)}
-                    />
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Live Balance Check Indicator on Statement of Financial Position Stage */}
-            {currentStage.id === 'financial_position' && (
-              <LiveBalanceWarning
-                totalAssets={Number(activeComputedState.total_assets) || 0}
-                totalLiabilities={
-                  (Number(activeComputedState.total_current_liabilities) || 0) +
-                  (Number(activeComputedState.non_current_liabilities_total) || 0)
-                }
-                totalEquity={Number(activeComputedState.total_equity) || 0}
-                isBalanced={Boolean(activeComputedState.balance_check)}
-              />
+            {currentStep < STAGES.length - 1 && (
+              <button
+                onClick={handleNext}
+                disabled={mneCfcFlagged && currentStep === 1}
+                style={{
+                  padding: '10px 24px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
+                  border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700, color: '#fff',
+                  cursor: (mneCfcFlagged && currentStep === 1) ? 'not-allowed' : 'pointer',
+                  opacity: (mneCfcFlagged && currentStep === 1) ? 0.5 : 1,
+                  display: 'inline-flex', alignItems: 'center', gap: 6
+                }}
+              >
+                Continue <ArrowRight size={16} />
+              </button>
             )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Bottom Navigation Buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-        <button
-          type="button"
-          onClick={handlePrevStage}
-          disabled={currentStageIndex === 0}
-          style={{
-            padding: '10px 20px',
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--bg-border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            cursor: currentStageIndex === 0 ? 'not-allowed' : 'pointer',
-            opacity: currentStageIndex === 0 ? 0.5 : 1,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <ArrowLeft size={16} /> Previous Stage
-        </button>
+        {/* Sidebar LEDGER */}
+        <LiveLedgerSidebar computed={computed} mneCfcFlagged={mneCfcFlagged} />
 
-        {currentStageIndex < activeStages.length - 1 && (
-          <button
-            type="button"
-            onClick={handleNextStage}
-            style={{
-              padding: '10px 24px',
-              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 700,
-              color: '#fff',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 4px 16px rgba(99,102,241,0.25)',
-            }}
-          >
-            Next: {activeStages[currentStageIndex + 1].title} <ArrowRight size={16} />
-          </button>
-        )}
       </div>
+    </div>
+  );
+}
+
+function PnlRow({ label, value, isNegative, bold }: { label: string, value: number, isNegative?: boolean, bold?: boolean }) {
+  const formatted = `₦${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
+      <span style={{ fontSize: 13, color: bold ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: bold ? 600 : 400 }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: bold ? 700 : 500, color: bold ? 'var(--text-primary)' : (isNegative && value > 0 ? 'var(--error)' : 'var(--text-primary)') }}>
+        {isNegative && value > 0 ? `-${formatted}` : formatted}
+      </span>
     </div>
   );
 }

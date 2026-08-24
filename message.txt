@@ -1,0 +1,233 @@
+Masterprompt: Replace CIT Filing Feature with Rova Prototype Flow
+To: [CTO name] From: [Your name] Re: Replacing the current tax filing feature's question flow with the attached rova-prototype.html prototype
+1. Objective
+Replace the current tax filing feature in [App Name] with the flow, question set, field logic, and calculations defined in the attached prototype (rova-prototype.html), exactly as specified below.
+The only thing that should carry over from the current implementation is our existing color palette / brand tokens. Everything else about the current tax filing feature — its questions, order, screens, field types, and logic — should be discarded in favor of what's specified here.
+Do not treat this as "inspiration" or a rough guide — treat the flow below as the literal spec. If anything is ambiguous, flag it back to product rather than improvising (a few known gaps are already called out in Section 7).
+2. Non-negotiables
+Colors only carry over. Take our current feature's color tokens (backgrounds, ink/text, accent/brand color, success/error colors) and map them onto the CSS variables the prototype uses (--ink, --ink-soft, --bg, --panel, --line, --gold, --gold-soft, --green, --green-soft, --red, --red-soft). Everything else — typography scale, spacing, radii, shadows, component shapes (pill buttons, chip grid, sticky ledger panel, etc.) — should follow the prototype unless it conflicts with an existing design-system component we already have (in which case, match it to our design system, not rebuild it from scratch).
+Do not carry over any of the old feature's question copy, field order, or validation logic. The new flow fully replaces it.
+11-step wizard structure is fixed. Same step count, same order, same progress indicator behavior (see Section 3).
+Live running ledger sidebar is required, not optional — it's core to the UX (users see Revenue, Direct Cost, Gross Profit, Admin Expenses, Add-backs, Deductions, and Capital Allowance update live as they answer questions).
+All calculations below (Section 6) must match exactly — same formulas, same order of operations.
+3. The 11-step flow (exact order, labels, and copy)
+Progress indicator shows "Step X of 11" plus the current stage label.
+#
+Stage ID
+Step label (eyebrow)
+Screen title
+Notes
+1
+fixed_assets
+Capital allowance
+Fixed assets
+Repeating asset entry form
+2
+mne_cfc
+Group structure
+MNE / CFC check
+Two independent Yes/No questions
+3
+year
+Filing period
+Year of assessment
+Single text input
+4
+sector
+Classification
+Business sector
+Single-select grid
+5
+revenue
+Added — confirmed
+Revenue
+Not in original source doc, added because Gross Profit needs it. Copy still to be finalized — see Section 7, item 1
+6
+cost_of_sales
+Direct cost
+Cost of sales
+5 chip-select sub-sections
+7
+pnl
+Computed
+Profit or Loss
+Fully computed summary table, no user input
+8
+sfp
+Balance sheet
+Statement of Financial Position
+Mix of gated sections + chip-select
+9
+adjustment
+Add-backs & deductions
+Profit adjustment
+Two gated Yes/No → chip-select blocks
+10
+admin
+Select any applicable
+Administrative expense
+Chip-select, 9-across grid on desktop
+11
+done
+Review & sign
+Done
+Review + "Sign and submit" CTA
+Navigation: Back button (hidden on step 1) and Continue button (reads Finish on the last step). No skipping steps; all state persists when navigating back and forth.
+4. Screen-by-screen question spec
+Step 1 — Fixed assets (fixedAssets)
+Repeating card, one per asset, with an "+ Add another asset" button and a Remove button per card. Each asset card collects:
+Date first used (date input)
+Cost of asset (number input)
+Describe the asset (free text)
+Asset category (single-select pill grid) — options exactly: Building Industrial, Building Non-Industrial, Plants (excluding Furniture & Fittings), Agricultural Plants Expenditure, Furniture & Fittings Expenditure, Public Transport Motor Vehicles, Motor Vehicles Expenditure, Plantation Equipment, Construction Plants Expenditure, Research & Development Expenditure, Housing Estate Expenditure, Land, Ranching & Plantation, Software, Others
+Each category has a fixed salvage % and useful life (years) used for the capital allowance calculation (see Section 6.1 table). Below the category grid, a live calc line shows: default salvage %, computed salvage value, useful life, and annual depreciation charge. Land shows "no salvage % or useful life applies (N/A)" instead of a calculation.
+Step 2 — MNE / CFC check (mneCfc)
+Two independent Yes/No questions (answering one does not hide/reset the other):
+"Are you part of a Multinational Enterprise (MNE) Group?"
+"Is any of your constituent entities a Controlled Foreign Company (CFC)?"
+If either is "Yes", do not let the user continue the self-filing flow. Redirect them into a separate "talk to a tax professional" contact flow instead — this filing path does not support MNE/CFC cases. Requirements for this handoff:
+The redirect should happen as soon as either answer is "Yes" (don't wait for both questions to be answered).
+The prototype's inline terminal message ("This filing path doesn't cover CFC cases — please consult a tax professional") can be shown briefly/as a transition state, but the user should then land on a dedicated contact/handoff screen — not remain on the wizard with a Continue button still available.
+Open item for product/design: what does the "talk to a tax pro" flow actually consist of (a contact form, a booking link, an in-app referral to a human advisor, a phone number)? This needs a decision before engineering can build the destination screen — see Section 7, item 4.
+Step 3 — Year of assessment (year)
+Single text input, placeholder "e.g. 2026". Feeds the progress label but not the ledger.
+Step 4 — Business sector (sector)
+Single-select pill grid. Options exactly: MANUFACTURING, AGRICULTURE FORESTRY & FISHING, MINING & QUARRY, ELECTRICITY, WATER SUPPLY SEWERAGE & WASTE MANAGEMENT, CONSTRUCTION, WHOLESALE AND RETAIL TRADE, TRANSPORTATION AND HAULAGE, ACCOMMODATION AND FOOD SERVICE ACTIVITIES, COMMUNICATION & INFORMATION, BANKS & OTHER FINANCIAL ACTIVITIES, INSURANCE ACTIVITIES, REAL ESTATE ACTIVITIES, PROFESSIONAL SCIENTIFIC AND TECHNICAL ACTIVITIES, ADMINISTRATIVE AND SUPPORT ACTIVITIES, EDUCATION, OIL AND GAS, NGOs NFPOs RELIGIOUS INSTITUTIONS, ART ENTERTAINMENT AND RECREATION, DIGITAL AND VIRTUAL ASSETS, Others
+Step 5 — Revenue (revenue)
+Single number input: "What was your total revenue for the year?" This step is confirmed as its own step in the flow (not merged into Cost of Sales or P&L). Copy needs refinement before build — the placeholder wording ("What was your total revenue for the year?") and the prototype's gap-note banner are provisional; get final copy from product/content before shipping (see Section 7, item 1).
+Step 6 — Cost of sales (costOfSales)
+Five chip-select-then-amount sections, each following the "click to add, then enter amount" pattern (see Section 5.1):
+Opening inventory — Raw materials, Work in progress, Finished goods
+Purchases (raw materials / finished goods) — Local Purchases, Import Purchases
+Other direct cost — Direct wages, Direct expenses, Other Direct costs
+Factory overheads — Factory Rent, Factory Rates, Fuel and Power, Indirect Wages, Other Factory Overheads
+Closing inventory — Raw materials, Work In Progress, Finished goods
+Step 7 — Profit or Loss (pnl)
+No user input — a fully computed summary table (see Section 6.2 for the exact formula chain and row order). Note shown to user: "Profit before and after tax are the same figure under the Tax Act 2025."
+Step 8 — Statement of Financial Position (sfp)
+Properties, Plants and Equipment — single number input.
+Eight gated sections (label → key → chip options), each rendered as a collapsible gate that opens once toggled:
+Investments — Investment in securities, Investment in stock and bonds, Investment in Properties, Investment in Associate & Joint Ventures, Investment in Subsidiaries, Investment in finance lease, Investment in staff loan, Investment in digital assets, Investment in Commodities, Others
+Intangible assets — Goodwill, Patent, Trademarks, Terminal and service concession rights, Brands, Customer relationships, Right of use, Copyrights, Others
+Other non-current assets — Lease-hold Land, Lease-hold Building, Building and Real estate lease, Other leases, Non-Current Assets Held for Sale, Contract assets, Deferred tax asset, Other financial assets, Others
+Other current assets — Other Receivables, Trade receivables, Withholding tax receivables, Prepaid Expenses, Goods in transit, Others
+Cash and cash equivalents — Cash in hand, Cash at Bank, marketable securities, Others
+Other current liabilities — Other payables, Financial liabilities, Accruals, Unearned income (advance from customers), Interest payable, Short-term debt, Provisions, Dividend payable, Others
+Non-current liabilities — Long Term Debt, Long term Borrowings, Pension and Employee Benefit obligation, Deferred Tax Liabilities, Lease liabilities, Others
+Other reserves — Contingency reserve, Cumulative Translation Adjustment, Share based payment reserve, Reserve for bonus issue, Capital reserve, Others
+Trade Payables & current tax liabilities — chip-select: Trade Payables, Current tax liabilities
+Equity — chip-select: Issued Share Capital, Share premium, Revaluation reserve, Statutory reserve, Non-controlling interest
+Helper text: "Retained earnings carried forward is derived from Q6 [Profit or Loss] — not re-entered" and displays that carried-forward figure inline.
+Step 9 — Profit adjustment (adjustment)
+Two independent gated Yes/No questions:
+"Do you have any add backs?" → if Yes, reveal chip-select with add-back options: Depreciation, Expenses Related To Exempt Income, Donations (To The Extent Not Allowed), Unrealised Foreign Exchange Loss, Loss On Disposal Of Fixed Assets, Entertainment Expenses (To The Extent Not Allowed), Capital Repaid/Withdrawn, Expenses of Capital Nature, Expenditure on assets not used for the purpose of trade, Sum recoverable under an insurance or contract of indemnity, Taxes on Profit or Incomes, Payment to any unapproved retirement fund or scheme under the Pension Reform Act, Any sum reserved out of profits subject to the provisions of section 20(1)(h) of this Act, Any payment to a related party that contravenes the Transfer Pricing Regulations, Any expense incurred in deriving an income that is exempt from income tax, Any expense allowable as a deduction in determining chargeable gains, Penalty or fine imposed under any law, Expenses liable to VAT or import duties but not charged or paid, Compensating payments in regulated securities lending that qualify as dividends or interest under this Act, Others
+"Do you have any deductions?" → if Yes, reveal chip-select with deduction options: Deduct Non Taxable Items, Profit From Sales Of Fixed Assets, Frank Investment Income, Unrealised Gains, Others
+Step 10 — Administrative expense (admin)
+Chip-select (renders 9-across on desktop) with options: Salary and Wages, Employee Benefit Expenses, Staff Allowances, Pension and Gratuity, Other staff & related Cost, depreciation, Government and regulatory costs, Advertisement & Promotion, Bad Debt written off, Bank charges, Interest Expense, Audit fees, Entertainment expenses, Fuel expenses, Generator expenses, Internet Cost, Rent & Rates, Repairs and Maintenance, Security expenses, Selling & Distribution Expenses, Service Charge, Public Relation, Permits, Telephone, Training and Development, Transport of supplies, Utilities, Website Design & Maintenance, Software maintenance, Cleaning & Janitory Services, Freight & Transport Expenses, Subscription & Dues, Stationeries expenses, other professional fees, Fines, penalties, Electricity & Power, PMS, Health safety and environmental expenses, Licences & leases charges, Other statutory charges & levies, AGO-Diesel, Travel Expenses, Others
+Step 11 — Done (done)
+Review confirmation copy + a final submit CTA. (In the prototype this is a no-op alert — in production, this is where the real filing submission should be wired in.)
+5. Reusable interaction patterns (must be built as components, reused across steps)
+5.1 Chip-select-then-amount
+Used in Cost of Sales, SFP gated sections, Trade Payables/Equity, Add-backs, Deductions, and Admin Expense.
+Renders a grid of chip buttons, one per option, prefixed +.
+Tapping a chip toggles it to a "selected" state (prefixed ✓) and reveals an amount input for it in a panel below.
+Amount panel groups all currently-selected items with individually labeled currency inputs.
+Un-tapping a chip removes it from the amount panel and clears its stored value.
+A running subtotal for the section should be visible (the prototype relies on the sidebar ledger for totals — decide with design whether each section also needs its own subtotal line).
+5.2 Radio pill (single select)
+Used for Yes/No questions and single-choice grids (asset category, sector). Selected state gets a solid fill; unselected is outlined.
+5.3 Gate block
+A section that stays collapsed/inactive until a preceding Yes/No (or its own toggle) opens it, at which point its fields become interactive. Used in SFP and Profit Adjustment.
+5.4 Repeating card (asset entry)
+"+ Add another asset" appends a new blank card; each card has its own Remove control and independent field state, and the depreciation calc line updates live per-card without losing input focus (this matters: recomputing the whole step on every keystroke breaks focus — recalculate just the affected card/line, not the full render tree).
+5.5 Live ledger sidebar
+Sticky panel, visible on every step, showing running totals for: Revenue, Direct cost, Gross profit, Admin expenses, Add-backs, Deductions, and Capital allowance (sum of all asset depreciation). If MNE or CFC was answered "Yes", show a flag: "CFC / MNE flagged — flow would stop and route to a tax professional here." Collapses above the main content on narrow/mobile viewports.
+6. Calculations (must match exactly)
+6.1 Capital allowance (per asset)
+salvage_value = asset.cost × (sector_salvage_pct / 100)
+annual_depreciation = (asset.cost − salvage_value) / sector_useful_life_years
+Salvage % / useful life by category:
+Category
+Salvage %
+Useful life (yrs)
+Building Industrial
+10
+25
+Building Non-Industrial
+10
+25
+Plants (excl. Furniture & Fittings)
+10
+10
+Agricultural Plants Expenditure
+10
+10
+Furniture & Fittings Expenditure
+5
+5
+Public Transport Motor Vehicles
+20
+5
+Motor Vehicles Expenditure
+20
+5
+Plantation Equipment
+10
+10
+Construction Plants Expenditure
+10
+10
+Research & Development Expenditure
+0
+3
+Housing Estate Expenditure
+10
+25
+Land
+N/A — no calculation
+N/A
+Ranching & Plantation
+10
+10
+Software
+0
+3
+Others
+5
+5
+Total capital allowance = sum of annual_depreciation across all assets.
+6.2 Profit & Loss (fully computed, in this order)
+direct_cost   = opening_inventory + purchases + other_direct_cost + factory_overheads − closing_inventory
+gross_profit  = revenue − direct_cost
+operating_income = gross_profit − admin_expenses_total
+finance_cost  = 0   // intentionally out of scope for this build — no input collected, confirmed with product
+opbt          = operating_income − finance_cost   // Operating Profit Before Tax
+taxable_profit = opbt + addbacks_total − deductions_total
+taxation      = max(taxable_profit, 0) × [CIT_RATE]   // ⚠️ rate intentionally left blank — see Section 7, item 2
+profit_after_tax = opbt − taxation
+oci           = 0  // Other Comprehensive Income — intentionally out of scope for this build, confirmed with product
+profit_for_year = profit_after_tax + oci
+Display rows, in order: Revenue, Direct Cost, Gross Profit, Administrative expenses, Operating Income, Finance Cost, Operating Profit Before Tax, Taxation, Profit After Tax, Other Comprehensive Income, Profit For The Year.
+6.3 Live ledger sidebar figures
+Same direct_cost / gross_profit formulas as above, plus running sums of admin expenses, add-backs, and deductions, plus total capital allowance from 6.1.
+7. Known gaps — status and open items
+Revenue question (Step 5) — RESOLVED. Confirmed as its own step, positioned where the prototype has it. Still need final copy from product/content (current wording is placeholder) before this ships.
+CIT rate — OPEN, DO NOT HARDCODE A NUMBER. The prototype's 30% was illustrative only and has been intentionally removed from the spec (see Section 6.2 — [CIT_RATE]). Do not build with any default/guessed rate. Implement taxation as a configurable value (e.g., a constant or remote config) that is left unset/blank until the correct current rate — and whether it's flat or bracket/tiered by company size — is confirmed by whoever owns tax compliance. The wizard should not be considered launch-ready until this is filled in.
+Finance Cost and Other Comprehensive Income — RESOLVED, out of scope. Confirmed: no input fields for these in this build. Both stay hardcoded to 0 in the P&L calculation as shown in Section 6.2.
+MNE/CFC "Yes" handling — PARTIALLY RESOLVED. Confirmed direction: redirect to a "talk to a tax professional" contact flow rather than letting the user continue the self-filing wizard (see Step 2 spec in Section 4). Still open: what that destination screen actually is — contact form, booking link, phone number, in-app advisor referral, etc. Needs a decision from product/design before engineering builds it.
+Final submission integration — still open. Confirm whether "Sign and submit" on the final step should actually submit to whatever tax authority integration exists, or whether that's separate, later scope.
+8. Explicitly out of scope for this rebuild
+Backend submission/integration with any tax authority API — flow and calculations only, unless product says otherwise per Section 7.5.
+Any new fields, steps, or validation not listed above — if it's not in this spec, don't add it without checking in.
+Redesigning the interaction patterns in Section 5 — reuse them, restyled to our color tokens, rather than inventing new UI patterns.
+9. Acceptance criteria
+[ ] All 11 steps present, in the exact order and with the exact copy/options listed above.
+[ ] Colors match our current brand palette; all other visual/interaction patterns match the prototype's structure.
+[ ] Live ledger sidebar updates in real time on every input across all steps.
+[ ] Capital allowance, P&L, and ledger calculations match Section 6 exactly, verified against at least 3 manual test cases (once CIT rate is confirmed — see below).
+[ ] Asset repeater supports add/remove without losing focus or resetting other assets' state.
+[ ] MNE/CFC "Yes" redirects to the tax-professional contact flow and blocks further wizard progress (not left as a dead-end inline message).
+[ ] CIT rate is confirmed and configured — no build should ship to production with a placeholder or guessed tax rate. This is a launch blocker, not a nice-to-have.
+[ ] Destination screen/flow for the "talk to a tax pro" redirect is defined and built (Section 7, item 4).
+[ ] Revenue step copy finalized with product/content (Section 7, item 1).
+Reference file: rova-prototype.html (attached) — treat as the literal source of truth for copy, options, and behavior described above.
