@@ -11,7 +11,6 @@ import {
   classifyTransaction,
   chatWithAssistant,
   confirmPendingAction,
-  cancelPendingAction,
   fetchPendingClarifications,
   resolveClarification,
   dismissClarification,
