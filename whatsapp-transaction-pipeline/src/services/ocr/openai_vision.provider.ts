@@ -7,12 +7,18 @@ import { Logger } from '../../utils/logger';
 export class OpenAIVisionOCRProvider implements OCRProvider {
   name = 'OpenAI Vision OCR';
 
+  private getApiKey(): string | undefined {
+    return env.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  }
+
   async isAvailable(): Promise<boolean> {
-    return Boolean(env.OPENAI_API_KEY && env.OPENAI_API_KEY.length > 5);
+    const key = this.getApiKey();
+    return Boolean(key && key.length > 5);
   }
 
   async extractText(imagePath: string, mimeType: string): Promise<OCRExtractionResult> {
-    if (!env.OPENAI_API_KEY) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new Error('OPENAI_API_KEY is not configured for OpenAI Vision OCR provider');
     }
 
@@ -78,7 +84,7 @@ Return strictly valid JSON with this structure:
         },
         {
           headers: {
-            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           timeout: 45000,

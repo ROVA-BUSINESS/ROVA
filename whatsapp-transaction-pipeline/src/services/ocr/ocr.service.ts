@@ -1,6 +1,7 @@
 import { OCRProvider, OCRExtractionResult } from '../../types/providers';
-import { PaddleOCRProvider } from './paddleocr.provider';
 import { OpenAIVisionOCRProvider } from './openai_vision.provider';
+import { PaddleOCRProvider } from './paddleocr.provider';
+import { TesseractOCRProvider } from './tesseract.provider';
 import { env } from '../../config/env';
 import { Logger } from '../../utils/logger';
 
@@ -8,10 +9,14 @@ export class OCRService {
   private providers: OCRProvider[] = [];
 
   constructor() {
-    // Register available providers in priority order
+    // Register available providers in priority order:
+    // 1. OpenAI Vision (best accuracy for receipts & handwritten text if API key configured)
+    // 2. PaddleOCR (local Python engine if installed)
+    // 3. Tesseract.js (pure Node.js native engine — guaranteed fallback anywhere Node runs!)
     this.providers = [
-      new PaddleOCRProvider(),
       new OpenAIVisionOCRProvider(),
+      new PaddleOCRProvider(),
+      new TesseractOCRProvider(),
     ];
   }
 

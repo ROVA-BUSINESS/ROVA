@@ -7,12 +7,18 @@ import { Logger } from '../../utils/logger';
 export class OpenAIWhisperSpeechProvider implements SpeechToTextProvider {
   name = 'OpenAI Whisper API';
 
+  private getApiKey(): string | undefined {
+    return env.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  }
+
   async isAvailable(): Promise<boolean> {
-    return Boolean(env.OPENAI_API_KEY && env.OPENAI_API_KEY.length > 5);
+    const key = this.getApiKey();
+    return Boolean(key && key.length > 5);
   }
 
   async transcribe(audioPath: string, mimeType: string): Promise<SpeechTranscriptionResult> {
-    if (!env.OPENAI_API_KEY) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new Error('OPENAI_API_KEY is not configured for OpenAI Whisper speech provider');
     }
 
@@ -53,7 +59,7 @@ export class OpenAIWhisperSpeechProvider implements SpeechToTextProvider {
         payloadBuffer,
         {
           headers: {
-            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': `multipart/form-data; boundary=${boundary}`,
           },
           timeout: 45000,
