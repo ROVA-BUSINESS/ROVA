@@ -12,9 +12,16 @@ export class CentralROVAAIProvider implements AIProvider {
 
     let contentToSend = input.rawInputText || '';
 
+    // Annotate input source for the Central AI Agent so it formats natural verification replies
+    if (input.messageType === 'voice') {
+      contentToSend = `[Voice Note Transcribed]: "${contentToSend}"`;
+    } else if (input.messageType === 'image' || input.messageType === 'document') {
+      contentToSend = `[Document/Receipt OCR Extracted]: "${contentToSend}"`;
+    }
+
     // If caption accompanies image/document, include it
     if (input.caption) {
-      contentToSend = `${input.caption}\n\n[Extracted Text]:\n${contentToSend}`;
+      contentToSend = `Caption: ${input.caption}\n\n${contentToSend}`;
     }
 
     Logger.info(`🤖 Calling Central ROVA AI Agent for User: ${userId} | Input length: ${contentToSend.length}`);
