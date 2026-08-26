@@ -20,9 +20,13 @@ const envSchema = z.object({
   
   // Redis / BullMQ Config
   REDIS_URL: z.string().url(),
-  
-  // DeepSeek AI Config
-  DEEPSEEK_API_KEY: z.string()
+
+  // AI & Processing Config
+  DEEPSEEK_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OCR_PROVIDER: z.enum(['paddle', 'openai', 'auto']).default('auto'),
+  SPEECH_PROVIDER: z.enum(['whisper_local', 'openai_whisper', 'auto']).default('auto'),
+  AI_PROVIDER: z.enum(['central_rova', 'deepseek', 'openai']).default('central_rova'),
 });
 
 const _env = envSchema.safeParse(process.env);

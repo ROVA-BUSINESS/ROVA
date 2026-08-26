@@ -1,33 +1,29 @@
 import { Worker, Job } from 'bullmq';
-import axios from 'axios';
 import { redis } from '../config/redis';
-import { TransactionJobData, MediaPayload, TextPayload } from '../types';
+import { TransactionJobData, MediaPayload, TextPayload, UnifiedInputPayload } from '../types';
 import { AuthService } from '../auth/auth.service';
 import { MediaDownloader } from '../media/media.downloader';
-import { AudioConverter } from '../media/audio.converter';
-import { SpeechTranscriber } from '../speech/speech.transcriber';
-import { OCRProcessor } from '../ocr/ocr.processor';
-import { WhatsAppSender } from '../whatsapp/whatsapp.sender';
+import { OCRService } from '../services/ocr/ocr.service';
+import { SpeechToTextService } from '../services/speech/speech.service';
+import { ROVAAIService } from '../services/ai/rova_ai.service';
+import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
 import { IdempotencyService } from '../utils/idempotency';
 import { Logger } from '../utils/logger';
-import { env } from '../config/env';
 
 /**
- * The core BullMQ Worker that orchestrates the entire transaction processing pipeline.
+ * Core BullMQ Worker orchestrating the multi-modal input processing pipeline.
  *
- * UNIFIED ROVA AI ARCHITECTURE:
- * This worker handles multi-modal input processing (text, voice, image) locally for
- * efficiency, then delegates ALL business logic and AI intelligence to the central
- * ROVA AI Agent (Supabase `ai-chat` edge function). This ensures one single AI brain,
- * one database, and one set of business rules for ALL interfaces (Website + WhatsApp).
+ * UNIFIED ROVA AI PIPELINE:
+ * Text, Image/Document (OCR), and Voice (Speech-to-Text) inputs are processed into
+ * clean text and structured data, then routed into the single central ROVA AI reasoning system.
  */
 export class TransactionWorker {
   private authService = new AuthService();
   private mediaDownloader = new MediaDownloader();
-  private audioConverter = new AudioConverter();
-  private speechTranscriber = new SpeechTranscriber();
-  private ocrProcessor = new OCRProcessor();
-  private whatsappSender = new WhatsAppSender();
+  private ocrService = new OCRService();
+  private speechToTextService = new SpeechToTextService();
+  private rovaAIService = new ROVAAIService();
+  private whatsappService = new WhatsAppService();
   private idempotencyService = new IdempotencyService();
 
   start(): void {
@@ -50,7 +46,7 @@ export class TransactionWorker {
       Logger.error(`Job ${job?.id} failed for ${job?.data?.from}: ${err.message}`);
     });
 
-    Logger.info('Transaction Worker active — routing all intelligence to ROVA Central AI Agent');
+    Logger.info('Transaction Worker active — unified OCR, Speech, and Central AI pipeline online');
   }
 
   private async processJob(data: TransactionJobData): Promise<void> {
@@ -63,10 +59,10 @@ export class TransactionWorker {
       return;
     }
 
-    // ── Step 1: Authenticate sender against ROVA shared user database ─────
+    // ── Step 1: Authenticate sender against ROVA user database ─────────────
     const user = await this.authService.getUserByPhone(from);
     if (!user) {
-      await this.whatsappSender.sendText(
+      await this.whatsappService.sendTextMessage(
         from,
         '⚠️ Your WhatsApp number is not linked to a ROVA account.\n\nPlease log in to https://www.rovabusiness.com → Settings → Business Profile and add your phone number to enable WhatsApp accounting.'
       );
@@ -78,121 +74,113 @@ export class TransactionWorker {
     let convertedFilePath: string | null = null;
 
     try {
-      // ── Step 2: Multi-modal input processing ──────────────────────────
-      // This pipeline handles the raw media extraction locally:
-      // text messages are used as-is, voice notes are transcribed via Whisper,
-      // and images/documents are processed through OCR. The resulting plain text
-      // is then passed to the central ROVA AI Agent for understanding & action.
-
+      // ── Step 2: Multi-Modal Input Processing ────────────────────────────
       if (type === 'text') {
-        extractedText = (payload as TextPayload).text;
+        extractedText = (payload as TextPayload).text || '';
 
       } else if (type === 'voice') {
         const mediaPayload = payload as MediaPayload;
-        downloadedFilePath = await this.mediaDownloader.download(mediaPayload.mediaId, mediaPayload.mimeType);
-        convertedFilePath = await this.audioConverter.convertToWav(downloadedFilePath);
-        extractedText = await this.speechTranscriber.transcribe(convertedFilePath);
+        try {
+          downloadedFilePath = await this.mediaDownloader.download(mediaPayload.mediaId, mediaPayload.mimeType);
+          const speechResult = await this.speechToTextService.processAudio(downloadedFilePath, mediaPayload.mimeType);
+          
+          extractedText = speechResult.transcript;
+          convertedFilePath = speechResult.convertedPath;
 
-        if (!extractedText.trim()) {
-          await this.whatsappSender.sendText(
+          if (!extractedText.trim()) {
+            await this.whatsappService.sendTextMessage(
+              from,
+              "🎙️ I couldn't clearly hear your voice note. Please record again in a quiet area, or type a text message."
+            );
+            return;
+          }
+        } catch (err: any) {
+          Logger.error(`Voice processing error for ${from}: ${err.message}`);
+          await this.whatsappService.sendTextMessage(
             from,
-            "🎙️ I couldn't clearly understand your voice note. Please record it again in a quiet environment, or send a text message instead."
+            "🎙️ I couldn't understand that voice note due to background noise or accent clarity. Could you repeat it clearly or type the text?"
           );
           return;
         }
 
       } else if (type === 'image' || type === 'document') {
         const mediaPayload = payload as MediaPayload;
-        downloadedFilePath = await this.mediaDownloader.download(mediaPayload.mediaId, mediaPayload.mimeType);
-
         try {
-          extractedText = await this.ocrProcessor.extractText(downloadedFilePath);
-          // Prepend caption if provided — gives AI context alongside the receipt text
+          downloadedFilePath = await this.mediaDownloader.download(mediaPayload.mediaId, mediaPayload.mimeType);
+          const ocrResult = await this.ocrService.processImage(downloadedFilePath, mediaPayload.mimeType);
+          
+          extractedText = ocrResult.text;
           if (mediaPayload.caption) {
             extractedText = `${mediaPayload.caption}\n\n${extractedText}`;
           }
-        } catch {
-          await this.whatsappSender.sendText(
+
+          if (!extractedText.trim()) {
+            await this.whatsappService.sendTextMessage(
+              from,
+              "📷 The image is blurry or contains no readable text. Please send a clearer photo or document."
+            );
+            return;
+          }
+        } catch (err: any) {
+          Logger.error(`OCR processing error for ${from}: ${err.message}`);
+          await this.whatsappService.sendTextMessage(
             from,
-            "📷 The image isn't clear enough to read. Please retake it in better lighting or send the details as a text message."
+            "📷 The document/receipt image isn't clear enough to read. Please retake the photo in good lighting or type out the transaction details."
           );
           return;
         }
 
       } else {
-        await this.whatsappSender.sendText(
+        await this.whatsappService.sendTextMessage(
           from,
-          "I can process text messages, voice notes 🎙️, and receipt images 📷. Please send one of these."
+          "I can process text messages 💬, voice notes 🎙️, and receipt images/documents 📷. Please send one of these."
         );
         return;
       }
 
       if (!extractedText.trim()) {
-        await this.whatsappSender.sendText(
+        await this.whatsappService.sendTextMessage(
           from,
-          '⚠️ I could not extract any text from your message. Please try again with a clearer message, image, or voice note.'
+          '⚠️ I could not extract any readable text from your message. Please try again with a clearer message, photo, or voice note.'
         );
         return;
       }
 
-      // ── Step 3: Route to Central ROVA AI Agent Brain ──────────────────
-      // This is the key integration point: instead of running separate AI logic
-      // here, we call the SAME `ai-chat` Supabase edge function that the website
-      // uses. This guarantees ONE AI brain, ONE set of business rules, ONE database.
-      Logger.info(`[WhatsApp Pipeline → Central ROVA AI Agent] User: ${user.id} | Input: "${extractedText.slice(0, 80)}..."`);
+      // ── Step 3: Route to Unified ROVA AI Reasoning Layer ───────────────
+      Logger.info(`[Pipeline → Unified AI] User: ${user.id} | Source: ${type} | Text: "${extractedText.slice(0, 80)}..."`);
 
-      const agentReply = await this.callCentralROVAAgent(user.id, extractedText);
+      const inputPayload: UnifiedInputPayload = {
+        userId: user.id,
+        source: 'whatsapp',
+        messageType: type,
+        rawInputText: extractedText,
+        caption: (payload as MediaPayload).caption,
+      };
+
+      const aiResponse = await this.rovaAIService.process(user.id, inputPayload);
 
       // Mark message as processed for idempotency
       await this.idempotencyService.markProcessed(messageId);
 
-      // ── Step 4: Send ROVA AI's reply back via WhatsApp ────────────────
+      // ── Step 4: Send Response to User via WhatsApp ─────────────────────
       const processingMs = Date.now() - startTime;
-      const reply = `${agentReply}\n\n🌐 _View full dashboard_: https://www.rovabusiness.com\n_(Processed in ${(processingMs / 1000).toFixed(1)}s)_`;
+      let replyMessage = aiResponse.reply;
 
-      await this.whatsappSender.sendText(from, reply);
+      // Add dashboard quick-link footer
+      replyMessage += `\n\n🌐 _Dashboard_: https://www.rovabusiness.com\n_(Processed in ${(processingMs / 1000).toFixed(1)}s)_`;
+
+      await this.whatsappService.sendTextMessage(from, replyMessage);
       Logger.info(`[WhatsApp Pipeline] Successfully processed ${type} message for user ${user.id} in ${processingMs}ms`);
 
     } finally {
-      // ── Cleanup: Always delete temp media files ───────────────────────
-      if (downloadedFilePath) this.mediaDownloader.deleteFile(downloadedFilePath);
-      if (convertedFilePath) this.mediaDownloader.deleteFile(convertedFilePath);
-    }
-  }
-
-  /**
-   * Calls the central unified ROVA AI Agent (Supabase `ai-chat` edge function).
-   * This is the same function the website AI assistant uses — one brain for all interfaces.
-   */
-  private async callCentralROVAAgent(userId: string, userMessage: string): Promise<string> {
-    const supabaseUrl = env.SUPABASE_URL;
-    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
-
-    try {
-      const response = await axios.post(
-        `${supabaseUrl}/functions/v1/ai-chat`,
-        {
-          messages: [{ role: 'user', content: userMessage }],
-          context: { userId },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${serviceRoleKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
-        }
-      );
-
-      const reply = response.data?.reply;
-      if (!reply) {
-        throw new Error('Central ROVA AI Agent returned no reply');
+      // ── Cleanup: Security & Privacy Compliance ─────────────────────────
+      // Automatically delete temporary downloaded and converted media files
+      if (downloadedFilePath) {
+        this.mediaDownloader.deleteFile(downloadedFilePath);
       }
-
-      return reply;
-    } catch (err: any) {
-      Logger.error(`Central ROVA AI Agent call failed: ${err.message}`);
-      return `⚠️ ROVA is having trouble connecting right now. Please try again in a moment, or visit https://www.rovabusiness.com for full access.`;
+      if (convertedFilePath && convertedFilePath !== downloadedFilePath) {
+        this.mediaDownloader.deleteFile(convertedFilePath);
+      }
     }
   }
 }

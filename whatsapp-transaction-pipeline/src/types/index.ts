@@ -1,3 +1,5 @@
+export * from './providers';
+
 export type WhatsAppMessageType = 'text' | 'audio' | 'image' | 'document';
 export type MessageType = 'text' | 'voice' | 'image' | 'document' | 'unsupported';
 
