@@ -7,8 +7,7 @@ import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { MonoConnectButton } from '../components/MonoConnectButton';
-import EmailSyncSetup from '../components/bank-sync/EmailSyncSetup';
+import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 import QuickAddModal from '../components/QuickAddModal';
 import { useMobile } from '../hooks/useMobile';
 
@@ -23,7 +22,7 @@ export default function DashboardPage() {
   const [arBalance, setArBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isEmailSyncOpen, setIsEmailSyncOpen] = useState(false);
+  const [isBankChoiceOpen, setIsBankChoiceOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const isMobile = useMobile(1024);
 
@@ -321,7 +320,7 @@ export default function DashboardPage() {
               <div style={{ marginTop: 20 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>Bank Connection</div>
                 <div 
-                  onClick={() => setIsEmailSyncOpen(true)}
+                  onClick={() => setIsBankChoiceOpen(true)}
                   style={{
                     border: '1px dashed var(--accent-border)',
                     borderRadius: 'var(--radius-md)',
@@ -355,12 +354,8 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Connect Bank Account</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Secure bank connection via Mono or Email Sync</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Select Email Sync or Mono Connection</div>
                   </div>
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <MonoConnectButton onSuccess={loadData} size="sm" className="w-full" />
                 </div>
               </div>
             </Card>
@@ -369,9 +364,9 @@ export default function DashboardPage() {
       </>
       )}
 
-      <EmailSyncSetup 
-        isOpen={isEmailSyncOpen}
-        onClose={() => setIsEmailSyncOpen(false)}
+      <BankConnectChoiceModal
+        open={isBankChoiceOpen}
+        onClose={() => setIsBankChoiceOpen(false)}
         onSuccess={loadData}
       />
 

@@ -1,5 +1,6 @@
 import { SpeechToTextProvider, SpeechTranscriptionResult } from '../../types/providers';
 import { WhisperLocalSpeechProvider } from './whisper_local.provider';
+import { WhisperServiceSpeechProvider } from './whisper_service.provider';
 import { OpenAIWhisperSpeechProvider } from './openai_whisper.provider';
 import { AudioConverter } from '../../media/audio.converter';
 import { env } from '../../config/env';
@@ -10,8 +11,13 @@ export class SpeechToTextService {
   private audioConverter = new AudioConverter();
 
   constructor() {
+    // Priority order (Free Speech STT first):
+    // 1. Whisper (Local CLI / python)
+    // 2. Whisper Service / HuggingFace Free Inference API
+    // 3. OpenAI Whisper API (optional paid fallback)
     this.providers = [
       new WhisperLocalSpeechProvider(),
+      new WhisperServiceSpeechProvider(),
       new OpenAIWhisperSpeechProvider(),
     ];
   }
@@ -45,6 +51,16 @@ export class SpeechToTextService {
           Logger.warn(`Local Whisper Speech provider failed: ${err.message}. Trying fallback...`);
         }
       }
+    } else if (configuredProvider === 'whisper_service') {
+      const serviceProvider = this.providers.find((p) => p instanceof WhisperServiceSpeechProvider);
+      if (serviceProvider && (await serviceProvider.isAvailable())) {
+        try {
+          const res = await serviceProvider.transcribe(targetAudio, 'audio/wav');
+          return { transcript: res.text, convertedPath: wavPath, confidence: res.confidence };
+        } catch (err: any) {
+          Logger.warn(`Whisper Service speech provider failed: ${err.message}. Trying fallback...`);
+        }
+      }
     } else if (configuredProvider === 'openai_whisper') {
       const api = this.providers.find((p) => p instanceof OpenAIWhisperSpeechProvider);
       if (api && (await api.isAvailable())) {
@@ -57,7 +73,7 @@ export class SpeechToTextService {
       }
     }
 
-    // Auto / Fallback strategy: try each active provider
+    // Auto / Fallback strategy: try each active provider in order
     for (const provider of this.providers) {
       if (await provider.isAvailable()) {
         try {

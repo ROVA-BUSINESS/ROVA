@@ -21,14 +21,20 @@ interface SearchResultItem {
 }
 
 const STATIC_PAGES = [
-  { title: 'Dashboard', subtitle: 'Overview, financial stats, and recent activities', url: '/app' },
+  { title: 'Dashboard', subtitle: 'Overview, financial stats, and recent activities', url: '/app/dashboard' },
   { title: 'Transactions', subtitle: 'View, edit, and export transactions', url: '/app/transactions' },
   { title: 'Invoices', subtitle: 'Create invoices, track customer payments', url: '/app/invoices' },
-  { title: 'Reports Hub', subtitle: 'Financial statements, taxes, and insights', url: '/app/reports' },
-  { title: 'AI Assistant', subtitle: 'Chat with ROVA AI, analyze transactions', url: '/app/assistant' },
-  { title: 'Settings', subtitle: 'Manage account, currencies, and appearances', url: '/app/settings' },
-  { title: 'Compliance', subtitle: 'Taxes, audits, and business filings', url: '/app/compliance' },
-  { title: 'Operations', subtitle: 'Staff members, payroll management', url: '/app/operations' }
+  { title: 'Expenses & Bills', subtitle: 'Manage operating costs, vendor bills, and expenses', url: '/app/expenses' },
+  { title: 'Inventory', subtitle: 'Stock management, product catalogue, and reorder levels', url: '/app/inventory' },
+  { title: 'Tax', subtitle: 'CIT, VAT, withholding tax calculations, and NRS filing', url: '/app/tax' },
+  { title: 'Payroll', subtitle: 'Salary processing, employee payslips, and PAYE tax', url: '/app/payroll' },
+  { title: 'Team & Access Control', subtitle: 'Manage staff accounts, roles, and activity logs', url: '/app/team' },
+  { title: 'Accounting Hub', subtitle: 'Master ledger, chart of accounts, and financial reports', url: '/app/accounting' },
+  { title: 'General Ledger', subtitle: 'Detailed record of all account transactions', url: '/app/ledger' },
+  { title: 'Chart of Accounts', subtitle: 'Financial structure and account list', url: '/app/chart-of-accounts' },
+  { title: 'Reports Hub', subtitle: 'Financial statements, analytics, and export tools', url: '/app/reports' },
+  { title: 'AI Assistant', subtitle: 'Chat with ROVA AI, query financial records', url: '/app/assistant' },
+  { title: 'Settings', subtitle: 'Manage business profile, team members, and bank connections', url: '/app/settings' }
 ];
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {

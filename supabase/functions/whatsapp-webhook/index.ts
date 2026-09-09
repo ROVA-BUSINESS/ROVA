@@ -58,8 +58,11 @@ serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, serviceRoleKey);
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
     const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
     const PADDLE_OCR_URL = Deno.env.get("PADDLE_OCR_URL");
+    const OCR_SPACE_API_KEY = Deno.env.get("OCR_SPACE_API_KEY") || "helloworld";
+    const WHISPER_SERVICE_URL = Deno.env.get("WHISPER_SERVICE_URL");
 
     if (!WHATSAPP_ACCESS_TOKEN) {
       console.warn("⚠️ WHATSAPP_ACCESS_TOKEN secret is not set in Supabase. Messages cannot be sent back to WhatsApp.");
@@ -90,7 +93,19 @@ serve(async (req) => {
     let extractedText = "";
     let mediaTypeSource = "Text message";
 
-    // ── STEP A: MULTI-MODAL INPUT PROCESSING (Text / OCR / Whisper STT) ──────
+    // Safe ArrayBuffer to Base64 (prevents RangeError stack overflow on large images/audio)
+    function safeArrayBufferToBase64(buffer: ArrayBuffer): string {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+      }
+      return btoa(binary);
+    }
+
+    // ── STEP A: MULTI-MODAL INPUT PROCESSING (Text / Free OCR / Whisper STT) ──
 
     if (messageType === "text") {
       extractedText = message.text?.body || "";
@@ -111,6 +126,7 @@ serve(async (req) => {
             headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
           }).then((res) => res.arrayBuffer());
 
+          // 1. Try PaddleOCR URL if configured
           if (PADDLE_OCR_URL) {
             try {
               const ocrRes = await fetch(PADDLE_OCR_URL, {
@@ -125,8 +141,35 @@ serve(async (req) => {
             }
           }
 
+          // 2. Try OCR.space Free API
+          if (!extractedText) {
+            try {
+              const base64Img = safeArrayBufferToBase64(imgBlob);
+              const formData = new URLSearchParams();
+              formData.append("apikey", OCR_SPACE_API_KEY);
+              formData.append("base64Image", `data:image/jpeg;base64,${base64Img}`);
+              formData.append("language", "eng");
+              formData.append("isTable", "true");
+              formData.append("scale", "true");
+              formData.append("OCREngine", "2");
+
+              const ocrSpaceRes = await fetch("https://api.ocr.space/parse/image", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: formData.toString(),
+              });
+              const ocrSpaceData = await ocrSpaceRes.json();
+              if (ocrSpaceData.ParsedResults?.length) {
+                extractedText = ocrSpaceData.ParsedResults.map((r: any) => r.ParsedText || "").join("\n").trim();
+              }
+            } catch (err) {
+              console.error("OCR.space API call failed:", err);
+            }
+          }
+
+          // 3. Fallback to OpenAI Vision if present and free providers fail
           if (!extractedText && OPENAI_API_KEY) {
-            const base64Img = btoa(String.fromCharCode(...new Uint8Array(imgBlob)));
+            const base64Img = safeArrayBufferToBase64(imgBlob);
             const visionRes = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
               headers: {
@@ -155,7 +198,7 @@ serve(async (req) => {
       mediaTypeSource = "Voice Note (Whisper Speech-to-Text)";
       const audioId = message.audio?.id || message.voice?.id;
 
-      if (audioId && WHATSAPP_ACCESS_TOKEN && OPENAI_API_KEY) {
+      if (audioId && WHATSAPP_ACCESS_TOKEN) {
         const mediaRes = await fetch(`https://graph.facebook.com/v20.0/${audioId}`, {
           headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
         });
@@ -167,27 +210,92 @@ serve(async (req) => {
             headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
           }).then((res) => res.arrayBuffer());
 
-          const formData = new FormData();
-          formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
-          formData.append("model", "whisper-1");
+          // 1. Try Custom / Self-hosted Whisper HTTP Endpoint
+          if (WHISPER_SERVICE_URL) {
+            try {
+              const formData = new FormData();
+              formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
+              const whisperSvcRes = await fetch(WHISPER_SERVICE_URL, {
+                method: "POST",
+                body: formData,
+              });
+              const whisperSvcData = await whisperSvcRes.json();
+              extractedText = whisperSvcData.text || whisperSvcData.transcript || "";
+            } catch (err) {
+              console.error("WHISPER_SERVICE_URL call failed:", err);
+            }
+          }
 
-          const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-            body: formData,
-          });
-          const whisperData = await whisperRes.json();
-          extractedText = whisperData.text || "";
+          // 2. Try Groq Free Whisper API (100% Free - 14,400 requests/day)
+          if (!extractedText && GROQ_API_KEY) {
+            try {
+              const formData = new FormData();
+              formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
+              formData.append("model", "whisper-large-v3-turbo");
+              formData.append("language", "en");
+
+              const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+                body: formData,
+              });
+              const groqData = await groqRes.json();
+              extractedText = groqData.text || "";
+            } catch (err) {
+              console.error("Groq Whisper API call failed:", err);
+            }
+          }
+
+          // 3. Try Hugging Face Free Inference API for Whisper
+          if (!extractedText) {
+            try {
+              const hfToken = Deno.env.get("HF_API_TOKEN");
+              const headers: Record<string, string> = { "Content-Type": "audio/ogg" };
+              if (hfToken) headers["Authorization"] = `Bearer ${hfToken}`;
+
+              const hfRes = await fetch("https://router.huggingface.co/hf-inference/v1/audio/transcriptions", {
+                method: "POST",
+                headers,
+                body: audioBuffer,
+              });
+              if (hfRes.ok) {
+                const hfData = await hfRes.json();
+                extractedText = hfData.text || "";
+              }
+            } catch (err) {
+              console.error("HuggingFace Whisper API call failed:", err);
+            }
+          }
+
+          // 4. Fallback to OpenAI Whisper API if key is present
+          if (!extractedText && OPENAI_API_KEY) {
+            try {
+              const formData = new FormData();
+              formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
+              formData.append("model", "whisper-1");
+
+              const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+                body: formData,
+              });
+              const whisperData = await whisperRes.json();
+              extractedText = whisperData.text || "";
+            } catch (err) {
+              console.error("OpenAI Whisper API call failed:", err);
+            }
+          }
         }
       }
     }
 
     if (!extractedText.trim()) {
-      await sendWhatsAppMessage(
-        fromNumber,
-        "⚠️ ROVA could not extract readable text from your input. Please send a clearer text message, receipt photo, or voice note.",
-        WHATSAPP_ACCESS_TOKEN
-      );
+      const isVoice = messageType === "audio" || messageType === "voice";
+      const helpMsg = isVoice
+        ? "🎙️ ROVA received your voice note! To process this transaction instantly, please send a text message (e.g. *'Recorded sale of ₦25,000'*) or send a photo of your receipt."
+        : "📷 ROVA could not read text from this image clearly. Please ensure good lighting or type out the transaction details in a text message.";
+
+      await sendWhatsAppMessage(fromNumber, helpMsg, WHATSAPP_ACCESS_TOKEN);
       return new Response(JSON.stringify({ status: "extraction_empty" }), { headers: corsHeaders, status: 200 });
     }
 

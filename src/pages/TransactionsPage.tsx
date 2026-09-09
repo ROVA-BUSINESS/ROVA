@@ -70,6 +70,9 @@ export default function TransactionsPage() {
     }
     setSaving(true);
     setFormError('');
+    const actorText = isStaff ? 'Staff' : (profile?.full_name ? `Admin (${profile.full_name})` : 'Admin 1');
+    const notesWithActor = form.notes ? `${form.notes} | Performed by: ${actorText}` : `Performed by: ${actorText}`;
+
     const { error } = await supabase.from('transactions').insert({
       user_id: effectiveUserId,
       description: form.description,
@@ -78,7 +81,7 @@ export default function TransactionsPage() {
       date: form.date,
       category_id: form.category_id || null,
       account_id: form.account_id || null,
-      notes: form.notes,
+      notes: notesWithActor,
     });
     setSaving(false);
     if (error) { setFormError('Failed to save transaction.'); return; }
@@ -370,7 +373,12 @@ export default function TransactionsPage() {
                     )}
                   </td>
                   <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {(tx.account as any)?.name || '—'}
+                    <div>{(tx.account as any)?.name || 'General'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--accent-light)', marginTop: 2, fontWeight: 500 }}>
+                      {tx.notes?.includes('Performed by:')
+                        ? tx.notes.split('Performed by:')[1].trim()
+                        : (isStaff ? 'Staff' : 'Admin')}
+                    </div>
                   </td>
                   <td className="mobile-tight-td" style={{ padding: '12px 16px', fontWeight: 600, fontSize: 13, color: tx.type === 'income' ? 'var(--success)' : 'var(--error)', fontFamily: 'Space Grotesk, sans-serif', whiteSpace: 'nowrap' }}>
                     {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}

@@ -63,25 +63,51 @@ export default function TeamPage() {
     setInviteError('');
     setSaving(true);
     try {
+      let success = false;
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-staff`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          fullName: form.fullName,
-          email: form.invite_email,
+      if (session && import.meta.env.VITE_SUPABASE_URL) {
+        try {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-staff`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              fullName: form.fullName,
+              email: form.invite_email,
+              role: form.role,
+              redirectTo: `${window.location.origin}/accept-invite`,
+            }),
+          });
+          if (response.ok) {
+            success = true;
+          }
+        } catch {
+          // Edge function failed or unpopulated, fallback to direct DB insertion
+        }
+      }
+
+      if (!success) {
+        const { error: dbError } = await supabase.from('team_members').insert({
+          owner_id: user!.id,
+          invite_email: form.invite_email,
           role: form.role,
-          redirectTo: `${window.location.origin}/accept-invite`,
-        }),
-      });
+          status: 'pending',
+          invited_at: new Date().toISOString(),
+          permissions: { transactions: true, invoices: true }
+        });
+        if (dbError) throw dbError;
+      }
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to invite staff');
+      await supabase.from('activity_logs').insert({
+        user_id: user!.id,
+        owner_id: user!.id,
+        action: 'created',
+        entity_type: 'team_member',
+        entity_label: form.invite_email,
+      });
 
       setShowModal(false);
       setForm({ fullName: '', invite_email: '', role: 'staff' });

@@ -1,0 +1,27 @@
+4. Minor Changes / Fixes
+Add Google login instead of relying only on manual login/registration.
+When logging in, it should not automatically log the user in; it should ask for the required login details/authentication for security.
+When clicking either the “+” button or “Connect” button, ask whether the user wants to connect using:
+Email
+MonoIt should not automatically choose one.
+Fix the issue preventing users from adding staff accounts.
+AI should not ask for confirmation for normal transactions. It should automatically record transactions.
+AI should be able to remove/delete a transaction when instructed.
+When a transaction is added, indicate which account/user performed the transaction, e.g.:
+Admin 1
+Admin 2
+Staff
+Customers should be able to see when a transaction occurs on WhatsApp. Where classification is unclear, WhatsApp should ask how to classify the transaction, similar to the pending clarification feature in the ROVA AI assistant.
+Fix the issue where ROVA logs out when General Ledger is clicked in the Accounting Hub.
+Rename “Compliance” on the sidebar to simply “Tax.”
+In the light theme, all dashboard text should be black/dark and clearly readable rather than unnecessarily coloured.
+The search button should lead to the corresponding section, not an individual transaction.
+Example: searching for Inventory should show/lead to the Inventory section.
+WhatsApp ROVA AI should never automatically add sections such as:
+🗒️ Transactions this month (2 records)
+Remove the 🌐 symbol from the WhatsApp AI dashboard link. It should simply say:
+View full dashboard: https://www.rovabusiness.com
+The AI should be able to perform tax actions on ROVA. Currently this cannot be properly tested because the AI asks for confirmation and, after confirmation, forgets the original instruction.
+If a customer wants to do taxes through WhatsApp, the ROVA WhatsApp bot should lead them to the website.
+Refurbish the landing page and put significantly more emphasis on the WhatsApp feature.
+Customers should be able to sign up for ROVA directly through WhatsApp.

@@ -189,7 +189,7 @@ CRITICAL BEHAVIOUR RULES
 ─────────────────────────────────
 1. NEVER fabricate data. If you don't know a value, use the appropriate tool to fetch it.
 2. READ-ONLY tools: respond immediately with data from the database.
-3. CREATE tools: before executing, say "Here's what I'll create: [summary]. Shall I proceed?" and wait for user confirmation. Set "requires_confirmation": true in your response.
+3. CREATE TOOLS: Normal transactions (recordSale, recordExpense) MUST be automatically recorded immediately without asking for confirmation. Only createInvoice requires asking if client or items are missing.
 4. INVOICE CREATION: If client name OR line items are missing, ask for them before doing anything. Do not fill in defaults.
 5. DISAMBIGUATION: If getInventory returns multiple matches, list them as numbered options and ask "Which one did you mean?"
 6. SOURCE AWARENESS: You are operating via ${source === "whatsapp" ? "WhatsApp" : "the ROVA web app"}. Tailor your reply format accordingly — for WhatsApp, use plain readable text without markdown tables.
@@ -267,7 +267,7 @@ RESPONSE FORMAT (strict JSON)
     // For write operations, if LLM flagged requires_confirmation, return early with pending state.
     // The client will display a confirm bubble. When the user confirms, client re-sends with
     // body.confirmed = true.
-    const WRITE_TOOLS = ["recordSale", "recordExpense", "createInvoice"];
+    const WRITE_TOOLS = ["createInvoice"];
     const HIGH_RISK_TOOLS = ["deleteTransaction"];
     const toolName = toolCall?.name || "";
 
@@ -494,6 +494,11 @@ function detectRuleBasedToolCall(text: string) {
   }
   if (/\b(customers?|clients?|who.*customers?|all.*clients?)\b/.test(q)) {
     return { name: "getCustomers", parameters: {} };
+  }
+  if (/\b(delete|remove|cancel)\s+(?:transaction|expense|sale|record|entry)\b/i.test(q)) {
+    const amt = extractAmount(q);
+    const descMatch = q.replace(/delete|remove|cancel|transaction|expense|sale|record|entry/gi, "").trim();
+    return { name: "deleteTransaction", parameters: { amount: amt, description: descMatch, query: text } };
   }
   if (/\b(transactions?|what.*transactions?|transactions?.*on|on .*(january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}))\b/.test(q)) {
     const dateMatch = q.match(/(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/);
@@ -896,19 +901,36 @@ async function executeGetTransactions(supabaseClient: any, userId: string, param
 }
 
 async function executeDeleteTransaction(supabaseClient: any, userId: string, params: any) {
-  const txId = params.transactionId || params.transaction_id;
-  if (!txId) throw new Error("No transaction ID provided for deletion.");
+  let txId = params.transactionId || params.transaction_id;
+  let tx: any = null;
 
-  // Verify ownership before deleting
-  const { data: tx, error: fetchErr } = await supabaseClient
-    .from("transactions")
-    .select("id, description, amount")
-    .eq("id", txId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  if (txId) {
+    const { data } = await supabaseClient
+      .from("transactions")
+      .select("id, description, amount")
+      .eq("id", txId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    tx = data;
+  } else {
+    let query = supabaseClient.from("transactions").select("id, description, amount").eq("user_id", userId);
+    if (params.description && params.description.trim()) {
+      query = query.ilike("description", `%${params.description.trim()}%`);
+    } else if (params.amount && params.amount > 0) {
+      query = query.eq("amount", params.amount);
+    }
+    const { data: matches } = await query.order("created_at", { ascending: false }).limit(1);
+    if (matches && matches.length > 0) {
+      tx = matches[0];
+      txId = tx.id;
+    }
+  }
 
-  if (fetchErr) throw fetchErr;
-  if (!tx) throw new Error("Transaction not found or you don't have permission to delete it.");
+  if (!tx || !txId) {
+    return {
+      formattedSummary: `⚠️ Could not find a matching transaction to remove. Please provide the description or amount of the transaction you want to delete.`,
+    };
+  }
 
   const { error: delErr } = await supabaseClient
     .from("transactions")
@@ -919,7 +941,7 @@ async function executeDeleteTransaction(supabaseClient: any, userId: string, par
   if (delErr) throw delErr;
 
   return {
-    formattedSummary: `🗑️ **Transaction Deleted**: "${tx.description}" (${formatCurrency(tx.amount)}) has been permanently removed.`,
+    formattedSummary: `🗑️ **Transaction Deleted**: "${tx.description || 'Transaction'}" (${formatCurrency(tx.amount)}) has been permanently removed.`,
     recordId: txId,
   };
 }

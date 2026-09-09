@@ -1169,26 +1169,35 @@ export default function LandingPage() {
           <div className="lp-hero-inner">
             {/* Left: Value Proposition */}
             <div className="lp-hero-left animate-scaleIn">
+              <div className="lp-hero-badge">
+                <span className="lp-hero-badge-text">🔥 Unified WhatsApp AI Accounting & ERP</span>
+              </div>
               <h1 className="lp-h1" style={{ fontFamily: "'Geist', 'Inter', sans-serif", fontWeight: 500 }}>
-                All your banking <br />
-                and bookkeeping, <span className="lp-h1-grad" style={{ fontFamily: "'Geist', 'Inter', sans-serif" }}>automated.</span>
+                All your banking & <br />
+                WhatsApp bookkeeping, <span className="lp-h1-grad" style={{ fontFamily: "'Geist', 'Inter', sans-serif" }}>automated.</span>
               </h1>
 
               <p className="lp-hero-sub" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 400 }}>
-                Connect commercial bank accounts, automate double-entry bookkeeping, and manage corporate compliance in a secure workspace built for scale.
+                Send voice notes 🎙️, receipt photos 📷, or text messages 💬 directly to ROVA on WhatsApp. Automatically log expenses, issue client invoices, and track bank accounts in real time.
               </p>
 
               <div className="lp-cta-row">
-                <Link to="/signup" className="lp-cta-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  Start for Free <ArrowRight size={17} />
-                </Link>
-                <a href="#features" style={{ textDecoration: 'none' }}>
-                  <button className="lp-cta-secondary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Explore Platform</button>
+                <a
+                  href="https://wa.me/2349132957881?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions."
+                  target="_blank"
+                  rel="noreferrer"
+                  className="lp-cta-primary"
+                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", background: 'linear-gradient(135deg, #25D366, #128C7E)' }}
+                >
+                  Chat on WhatsApp AI <ArrowRight size={17} />
                 </a>
+                <Link to="/signup" style={{ textDecoration: 'none' }}>
+                  <button className="lp-cta-secondary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Start Free Dashboard</button>
+                </Link>
               </div>
 
               <div className="lp-trust-badges">
-                {['GAAP-Compliant Ledger', 'Direct Bank Sync', 'FIRS Tax Readiness'].map(label => (
+                {['WhatsApp Voice & Photo Accounting', 'Direct Bank & Mono Sync', 'FIRS Tax Filing'].map(label => (
                   <div key={label} className="lp-trust-badge">
                     <div className="lp-trust-dot"><Check size={13} /></div>
                     <span className="lp-trust-label" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>{label}</span>

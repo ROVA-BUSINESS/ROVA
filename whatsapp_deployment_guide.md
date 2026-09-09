@@ -43,8 +43,11 @@ supabase secrets set WHATSAPP_VERIFY_TOKEN="rova-whatsapp-webhook-2026"
 supabase secrets set WHATSAPP_PHONE_NUMBER_ID="1168220643050432"
 supabase secrets set WHATSAPP_BUSINESS_ACCOUNT_ID="1367279925558995"
 supabase secrets set WHATSAPP_ACCESS_TOKEN="<PERMANENT_SYSTEM_USER_ACCESS_TOKEN>"
-supabase secrets set OPENAI_API_KEY="<YOUR_OPENAI_KEY>" # For Whisper Voice STT & Vision OCR
+supabase secrets set OCR_SPACE_API_KEY="helloworld" # Free OCR.space API key (25k free calls/mo)
+supabase secrets set PADDLE_OCR_URL="<PADDLE_OCR_SERVICE_URL>" # Optional self-hosted PaddleOCR endpoint
+supabase secrets set WHISPER_SERVICE_URL="<WHISPER_SERVICE_URL>" # Optional self-hosted Whisper microservice endpoint
 supabase secrets set DEEPSEEK_API_KEY="<YOUR_DEEPSEEK_KEY>" # For Accounting Engine Intent Classification
+supabase secrets set OPENAI_API_KEY="<YOUR_OPENAI_KEY>" # Optional fallback key
 ```
 
 ---

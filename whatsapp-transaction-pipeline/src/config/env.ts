@@ -23,9 +23,13 @@ const envSchema = z.object({
 
   // AI & Processing Config
   DEEPSEEK_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  OCR_PROVIDER: z.enum(['paddle', 'openai', 'auto']).default('auto'),
-  SPEECH_PROVIDER: z.enum(['whisper_local', 'openai_whisper', 'auto']).default('auto'),
+  OCR_SPACE_API_KEY: z.string().optional(),
+  PADDLE_OCR_URL: z.string().url().optional(),
+  WHISPER_SERVICE_URL: z.string().url().optional(),
+  OCR_PROVIDER: z.enum(['paddle', 'ocr_space', 'tesseract', 'openai', 'auto']).default('auto'),
+  SPEECH_PROVIDER: z.enum(['whisper_local', 'whisper_service', 'openai_whisper', 'auto']).default('auto'),
   AI_PROVIDER: z.enum(['central_rova', 'deepseek', 'openai']).default('central_rova'),
 });
 

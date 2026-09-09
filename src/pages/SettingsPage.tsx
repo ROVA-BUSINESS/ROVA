@@ -11,8 +11,7 @@ import { formatCurrency } from '../lib/format';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { MonoConnectButton } from '../components/MonoConnectButton';
-import EmailSyncSetup from '../components/bank-sync/EmailSyncSetup';
+import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 
 
 type Section = 'profile' | 'whatsapp' | 'accounts' | 'security' | 'appearance';
@@ -26,7 +25,7 @@ export default function SettingsPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [isEmailSyncOpen, setIsEmailSyncOpen] = useState(false);
+  const [isBankChoiceOpen, setIsBankChoiceOpen] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     full_name: '',
@@ -377,9 +376,8 @@ export default function SettingsPage() {
                   <Button variant="secondary" size="sm" onClick={handleSyncBanks} loading={isSyncing}>
                     <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> Sync Banks
                   </Button>
-                  <MonoConnectButton onSuccess={loadAccounts} size="sm" />
-                  <Button variant="secondary" size="sm" onClick={() => setIsEmailSyncOpen(true)}>
-                    Email Sync
+                  <Button variant="primary" size="sm" onClick={() => setIsBankChoiceOpen(true)}>
+                    + Connect Bank
                   </Button>
                 </div>
               </div>
@@ -454,9 +452,9 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <EmailSyncSetup
-        isOpen={isEmailSyncOpen}
-        onClose={() => setIsEmailSyncOpen(false)}
+      <BankConnectChoiceModal
+        open={isBankChoiceOpen}
+        onClose={() => setIsBankChoiceOpen(false)}
         onSuccess={loadAccounts}
       />
     </div>

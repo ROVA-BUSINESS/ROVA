@@ -60,11 +60,28 @@ export class TransactionWorker {
     }
 
     // ── Step 1: Authenticate sender against ROVA user database ─────────────
-    const user = await this.authService.getUserByPhone(from);
+    let user = await this.authService.getUserByPhone(from);
+    
+    // Direct WhatsApp Sign-Up flow check if user is not yet registered
+    let rawText = type === 'text' ? ((payload as TextPayload).text || '') : '';
+    const registerMatch = rawText.match(/^(?:register|signup|sign up):\s*(.+)/i);
+
     if (!user) {
+      if (registerMatch && registerMatch[1].trim()) {
+        const businessName = registerMatch[1].trim();
+        user = await this.authService.registerUserByWhatsApp(from, businessName);
+        if (user) {
+          await this.whatsappService.sendTextMessage(
+            from,
+            `🎉 Welcome to ROVA! Your business account "${businessName}" has been successfully created and linked to this WhatsApp number.\n\nYou can now send transaction text messages 💬, voice notes 🎙️, or paper receipt photos 📷 to record your business records automatically.\n\nView full dashboard: https://www.rovabusiness.com`
+          );
+          return;
+        }
+      }
+
       await this.whatsappService.sendTextMessage(
         from,
-        '⚠️ Your WhatsApp number is not linked to a ROVA account.\n\nPlease log in to https://www.rovabusiness.com → Settings → Business Profile and add your phone number to enable WhatsApp accounting.'
+        '👋 Welcome to ROVA AI!\nYour WhatsApp number is not linked to a ROVA account.\n\nTo sign up directly on WhatsApp, reply with:\n*Register: [Your Business Name]*\n(e.g., Register: Acme Enterprise)\n\nOr register on the web: https://www.rovabusiness.com/signup'
       );
       return;
     }
@@ -76,7 +93,7 @@ export class TransactionWorker {
     try {
       // ── Step 2: Multi-Modal Input Processing ────────────────────────────
       if (type === 'text') {
-        extractedText = (payload as TextPayload).text || '';
+        extractedText = rawText;
 
       } else if (type === 'voice') {
         const mediaPayload = payload as MediaPayload;
@@ -146,6 +163,15 @@ export class TransactionWorker {
         return;
       }
 
+      // Check if user is asking to perform tax actions via WhatsApp (Item 25 from docx)
+      if (/\b(tax|vat|cit|file tax|taxes|tax return|tax action)\b/i.test(extractedText)) {
+        await this.whatsappService.sendTextMessage(
+          from,
+          'Tax filing and management is available on our website. Please visit https://www.rovabusiness.com/app/tax to perform your tax actions securely.\n\nView full dashboard: https://www.rovabusiness.com'
+        );
+        return;
+      }
+
       // ── Step 3: Route to Unified ROVA AI Reasoning Layer ───────────────
       Logger.info(`[Pipeline → Unified AI] User: ${user.id} | Source: ${type} | Text: "${extractedText.slice(0, 80)}..."`);
 
@@ -163,14 +189,16 @@ export class TransactionWorker {
       await this.idempotencyService.markProcessed(messageId);
 
       // ── Step 4: Send Response to User via WhatsApp ─────────────────────
-      const processingMs = Date.now() - startTime;
       let replyMessage = aiResponse.reply;
 
-      // Add dashboard quick-link footer
-      replyMessage += `\n\n🌐 _Dashboard_: https://www.rovabusiness.com\n_(Processed in ${(processingMs / 1000).toFixed(1)}s)_`;
+      // Remove automatic monthly transaction record blocks if present (Item 20/21 from docx)
+      replyMessage = replyMessage.replace(/🗒️ \*\*Transactions [^\n]+\n(?:• [^\n]+\n?)*/g, '').trim();
+
+      // Add clean dashboard link footer without globe symbol (Item 22/23 from docx)
+      replyMessage += `\n\nView full dashboard: https://www.rovabusiness.com`;
 
       await this.whatsappService.sendTextMessage(from, replyMessage);
-      Logger.info(`[WhatsApp Pipeline] Successfully processed ${type} message for user ${user.id} in ${processingMs}ms`);
+      Logger.info(`[WhatsApp Pipeline] Successfully processed ${type} message for user ${user.id}`);
 
     } finally {
       // ── Cleanup: Security & Privacy Compliance ─────────────────────────

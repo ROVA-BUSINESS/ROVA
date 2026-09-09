@@ -1,6 +1,7 @@
 import { OCRProvider, OCRExtractionResult } from '../../types/providers';
 import { OpenAIVisionOCRProvider } from './openai_vision.provider';
 import { PaddleOCRProvider } from './paddleocr.provider';
+import { OCRSpaceOCRProvider } from './ocrspace.provider';
 import { TesseractOCRProvider } from './tesseract.provider';
 import { env } from '../../config/env';
 import { Logger } from '../../utils/logger';
@@ -9,14 +10,16 @@ export class OCRService {
   private providers: OCRProvider[] = [];
 
   constructor() {
-    // Register available providers in priority order:
-    // 1. OpenAI Vision (best accuracy for receipts & handwritten text if API key configured)
-    // 2. PaddleOCR (local Python engine if installed)
-    // 3. Tesseract.js (pure Node.js native engine — guaranteed fallback anywhere Node runs!)
+    // Register available providers in priority order (Free & Open Source first):
+    // 1. PaddleOCR (local Python engine / service)
+    // 2. OCR.space (free API)
+    // 3. Tesseract.js (pure Node.js native engine — fallback anywhere Node runs)
+    // 4. OpenAI Vision (optional paid fallback)
     this.providers = [
-      new OpenAIVisionOCRProvider(),
       new PaddleOCRProvider(),
+      new OCRSpaceOCRProvider(),
       new TesseractOCRProvider(),
+      new OpenAIVisionOCRProvider(),
     ];
   }
 
@@ -36,6 +39,24 @@ export class OCRService {
           Logger.warn(`Primary OCR Provider (PaddleOCR) failed: ${err.message}. Attempting fallbacks...`);
         }
       }
+    } else if (configuredProvider === 'ocr_space') {
+      const ocrspace = this.providers.find((p) => p instanceof OCRSpaceOCRProvider);
+      if (ocrspace && (await ocrspace.isAvailable())) {
+        try {
+          return await ocrspace.extractText(filePath, mimeType);
+        } catch (err: any) {
+          Logger.warn(`Primary OCR Provider (OCR.space) failed: ${err.message}. Attempting fallbacks...`);
+        }
+      }
+    } else if (configuredProvider === 'tesseract') {
+      const tesseract = this.providers.find((p) => p instanceof TesseractOCRProvider);
+      if (tesseract && (await tesseract.isAvailable())) {
+        try {
+          return await tesseract.extractText(filePath, mimeType);
+        } catch (err: any) {
+          Logger.warn(`Primary OCR Provider (Tesseract) failed: ${err.message}. Attempting fallbacks...`);
+        }
+      }
     } else if (configuredProvider === 'openai') {
       const openai = this.providers.find((p) => p instanceof OpenAIVisionOCRProvider);
       if (openai && (await openai.isAvailable())) {
@@ -47,7 +68,7 @@ export class OCRService {
       }
     }
 
-    // Auto / Fallback strategy: try each available provider
+    // Auto / Fallback strategy: try each available provider in priority order
     for (const provider of this.providers) {
       if (await provider.isAvailable()) {
         try {

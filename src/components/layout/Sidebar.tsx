@@ -63,11 +63,11 @@ const mainNavItems: NavGroupItem[] = [
   },
   {
     type: 'group',
-    label: 'Compliance',
+    label: 'Tax',
     key: 'compliance',
     icon: Shield,
     items: [
-      { to: '/app/tax', icon: FileText, label: 'Tax & Compliance' }
+      { to: '/app/tax', icon: FileText, label: 'Tax' }
     ]
   },
   {

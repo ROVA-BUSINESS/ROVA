@@ -14,7 +14,7 @@ export default function AccountingHubPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 32 }}>
-        <Card hoverable onClick={() => navigate('/app/general-ledger')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
+        <Card hoverable onClick={() => navigate('/app/ledger')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px' }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>General Ledger</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Master record of all accounts</div>

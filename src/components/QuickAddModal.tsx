@@ -131,6 +131,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
     }
     setSaving(true);
     setError('');
+    const actorText = isStaff ? 'Staff' : 'Admin';
     const { data: txData, error: err } = await supabase.from('transactions').insert({
       user_id: effectiveUserId,
       description: form.description,
@@ -139,6 +140,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
       date: form.date,
       category_id: form.category_id || null,
       account_id: form.account_id || null,
+      notes: `Performed by: ${actorText}`,
     }).select().single();
 
     if (err) {

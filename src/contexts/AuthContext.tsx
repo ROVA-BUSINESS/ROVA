@@ -11,6 +11,7 @@ type AuthContextType = {
   isStaff: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
@@ -81,6 +82,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   }
 
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/app`,
+      },
+    });
+    return { error };
+  }
+
   async function signUp(email: string, password: string, fullName: string) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (!error && data.user) {
@@ -114,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, staffData, isAdmin, isStaff, loading, signIn, signUp, signOut, updateProfile, refreshAuth }}>
+    <AuthContext.Provider value={{ user, session, profile, staffData, isAdmin, isStaff, loading, signIn, signInWithGoogle, signUp, signOut, updateProfile, refreshAuth }}>
       {children}
     </AuthContext.Provider>
   );

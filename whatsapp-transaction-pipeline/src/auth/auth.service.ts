@@ -33,4 +33,29 @@ export class AuthService {
 
     return data as ROVAUser;
   }
+
+  /**
+   * Registers a new ROVA user directly from WhatsApp.
+   */
+  async registerUserByWhatsApp(rawPhone: string, businessName: string): Promise<ROVAUser | null> {
+    const cleanPhone = rawPhone.replace(/\D/g, '');
+    const phone = `+${cleanPhone}`;
+    const userId = crypto.randomUUID();
+
+    const { error } = await supabase.from('profiles').insert({
+      id: userId,
+      full_name: businessName,
+      business_name: businessName,
+      phone: phone,
+      mode: 'business',
+      currency: 'NGN',
+    });
+
+    if (error) {
+      console.error('Failed to register WhatsApp user:', error);
+      return null;
+    }
+
+    return { id: userId, phone };
+  }
 }
