@@ -1,45 +1,65 @@
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, X, Building2 } from 'lucide-react';
+import { ArrowLeft, Check, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 
 export default function PricingPage() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
-  const PLAN_FEATURES = [
-    { name: "Accounting", basic: true, business: true },
-    { name: "Income & Expense Tracking", basic: true, business: true },
-    { name: "Invoicing", basic: true, business: true },
-    { name: "Financial Dashboard", basic: true, business: true },
-    { name: "Live Automatic Tracking", basic: true, business: true },
-    { name: "Financial Reports", basic: true, business: true },
-    { name: "AI Transaction Categorization", basic: true, business: true },
-    { name: "Receipt Storage", basic: true, business: true },
-    { name: "Inventory Management", basic: false, business: true },
-    { name: "Multi-User Access", basic: false, business: true },
-    { name: "User Roles & Permissions", basic: false, business: true },
-    { name: "Approval Workflows", basic: false, business: true },
-    { name: "Payroll Management", basic: false, business: true },
-    { name: "Employee Records", basic: false, business: true },
-    { name: "Advanced Analytics", basic: false, business: true },
-    { name: "Cash Flow Forecasting", basic: false, business: true },
-    { name: "AI Financial Assistant", basic: false, business: true },
-    { name: "VAT & PAYE Reports", basic: false, business: true },
-    { name: "Priority Support", basic: false, business: true },
+  const BASIC_FEATURES = [
+    { name: 'AI Bookkeeping & Transaction Recording', included: true },
+    { name: 'Income & Expense Tracking', included: true },
+    { name: 'P&L and Financial Reports', included: true },
+    { name: 'Professional Invoicing', included: true },
+    { name: 'Receipt Storage', included: true },
+    { name: 'Basic Inventory Management', included: true },
+    { name: 'Bank Connection (Mono)', included: true },
+    { name: 'Financial Records & Ledger', included: true },
+    { name: 'Basic Business Insights', included: true },
+    { name: 'WhatsApp ROVA (AI on WhatsApp)', included: false },
+    { name: 'Staff Accounts & Permissions', included: false },
+    { name: 'Payroll Management', included: false },
+    { name: 'Advanced Inventory Management', included: false },
+    { name: 'Advanced Reports & Analytics', included: false },
+    { name: 'Tax Filing Service', included: false },
+    { name: 'Priority Support', included: false },
   ];
 
-  const ADD_ONS = [
-    { name: "Payroll Processing", price: "₦100 per employee/month", available: "Basic & Business" },
-    { name: "Advanced Payroll (Payslips, Leave Tracking)", price: "₦500/month + ₦100/employee", available: "Basic & Business" },
-    { name: "VAT Report Generation", price: "₦1,000/month", available: "Basic" },
-    { name: "PAYE Report Generation", price: "₦1,000/month", available: "Basic" },
-    { name: "Full Tax Compliance Package", price: "₦2,500/month", available: "Basic" },
-    { name: "VAT Filing Assistance", price: "₦5,000 per filing", available: "Both" },
-    { name: "Annual Filing Assistance", price: "₦10,000–₦20,000 per filing", available: "Both" },
-    { name: "Additional User Seats", price: "₦500/user/month", available: "Basic" },
-    { name: "Extra Cloud Storage", price: "₦500/month", available: "Both" },
-    { name: "Priority Support", price: "₦1,000/month", available: "Basic" },
+  const BUSINESS_FEATURES = [
+    { name: 'Everything in Basic Plan', included: true, highlight: true },
+    { name: 'WhatsApp ROVA (AI on WhatsApp)', included: true },
+    { name: 'Multiple Staff Accounts', included: true },
+    { name: 'Staff Roles & Permissions', included: true },
+    { name: 'Advanced Inventory Management', included: true },
+    { name: 'Payroll Management', included: true },
+    { name: 'Advanced Reports & Insights', included: true },
+    { name: 'Tax Filing Service', included: true },
+    { name: 'Higher Usage Limits', included: true },
+    { name: 'Priority Support', included: true },
+  ];
+
+  const FAQ = [
+    {
+      q: 'What is the difference between Basic and Business?',
+      a: 'ROVA Basic manages your finances — bookkeeping, invoicing, P&L, receipts, and bank sync. ROVA Business does all of that plus runs your business operations: WhatsApp AI, payroll, staff accounts with role permissions, and full tax filing support.'
+    },
+    {
+      q: 'Can I switch between daily and monthly billing?',
+      a: 'Yes. Both plans are available on daily or monthly billing. Switch anytime from your Billing page inside the app.'
+    },
+    {
+      q: 'What is Tax Filing and why is it separate?',
+      a: 'Tax Filing is a professional one-time service where ROVA handles your FIRS submission on your behalf. It costs ₦5,000 per filing and can be purchased separately — regardless of your subscription plan — from your Billing page.'
+    },
+    {
+      q: 'Can I have ROVA + Tax Filing?',
+      a: 'Yes. They are independent products. You can subscribe to any ROVA plan and separately purchase a Tax Filing service (₦5,000 one-time). The tax filing fee does not recur — you only pay when you need another filing.'
+    },
+    {
+      q: 'Is payment secure?',
+      a: 'Yes. All payments are processed by Paystack, Nigeria\'s most trusted payment gateway. Your card details are never stored on our servers.'
+    },
   ];
 
   return (
@@ -64,275 +84,216 @@ export default function PricingPage() {
           position: sticky; top: 0; z-index: 100;
           display: flex; align-items: center; justify-content: center;
         }
-        .prc-nav-inner {
-          width: 100%; max-width: 1200px; padding: 0 20px;
-          display: flex; align-items: center; justify-content: space-between;
-        }
+        .prc-nav-inner { width: 100%; max-width: 1200px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; }
         .prc-nav-logo { height: 58px; cursor: pointer; }
-        .prc-nav-links { display: flex; gap: 24px; }
-        .prc-nav-link {
-          font-size: 14px; font-weight: 600; color: var(--text-secondary);
-          text-decoration: none; transition: color 0.2s;
-        }
+        .prc-nav-link { font-size: 14px; font-weight: 600; color: var(--text-secondary); text-decoration: none; transition: color 0.2s; }
         .prc-nav-link:hover { color: var(--text-primary); }
-        .prc-container {
-          max-width: 1100px; margin: 0 auto; padding: 60px 20px;
-          position: relative; z-index: 1;
-        }
-        .prc-header {
-          text-align: center; max-width: 700px; margin: 0 auto 50px;
-        }
-        .prc-badge {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 8px 18px; background: rgba(147,51,234,0.1);
-          border-radius: 100px; margin-bottom: 20px;
-          border: 1px solid rgba(147,51,234,0.25);
-        }
-        .prc-badge-text {
-          font-size: 11px; font-weight: 800; color: var(--accent-light);
-          text-transform: uppercase; letter-spacing: 2px;
-        }
-        .prc-title {
-          font-size: clamp(32px, 4vw, 52px); font-weight: 800; line-height: 1.15;
-          margin-bottom: 20px;
-        }
-        .prc-subtitle {
-          font-size: clamp(15px, 1.8vw, 17px); color: var(--text-secondary); line-height: 1.6;
-        }
-        
-        /* Plan Cards */
-        .prc-cards-grid {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 70px;
-        }
-        @media (max-width: 768px) {
-          .prc-cards-grid { grid-template-columns: 1fr; }
-        }
-        .prc-card {
-          background: ${isLight ? 'rgba(255,255,255,0.45)' : 'rgba(20,20,22,0.55)'};
-          backdrop-filter: blur(30px);
-          border: 1px solid var(--bg-border);
-          border-radius: var(--radius-xl); padding: 40px;
-          display: flex; flex-direction: column; gap: 24px;
-          position: relative; transition: all 0.3s ease;
-        }
-        .prc-card.featured {
-          border: 2px solid var(--accent-primary);
-          box-shadow: 0 20px 40px -10px rgba(147,51,234,0.15);
-        }
-        .prc-card-badge {
-          position: absolute; top: -14px; right: 28px;
-          background: linear-gradient(135deg, var(--accent-primary), #7c3aed);
-          color: white; font-size: 10px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: 1px; padding: 6px 14px; border-radius: var(--radius-full);
-          box-shadow: 0 4px 12px rgba(147,51,234,0.3);
-        }
-        .prc-plan-name { font-size: 24px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-        .prc-plan-price { font-size: 40px; font-weight: 800; line-height: 1; }
-        .prc-plan-price span { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
-        .prc-plan-sub { font-size: 14px; color: var(--text-muted); font-weight: 500; }
-
-        /* Comparison Table */
-        .prc-table-section { margin-bottom: 80px; }
-        .prc-table-title { font-size: 28px; font-weight: 800; margin-bottom: 24px; text-align: center; }
-        .prc-table-container {
-          background: ${isLight ? 'rgba(255,255,255,0.45)' : 'rgba(20,20,22,0.55)'};
-          backdrop-filter: blur(30px);
-          border: 1px solid var(--bg-border);
-          border-radius: var(--radius-xl); overflow: hidden;
-        }
-        .prc-table {
-          width: 100%; border-collapse: collapse; text-align: left;
-        }
-        .prc-th {
-          padding: 20px 24px; font-size: 14px; font-weight: 700; border-bottom: 1px solid var(--bg-border);
-          color: var(--text-primary);
-        }
-        .prc-td {
-          padding: 16px 24px; font-size: 13px; border-bottom: 1px solid var(--bg-border);
-          color: var(--text-secondary);
-        }
+        .prc-container { max-width: 1100px; margin: 0 auto; padding: 60px 20px; position: relative; z-index: 1; }
+        .prc-header { text-align: center; max-width: 700px; margin: 0 auto 60px; }
+        .prc-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; background: rgba(147,51,234,0.1); border-radius: 100px; margin-bottom: 20px; border: 1px solid rgba(147,51,234,0.25); }
+        .prc-badge-text { font-size: 11px; font-weight: 800; color: var(--accent-light); text-transform: uppercase; letter-spacing: 2px; }
+        .prc-title { font-size: clamp(32px, 4vw, 52px); font-weight: 800; line-height: 1.15; margin-bottom: 20px; }
+        .prc-subtitle { font-size: clamp(15px, 1.8vw, 17px); color: var(--text-secondary); line-height: 1.6; }
+        .prc-plans-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 24px; }
+        @media (max-width: 768px) { .prc-plans-grid { grid-template-columns: 1fr; } }
+        .prc-plan-card { background: ${isLight ? 'rgba(255,255,255,0.7)' : 'rgba(20,20,22,0.6)'}; backdrop-filter: blur(30px); border: 1px solid var(--bg-border); border-radius: var(--radius-xl); padding: 36px 32px; display: flex; flex-direction: column; gap: 0; position: relative; transition: all 0.25s ease; }
+        .prc-plan-card.featured { border: 2px solid var(--accent-primary); box-shadow: 0 20px 40px -10px rgba(147,51,234,0.2); }
+        .prc-plan-card-badge { position: absolute; top: -14px; right: 24px; background: linear-gradient(135deg, var(--accent-primary), #7c3aed); color: white; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 6px 14px; border-radius: var(--radius-full); box-shadow: 0 4px 12px rgba(147,51,234,0.3); }
+        .prc-freq-toggle { display: flex; gap: 8px; margin-bottom: 28px; background: ${isLight ? '#f4f4f5' : 'rgba(255,255,255,0.05)'}; border-radius: var(--radius-lg); padding: 4px; }
+        .prc-freq-btn { flex: 1; padding: 8px 12px; border-radius: calc(var(--radius-lg) - 2px); font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; background: transparent; color: var(--text-muted); }
+        .prc-freq-btn.active { background: ${isLight ? 'white' : '#27272a'}; color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+        .prc-feature-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; margin: 24px 0; flex: 1; }
+        .prc-table-container { background: ${isLight ? 'rgba(255,255,255,0.7)' : 'rgba(20,20,22,0.6)'}; backdrop-filter: blur(30px); border: 1px solid var(--bg-border); border-radius: var(--radius-xl); overflow: hidden; margin-bottom: 80px; }
+        .prc-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .prc-th { padding: 20px 24px; font-size: 14px; font-weight: 700; border-bottom: 1px solid var(--bg-border); color: var(--text-primary); }
+        .prc-td { padding: 15px 24px; font-size: 13px; border-bottom: 1px solid var(--bg-border); color: var(--text-secondary); }
         .prc-tr:last-child .prc-td { border-bottom: none; }
-        .prc-tr:hover { background: ${isLight ? 'rgba(9,9,11,0.01)' : 'rgba(255,255,255,0.01)'}; }
-        
-        .prc-check-icon { color: #10b981; display: inline-flex; }
-        .prc-x-icon { color: var(--text-disabled); display: inline-flex; opacity: 0.5; }
-
-        /* Add-Ons Section */
-        .prc-addons-section { margin-bottom: 80px; }
-        .prc-addons-grid {
-          display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;
-        }
-        .prc-addon-card {
-          background: ${isLight ? 'rgba(255,255,255,0.45)' : 'rgba(20,20,22,0.55)'};
-          backdrop-filter: blur(20px);
-          border: 1px solid var(--bg-border);
-          border-radius: var(--radius-lg); padding: 24px;
-          display: flex; flex-direction: column; gap: 8px;
-        }
-        .prc-addon-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-        .prc-addon-price { font-size: 15px; font-weight: 800; color: var(--accent-light); }
-        .prc-addon-avail { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
-
-        /* FAQ Section */
+        .prc-tax-card { background: ${isLight ? 'rgba(255,255,255,0.7)' : 'rgba(20,20,22,0.6)'}; backdrop-filter: blur(30px); border: 1px solid var(--bg-border); border-radius: var(--radius-xl); padding: 40px 36px; text-align: center; margin-bottom: 80px; }
         .prc-faq { max-width: 800px; margin: 0 auto; }
         .prc-faq-title { font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 36px; }
-        .prc-faq-item { border-bottom: 1px solid var(--bg-border); padding: 18px 0; display: flex; flex-direction: column; gap: 8px; }
-        .prc-faq-q { font-size: 15px; font-weight: 700; }
-        .prc-faq-a { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+        .prc-faq-item { border-bottom: 1px solid var(--bg-border); padding: 18px 0; }
+        .prc-faq-q { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+        .prc-faq-a { color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
+        .prc-section-title { font-size: 28px; font-weight: 800; text-align: center; margin-bottom: 12px; }
+        .prc-section-sub { text-align: center; color: var(--text-secondary); font-size: 15px; line-height: 1.6; max-width: 560px; margin: 0 auto 40px; }
       `}</style>
 
       <div className="prc-root">
-        {/* Glow Effects */}
-        <div style={{
-          position: 'absolute', top: '10%', left: '-10%', width: 400, height: 400,
-          background: 'rgba(147,51,234,0.08)', filter: 'blur(120px)', borderRadius: '50%',
-          zIndex: 0, pointerEvents: 'none'
-        }} />
-        <div style={{
-          position: 'absolute', top: '50%', right: '-10%', width: 350, height: 350,
-          background: 'rgba(59,130,246,0.06)', filter: 'blur(120px)', borderRadius: '50%',
-          zIndex: 0, pointerEvents: 'none'
-        }} />
+        {/* Glow */}
+        <div style={{ position: 'absolute', top: '10%', left: '-10%', width: 400, height: 400, background: 'rgba(147,51,234,0.08)', filter: 'blur(120px)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '50%', right: '-10%', width: 350, height: 350, background: 'rgba(59,130,246,0.06)', filter: 'blur(120px)', borderRadius: '50%', zIndex: 0, pointerEvents: 'none' }} />
 
-        {/* Navbar */}
+        {/* Nav */}
         <nav className="prc-nav">
           <div className="prc-nav-inner">
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-              <Link to="/" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                color: 'var(--text-secondary)', textDecoration: 'none',
-                fontSize: 14, fontWeight: 600, padding: '8px 16px',
-                borderRadius: 8, background: 'rgba(255,255,255,0.04)',
-                border: '1px solid var(--bg-border)', transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-              >
+              <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--bg-border)', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>
                 <ArrowLeft size={16} /> Back
               </Link>
-              <Link to="/">
-                <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="prc-nav-logo" />
-              </Link>
+              <Link to="/"><img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" className="prc-nav-logo" /></Link>
             </div>
-            <div className="prc-nav-links">
+            <div style={{ display: 'flex', gap: 24 }}>
               <Link to="/features" className="prc-nav-link">Features</Link>
-              <Link to="/solutions" className="sol-nav-link">Solutions</Link>
-              <Link to="/pricing" className="sol-nav-link" style={{ color: 'var(--text-primary)' }}>Pricing</Link>
-              <Link to="/company" className="sol-nav-link">Company</Link>
+              <Link to="/solutions" className="prc-nav-link">Solutions</Link>
+              <Link to="/pricing" className="prc-nav-link" style={{ color: 'var(--text-primary)' }}>Pricing</Link>
+              <Link to="/company" className="prc-nav-link">Company</Link>
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <Link to="/login" style={{ textDecoration: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 600 }}>Login</Link>
-              <Link to="/signup" className="sol-nav-link" style={{ background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: '#fff', padding: '8px 16px', borderRadius: 'var(--radius-md)', fontWeight: 700 }}>Get Started</Link>
+              <Link to="/signup" style={{ background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: '#fff', padding: '8px 16px', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>Get Started</Link>
             </div>
           </div>
         </nav>
 
-        {/* Main Content */}
         <div className="prc-container">
+          {/* Header */}
           <header className="prc-header">
-            <div className="prc-badge">
-              <span className="prc-badge-text">ROVA Subscription Plans</span>
-            </div>
+            <div className="prc-badge"><span className="prc-badge-text">Simple Pricing</span></div>
             <h1 className="prc-title">
-              Simple, transparent pricing <br />
-              built for <span style={{ background: 'linear-gradient(135deg, #a855f7, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Nigerian SMEs</span>
+              Two products.{' '}
+              <span style={{ background: 'linear-gradient(135deg, #a855f7, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Crystal clear pricing.</span>
             </h1>
             <p className="prc-subtitle">
-              Scale your accounting, invoices, and payroll operations. Choose a plan that fits your current operational needs, with flexible custom add-ons.
+              ROVA Basic manages your finances. ROVA Business runs your entire operation.
+              Tax Filing is a separate one-time professional service — ₦5,000 per filing.
             </p>
           </header>
 
-          {/* Cards Grid */}
-          <div className="prc-cards-grid">
-            {/* Basic Plan */}
-            <div className="prc-card">
-              <div className="prc-plan-name">
-                <Building2 size={24} color="var(--text-secondary)" />
-                Basic Plan
+          {/* Plan Cards */}
+          <section style={{ marginBottom: 80 }}>
+            <div className="prc-plans-grid">
+              {/* Basic */}
+              <div className="prc-plan-card">
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 6 }}>ROVA Basic</div>
+                  <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Financial Records</h2>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>For business owners who want ROVA to manage their finances.</p>
+                </div>
+                <div style={{ display: 'flex', gap: 16, margin: '24px 0', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: 36, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1 }}>₦100</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per day</div>
+                  </div>
+                  <div style={{ paddingBottom: 4, color: 'var(--text-disabled)' }}>or</div>
+                  <div>
+                    <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)', lineHeight: 1 }}>₦3,000</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per month</div>
+                  </div>
+                </div>
+                <Link to="/signup" style={{ textDecoration: 'none' }}>
+                  <Button variant="secondary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0' }}>Get Started — Basic</Button>
+                </Link>
+                <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)', margin: '24px 0' }} />
+                <ul className="prc-feature-list">
+                  {BASIC_FEATURES.map((f, i) => (
+                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: f.included ? 500 : 400, color: f.included ? 'var(--text-primary)' : 'var(--text-disabled)', alignItems: 'flex-start' }}>
+                      {f.included
+                        ? <Check size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} />
+                        : <X size={15} style={{ color: 'var(--text-disabled)', flexShrink: 0, marginTop: 1, opacity: 0.5 }} />}
+                      {f.name}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, minHeight: 36 }}>
-                Ideal for freelancers and small businesses needing clean bookkeeping and professional invoices.
-              </p>
-              <div className="prc-plan-price">
-                ₦100<span> / day</span>
+
+              {/* Business */}
+              <div className="prc-plan-card featured">
+                <span className="prc-plan-card-badge">Most Popular</span>
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-light)', letterSpacing: 1, marginBottom: 6 }}>ROVA Business</div>
+                  <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Full Business Operations</h2>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>For growing businesses that need ROVA to manage finance + operations.</p>
+                </div>
+                <div style={{ display: 'flex', gap: 16, margin: '24px 0', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: 36, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1, background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>₦500</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per day</div>
+                  </div>
+                  <div style={{ paddingBottom: 4, color: 'var(--text-disabled)' }}>or</div>
+                  <div>
+                    <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)', lineHeight: 1 }}>₦15,000</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per month</div>
+                  </div>
+                </div>
+                <Link to="/signup" style={{ textDecoration: 'none' }}>
+                  <Button variant="primary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)' }}>Get Started — Business</Button>
+                </Link>
+                <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)', margin: '24px 0' }} />
+                <ul className="prc-feature-list">
+                  {BUSINESS_FEATURES.map((f, i) => (
+                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: f.highlight ? 700 : 500, color: f.highlight ? 'var(--accent-light)' : 'var(--text-primary)', alignItems: 'flex-start' }}>
+                      <Check size={15} style={{ color: f.highlight ? 'var(--accent-light)' : '#10b981', flexShrink: 0, marginTop: 1 }} />
+                      {f.name}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="prc-plan-sub">
-                or <span style={{ color: 'var(--accent-light)', fontWeight: 700 }}>₦3,000</span> / month
-              </div>
-              
-              <Link to="/signup" style={{ textDecoration: 'none', marginTop: 'auto' }}>
-                <Button variant="secondary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0' }}>Get Started</Button>
-              </Link>
-              <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {['Full Bookkeeping & Ledger', 'Income & Expense tracking', 'Professional Invoicing', 'Financial Reports (P&L, Balance Sheet)', 'Bank Transaction Import (Mono)', 'AI Transaction Categorization'].map((f, i) => (
-                  <li key={i} style={{ display: 'flex', gap: 8, fontSize: 13, fontWeight: 500 }}>
-                    <Check size={16} style={{ color: '#10b981' }} /> {f}
-                  </li>
-                ))}
-              </ul>
             </div>
 
-            {/* Business Plan */}
-            <div className="prc-card featured">
-              <span className="prc-card-badge">Most Popular</span>
-              <div className="prc-plan-name">
-                Business Plan
-              </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, minHeight: 36 }}>
-                Perfect for growing companies requiring inventory management, payroll processing, and multi-user collaboration.
-              </p>
-              <div className="prc-plan-price">
-                ₦300<span> / day</span>
-              </div>
-              <div className="prc-plan-sub">
-                or <span style={{ color: 'var(--accent-light)', fontWeight: 700 }}>₦9,000</span> / month
-              </div>
-              
-              <Link to="/signup" style={{ textDecoration: 'none', marginTop: 'auto' }}>
-                <Button variant="primary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0' }}>Start Business Trial</Button>
-              </Link>
-              <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {['Everything in Basic Plan', 'AI Financial Assistant (ROVA Chat)', 'Multi-User Access & Roles', 'Payroll Management & Employee Records', 'Inventory Management', 'Cash Flow Forecasting & Analytics'].map((f, i) => (
-                  <li key={i} style={{ display: 'flex', gap: 8, fontSize: 13, fontWeight: 500 }}>
-                    <Check size={16} style={{ color: '#10b981' }} /> {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+              All payments processed securely by <strong>Paystack</strong> · Cancel anytime · No hidden fees
+            </p>
+          </section>
 
-          {/* Features Comparison Table */}
-          <section className="prc-table-section">
-            <h2 className="prc-table-title">Compare Plan Features</h2>
+          {/* Tax Filing Service Card */}
+          <section style={{ marginBottom: 80 }}>
+            <h2 className="prc-section-title">Tax Filing — Separate Service</h2>
+            <p className="prc-section-sub">
+              A standalone professional service. ROVA files your taxes with FIRS on your behalf. Independent of your subscription plan.
+            </p>
+            <div className="prc-tax-card">
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 24 }}>📋</span>
+                </div>
+              </div>
+              <h3 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>₦5,000</h3>
+              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Per Tax Filing · One-time Payment</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65, maxWidth: 500, margin: '0 auto 28px' }}>
+                VAT returns, PAYE, Company Income Tax (CIT), or Annual Filing.
+                ROVA handles the full submission to FIRS. You only pay when you need a filing — it never auto-renews.
+              </p>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 28 }}>
+                {['VAT Return', 'PAYE / PIT', 'Company Income Tax', 'Annual Filing'].map(t => (
+                  <span key={t} style={{ padding: '6px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 100, fontSize: 12, fontWeight: 600, color: '#10b981' }}>{t}</span>
+                ))}
+              </div>
+              <Link to="/login" style={{ textDecoration: 'none' }}>
+                <Button variant="primary" style={{ padding: '12px 32px', background: 'linear-gradient(135deg, #059669, #10b981)', border: 'none' }}>
+                  Purchase Tax Filing — ₦5,000
+                </Button>
+              </Link>
+            </div>
+          </section>
+
+          {/* Feature Comparison Table */}
+          <section style={{ marginBottom: 80 }}>
+            <h2 className="prc-section-title">Compare Plans</h2>
+            <p className="prc-section-sub">See exactly what each plan includes.</p>
             <div className="prc-table-container">
               <table className="prc-table">
                 <thead>
                   <tr style={{ background: isLight ? '#f9f9fb' : 'rgba(255,255,255,0.02)' }}>
-                    <th className="prc-th">Feature</th>
-                    <th className="prc-th" style={{ width: '150px' }}>Basic</th>
-                    <th className="prc-th" style={{ width: '150px' }}>Business</th>
+                    <th className="prc-th" style={{ width: '50%' }}>Feature</th>
+                    <th className="prc-th" style={{ width: '25%' }}>Basic</th>
+                    <th className="prc-th" style={{ width: '25%', color: 'var(--accent-light)' }}>Business</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {PLAN_FEATURES.map((item, index) => (
-                    <tr key={index} className="prc-tr">
-                      <td className="prc-td" style={{ fontWeight: 600 }}>{item.name}</td>
-                      <td className="prc-td">
-                        {item.basic ? (
-                          <span className="prc-check-icon"><Check size={18} /></span>
-                        ) : (
-                          <span className="prc-x-icon"><X size={18} /></span>
-                        )}
-                      </td>
-                      <td className="prc-td">
-                        {item.business ? (
-                          <span className="prc-check-icon"><Check size={18} /></span>
-                        ) : (
-                          <span className="prc-x-icon"><X size={18} /></span>
-                        )}
-                      </td>
+                  {BASIC_FEATURES.map((f, i) => (
+                    <tr key={i} className="prc-tr">
+                      <td className="prc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f.name}</td>
+                      <td className="prc-td">{f.included ? <Check size={16} style={{ color: '#10b981' }} /> : <X size={16} style={{ color: 'var(--text-disabled)', opacity: 0.4 }} />}</td>
+                      <td className="prc-td"><Check size={16} style={{ color: '#10b981' }} /></td>
+                    </tr>
+                  ))}
+                  {BUSINESS_FEATURES.slice(1).map((f, i) => (
+                    <tr key={`b${i}`} className="prc-tr">
+                      <td className="prc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f.name}</td>
+                      <td className="prc-td"><X size={16} style={{ color: 'var(--text-disabled)', opacity: 0.4 }} /></td>
+                      <td className="prc-td"><Check size={16} style={{ color: '#10b981' }} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -340,56 +301,15 @@ export default function PricingPage() {
             </div>
           </section>
 
-          {/* Add-Ons Section */}
-          <section className="prc-addons-section">
-            <h2 className="prc-table-title">Flexible Add-Ons</h2>
-            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 32, fontSize: 14, maxWidth: 600, margin: '0 auto 32px' }}>
-              Only pay for what your business needs. Attach these modules directly to your Basic or Business plan.
-            </p>
-            <div className="prc-addons-grid">
-              {ADD_ONS.map((addon, index) => (
-                <div key={index} className="prc-addon-card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div className="prc-addon-name">{addon.name}</div>
-                    <span className="prc-addon-avail">{addon.available}</span>
-                  </div>
-                  <div className="prc-addon-price">{addon.price}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* FAQ Section */}
+          {/* FAQ */}
           <section className="prc-faq">
             <h2 className="prc-faq-title">Frequently Asked Questions</h2>
-            
-            <div className="prc-faq-item">
-              <h3 className="prc-faq-q">Can I upgrade or downgrade my plan?</h3>
-              <p className="prc-faq-a">
-                Yes, you can upgrade, downgrade, or cancel your subscription plan at any time directly from your Billing Settings page. Subscriptions can be billed daily or monthly.
-              </p>
-            </div>
-
-            <div className="prc-faq-item">
-              <h3 className="prc-faq-q">How does the Payroll Processing add-on work?</h3>
-              <p className="prc-faq-a">
-                Basic and Business plans can activate payroll. You are billed ₦100 per active employee per month. If you have 5 employees, you will pay ₦500/month in addition to your base plan.
-              </p>
-            </div>
-
-            <div className="prc-faq-item">
-              <h3 className="prc-faq-q">Do you assist with tax filing?</h3>
-              <p className="prc-faq-a">
-                Yes! We offer VAT Filing Assistance (₦5,000 per filing) and Annual Corporate Tax Filing Assistance (₦10,000–₦20,000 per filing) where local tax consultants review and submit your books directly to FIRS.
-              </p>
-            </div>
-
-            <div className="prc-faq-item">
-              <h3 className="prc-faq-q">Can I buy additional user seats?</h3>
-              <p className="prc-faq-a">
-                If you are on the Basic Plan, you can add extra seats for team members or your external accountant at ₦500/seat/month. The Business Plan includes unlimited seat allocations by default.
-              </p>
-            </div>
+            {FAQ.map((item, i) => (
+              <div key={i} className="prc-faq-item">
+                <h3 className="prc-faq-q">{item.q}</h3>
+                <p className="prc-faq-a">{item.a}</p>
+              </div>
+            ))}
           </section>
 
           <footer style={{ marginTop: 60, paddingTop: 28, borderTop: '1px solid var(--bg-border)', textAlign: 'center' }}>

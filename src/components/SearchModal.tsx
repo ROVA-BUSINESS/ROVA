@@ -34,7 +34,8 @@ const STATIC_PAGES = [
   { title: 'Chart of Accounts', subtitle: 'Financial structure and account list', url: '/app/chart-of-accounts' },
   { title: 'Reports Hub', subtitle: 'Financial statements, analytics, and export tools', url: '/app/reports' },
   { title: 'AI Assistant', subtitle: 'Chat with ROVA AI, query financial records', url: '/app/assistant' },
-  { title: 'Settings', subtitle: 'Manage business profile, team members, and bank connections', url: '/app/settings' }
+  { title: 'Settings', subtitle: 'Manage business profile, team members, and bank connections', url: '/app/settings' },
+  { title: 'Billing', subtitle: 'Subscription plans, tax filing service, payment history', url: '/app/billing' }
 ];
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {

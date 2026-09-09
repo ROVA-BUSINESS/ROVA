@@ -5,7 +5,7 @@ import {
   Settings, LogOut, Plus, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
   Users, Package, Shield, X, Brain,
-  TrendingDown
+  TrendingDown, CreditCard
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';
@@ -537,6 +537,45 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           flexDirection: 'column',
           gap: 1
         }}>
+          {/* Billing Link — admin only */}
+          {!isStaff && (
+            <NavLink
+              to="/app/billing"
+              style={({ isActive }) => ({
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: isDesktopCollapsed ? 'center' : 'flex-start',
+                gap: isDesktopCollapsed ? 0 : 10,
+                padding: '8px 10px',
+                borderRadius: '6px',
+                color: isActive ? textColorActive : itemColor,
+                background: isActive ? activeBg : 'transparent',
+                fontWeight: isActive ? 600 : 500,
+                fontSize: 13,
+                transition: 'all 0.15s ease',
+                textDecoration: 'none',
+                width: '100%'
+              })}
+              onMouseEnter={e => {
+                const el = e.currentTarget as HTMLElement;
+                if (!el.getAttribute('aria-current')) {
+                  el.style.background = hoverBg;
+                  el.style.color = textColorActive;
+                }
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget as HTMLElement;
+                if (!el.getAttribute('aria-current')) {
+                  el.style.background = 'transparent';
+                  el.style.color = itemColor;
+                }
+              }}
+            >
+              <CreditCard size={16} style={{ flexShrink: 0 }} />
+              {!isDesktopCollapsed && 'Billing'}
+            </NavLink>
+          )}
+
           {/* Settings Link */}
           <NavLink
             to="/app/settings"

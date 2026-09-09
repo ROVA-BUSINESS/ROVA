@@ -420,6 +420,52 @@ export type BillPayment = {
   created_at: string;
 };
 
+export type RovaSubscription = {
+  id: string;
+  user_id: string;
+  business_name: string | null;
+  plan: 'basic_daily' | 'basic_monthly' | 'business_daily' | 'business_monthly';
+  amount: number;
+  status: 'active' | 'paused' | 'cancelled' | 'expired';
+  payment_reference: string | null;
+  paystack_transaction_id: string | null;
+  payment_date: string | null;
+  start_date: string;
+  next_payment_date: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RovaServicePayment = {
+  id: string;
+  user_id: string;
+  business_name: string | null;
+  service_type: string;
+  service_name: string;
+  tax_year: number | null;
+  filing_type: string | null;
+  amount: number;
+  payment_reference: string | null;
+  paystack_transaction_id: string | null;
+  payment_date: string | null;
+  payment_status: 'unpaid' | 'paid' | 'processing' | 'filed';
+  filing_status: 'pending' | 'processing' | 'filed' | 'rejected';
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RovaServiceCatalog = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  payment_type: 'recurring' | 'one_time';
+  billing_frequency: 'daily' | 'monthly' | 'one_time' | null;
+  is_active: boolean;
+  created_at: string;
+};
+
 export async function syncAllBanks(userId?: string) {
   try {
     const { data: sessionData } = await supabase.auth.getSession();

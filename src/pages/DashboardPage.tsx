@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, ChevronRight, Wallet, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, ChevronRight, Wallet, RefreshCw, CreditCard, AlertCircle } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase, syncAllBanks, type Transaction, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib/format';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
@@ -10,11 +11,13 @@ import Button from '../components/ui/Button';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 import QuickAddModal from '../components/QuickAddModal';
 import { useMobile } from '../hooks/useMobile';
+import { PLANS } from '../lib/paystack';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function DashboardPage() {
   const { user, profile, isStaff, staffData } = useAuth();
+  const { subscription, servicePayments, isActive, isBusiness, planKey } = useSubscription();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -184,6 +187,79 @@ export default function DashboardPage() {
               </div>
             </Card>
           </div>
+
+          {/* ── Billing Status Widget ── */}
+          {!isStaff && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <CreditCard size={16} color="var(--text-muted)" />
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>Subscription & Services</h3>
+                <button onClick={() => navigate('/app/billing')} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent-light)', fontSize: 12, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                  Manage Billing <ChevronRight size={12} />
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+                {/* Subscription card */}
+                <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: `1px solid ${isActive ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.25)'}`, background: isActive ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.04)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: isActive ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {isActive ? <CreditCard size={18} color="#10b981" /> : <AlertCircle size={18} color="var(--error)" />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#10b981' : 'var(--error)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
+                      {isActive ? 'Active' : 'No Subscription'}
+                    </div>
+                    {isActive && subscription && planKey ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{PLANS[planKey]?.label}</div>
+                        {subscription.next_payment_date && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Renews {new Date(subscription.next_payment_date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Subscribe to unlock all features</div>
+                    )}
+                  </div>
+                  {!isActive && (
+                    <button onClick={() => navigate('/app/billing')} style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: 'white', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', flexShrink: 0 }}>Subscribe</button>
+                  )}
+                </div>
+
+                {/* Tax filing / Business upgrade card */}
+                {isActive && isBusiness ? (
+                  <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 18 }}>📋</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Tax Filing</div>
+                      {servicePayments.length > 0 ? (
+                        <>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{servicePayments[0].tax_year} Filing — {servicePayments[0].filing_status}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{servicePayments.length} filing{servicePayments.length > 1 ? 's' : ''} total</div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No active tax filings</div>
+                      )}
+                    </div>
+                    <button onClick={() => navigate('/app/billing')} style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: 11, fontWeight: 700, border: '1px solid rgba(16,185,129,0.2)', cursor: 'pointer', flexShrink: 0 }}>File Tax</button>
+                  </div>
+                ) : isActive && !isBusiness ? (
+                  <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent-border)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 20 }}>⭐</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Upgrade Available</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>WhatsApp AI, Payroll & Tax Filing on Business plan</div>
+                    </div>
+                    <button onClick={() => navigate('/app/billing')} style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: 'white', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', flexShrink: 0 }}>Upgrade</button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
 
           <div className="mobile-col" style={{ display: 'flex', gap: 24 }}>
             <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
