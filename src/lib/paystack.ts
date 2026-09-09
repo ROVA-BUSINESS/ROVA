@@ -54,7 +54,7 @@ function loadPaystackScript(): Promise<void> {
 export async function openPaystackPopup(options: PaystackPaymentOptions): Promise<void> {
   await loadPaystackScript();
 
-  const key = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string;
+  const key = (import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string) || 'pk_live_fb2ec2eb1534b3b19caf7c13cfc5e146f9f3159b';
   if (!key) {
     console.error('VITE_PAYSTACK_PUBLIC_KEY is not set in environment variables');
     throw new Error('Payment configuration error. Please contact support.');
