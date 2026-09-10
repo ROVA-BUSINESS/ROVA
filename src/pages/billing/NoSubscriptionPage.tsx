@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Zap, Shield, BarChart2, FileText, Sparkles } from 'lucide-react';
+import { CreditCard, Zap, Shield, BarChart2, FileText, Sparkles, CheckCircle2 } from 'lucide-react';
 import Button from '../../components/ui/Button';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 
 const HIGHLIGHTS = [
   { icon: Zap, label: 'AI Bookkeeping', desc: 'Record transactions automatically via AI' },
@@ -11,6 +13,26 @@ const HIGHLIGHTS = [
 
 export default function NoSubscriptionPage() {
   const navigate = useNavigate();
+  const { activateByReference } = useSubscription();
+  const [refInput, setRefInput] = useState('');
+  const [showRefInput, setShowRefInput] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [refError, setRefError] = useState('');
+  const [refSuccess, setRefSuccess] = useState(false);
+
+  async function handleActivateRef() {
+    if (!refInput.trim()) return;
+    setActivating(true);
+    setRefError('');
+    const res = await activateByReference(refInput.trim());
+    setActivating(false);
+    if (res.success) {
+      setRefSuccess(true);
+      setTimeout(() => navigate('/app/dashboard'), 1200);
+    } else {
+      setRefError(res.error || 'Invalid reference');
+    }
+  }
 
   return (
     <div style={{
@@ -76,6 +98,62 @@ export default function NoSubscriptionPage() {
         >
           View Plans & Subscribe
         </Button>
+
+        {/* Restore / activate reference section */}
+        <div style={{ marginTop: 24 }}>
+          {!showRefInput ? (
+            <button
+              onClick={() => setShowRefInput(true)}
+              style={{ background: 'none', border: 'none', color: 'var(--accent-light)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Already paid via Bank Transfer? Click here to restore payment
+            </button>
+          ) : (
+            <div style={{
+              marginTop: 12, padding: 16, borderRadius: 'var(--radius-lg)',
+              background: 'var(--bg-card)', border: '1px solid var(--bg-border)', maxWidth: 400, margin: '16px auto 0',
+            }}>
+              {refSuccess ? (
+                <div style={{ color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
+                  <CheckCircle2 size={18} /> Subscription Activated! Redirecting...
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, textAlign: 'left', fontWeight: 600 }}>
+                    Enter your Paystack reference (e.g. ROVA_SUB_...):
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="text"
+                      placeholder="ROVA_SUB_1789064857..."
+                      value={refInput}
+                      onChange={(e) => setRefInput(e.target.value)}
+                      style={{
+                        flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--bg-border)', background: 'var(--bg-base)',
+                        color: 'var(--text-primary)', fontSize: 13,
+                      }}
+                    />
+                    <Button
+                      variant="primary"
+                      disabled={activating || !refInput.trim()}
+                      onClick={handleActivateRef}
+                      style={{ padding: '8px 16px', fontSize: 13 }}
+                    >
+                      {activating ? 'Activating...' : 'Activate'}
+                    </Button>
+                  </div>
+                  {refError && (
+                    <div style={{ color: '#ef4444', fontSize: 12, marginTop: 8, textAlign: 'left' }}>
+                      {refError}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 14 }}>
           Secured by Paystack · Cancel anytime
         </p>

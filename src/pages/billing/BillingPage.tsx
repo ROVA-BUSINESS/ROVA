@@ -104,6 +104,18 @@ function CheckoutModal({ type, planKey, taxYear, filingType, open, onClose, onSu
     setPaying(true);
     setError('');
     const ref = generatePaymentRef(type === 'subscription' ? 'SUB' : 'TAX');
+    const pendingPayment = {
+      reference: ref,
+      userId: user.id,
+      type,
+      planKey,
+      taxYear,
+      filingType,
+      amount,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem('rova_pending_payment', JSON.stringify(pendingPayment));
+
     try {
       await openPaystackPopup({
         email: user.email,
