@@ -65,11 +65,7 @@ export default function CompanyPage() {
           font-size: clamp(15px, 1.8vw, 18px); color: var(--text-secondary); line-height: 1.6;
         }
         .com-about-section {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center;
-          margin-bottom: 80px;
-        }
-        @media (max-width: 1024px) {
-          .com-about-section { grid-template-columns: 1fr; gap: 32px; }
+          max-width: 840px; margin: 0 auto 80px auto;
         }
         .com-about-title {
           font-size: 28px; font-weight: 800; margin-bottom: 18px; font-family: 'Roboto', sans-serif;
@@ -181,25 +177,6 @@ export default function CompanyPage() {
               <p className="com-about-p">
                 Today, ROVA supports teams across Sub-Saharan Africa, powering invoice processing, GAAP ledger audit safety, FIRS statutory deductions, and inventory COGS management on autopilot.
               </p>
-            </div>
-            <div style={{
-              background: 'rgba(147,51,234,0.03)', border: '1px solid rgba(147,51,234,0.12)',
-              borderRadius: 'var(--radius-xl)', padding: 36, display: 'flex', flexDirection: 'column', gap: 24
-            }}>
-              <div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--accent-light)', marginBottom: 4, fontFamily: "'Roboto', sans-serif" }}>₦50B+</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Autonomous transaction pipeline capacity</div>
-              </div>
-              <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
-              <div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: '#3b82f6', marginBottom: 4, fontFamily: "'Roboto', sans-serif" }}>100%</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Statutory compliance calculations precision (FIRS rules)</div>
-              </div>
-              <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)' }} />
-              <div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: '#10b981', marginBottom: 4, fontFamily: "'Roboto', sans-serif" }}>250ms</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Average ledger query indexing latency</div>
-              </div>
             </div>
           </div>
 

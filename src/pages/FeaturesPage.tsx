@@ -31,7 +31,7 @@ export default function FeaturesPage() {
   const isLight = theme === 'light';
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', overflowX: 'hidden', fontFamily: "'Roboto', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', overflowX: 'hidden', fontFamily: "'Noto Sans JP', sans-serif" }}>
       {/* Navigation Re-used */}
       <nav style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 80,

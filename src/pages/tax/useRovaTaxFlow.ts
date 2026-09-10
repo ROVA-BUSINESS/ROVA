@@ -20,6 +20,7 @@ const ASSET_RATES: Record<AssetCategory, { salvagePct: number; usefulLife: numbe
 };
 
 const INITIAL_STATE: RovaTaxState = {
+  hasNewFixedAssets: null,
   assets: [],
   hasFixedAssets: null,
   mneCfc: { isMNE: null, isCFC: null },
@@ -153,9 +154,76 @@ export function useRovaTaxFlow() {
     setState(updater);
   };
 
+  /** Serialize wizard state + computed values into the JSON format the filing bot and Excel generator expect. */
+  const exportForFiling = () => {
+    // Filter only non-zero entries from a record
+    const filterRecord = (rec: Record<string, number>) => {
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(rec)) {
+        if (v) out[k] = String(v);
+      }
+      return out;
+    };
+
+    return {
+      year: state.yearOfAssessment,
+      sector: state.sector,
+      revenue: state.revenue ? String(state.revenue) : '0',
+      mne: state.mneCfc.isMNE ? 'Yes' : 'No',
+      cfc: state.mneCfc.isCFC ? 'Yes' : 'No',
+      has_new_fixed_assets: state.hasNewFixedAssets ? 'Yes' : 'No',
+      assets: state.assets
+        .filter(a => a.category && a.cost)
+        .map((a, i) => ({
+          category: a.category,
+          description: a.description,
+          cost: String(a.cost),
+          date_first_used: a.dateFirstUsed,
+          salvage_value: String(computed.assetCalcs[i]?.salvageValue || 0),
+          annual_depreciation: String(computed.assetCalcs[i]?.annualDepreciation || 0),
+        })),
+      cos: {
+        opening_inventory: filterRecord(state.costOfSales.openingInventory),
+        purchases: filterRecord(state.costOfSales.purchases),
+        other_direct_cost: filterRecord(state.costOfSales.otherDirectCost),
+        factory_overheads: filterRecord(state.costOfSales.factoryOverheads),
+        closing_inventory: filterRecord(state.costOfSales.closingInventory),
+      },
+      sfp: {
+        properties_plant_equipment: state.sfp.propertiesPlantsEquipment ? String(state.sfp.propertiesPlantsEquipment) : '0',
+        investments: filterRecord(state.sfp.investments),
+        intangible_assets: filterRecord(state.sfp.intangibleAssets),
+        other_non_current_assets: filterRecord(state.sfp.otherNonCurrentAssets),
+        other_current_assets: filterRecord(state.sfp.otherCurrentAssets),
+        cash_and_cash_equivalents: filterRecord(state.sfp.cashAndEquivalents),
+        other_current_liabilities: filterRecord(state.sfp.otherCurrentLiabilities),
+        non_current_liabilities: filterRecord(state.sfp.nonCurrentLiabilities),
+        other_reserves: filterRecord(state.sfp.otherReserves),
+        current_liabilities: filterRecord(state.sfp.tradePayablesAndCurrentTax),
+        equity: filterRecord(state.sfp.equity),
+      },
+      admin: filterRecord(state.adminExpense),
+      addbacks: filterRecord(state.profitAdjustment.addbacks),
+      deductions: filterRecord(state.profitAdjustment.deductions),
+      computed: {
+        total_capital_allowance: String(computed.totalCapitalAllowance),
+        direct_cost: String(computed.directCost),
+        gross_profit: String(computed.grossProfit),
+        admin_expenses: String(computed.adminExpensesTotal),
+        operating_income: String(computed.operatingIncome),
+        opbt: String(computed.opbt),
+        taxable_profit: String(computed.taxableProfit),
+        taxation: String(computed.taxation),
+        profit_after_tax: String(computed.profitAfterTax),
+        profit_for_year: String(computed.profitForYear),
+      },
+    };
+  };
+
   return {
     state,
     computed,
     updateState,
+    exportForFiling,
   };
 }

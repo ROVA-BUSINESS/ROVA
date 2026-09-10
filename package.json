@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "db:push": "node scripts/apply-migrations.js"
+    "db:push": "node scripts/apply-migrations.js",
+    "file-taxes": "node scripts/nrs-tax-bot.js"
   },
   "dependencies": {
     "@mono.co/connect.js": "^2.2.0",
@@ -16,6 +17,7 @@
     "@supabase/supabase-js": "^2.103.2",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.8.0",
     "markdown-to-docx": "^1.2.0",
     "pg": "^8.21.0",
