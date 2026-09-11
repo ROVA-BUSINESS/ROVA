@@ -47,6 +47,7 @@ export type Sector =
   | 'Others';
 
 export interface RovaTaxState {
+  hasNewFixedAssets: boolean | null;
   assets: FixedAsset[];
   hasFixedAssets: boolean | null;
   mneCfc: {

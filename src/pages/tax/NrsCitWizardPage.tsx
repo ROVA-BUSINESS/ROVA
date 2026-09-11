@@ -36,7 +36,7 @@ const SECTORS: Sector[] = [
 
 export default function NrsCitWizardPage() {
   const navigate = useNavigate();
-  const { state, computed, updateState } = useRovaTaxFlow();
+  const { state, computed, updateState, exportForFiling } = useRovaTaxFlow();
   const [currentStep, setCurrentStep] = useState(0);
 
   const stage = STAGES[currentStep];
@@ -74,14 +74,14 @@ export default function NrsCitWizardPage() {
                 isMulti={false}
                 options={['Yes', 'No']}
                 selectedOptions={
-                  state.hasFixedAssets === true ? ['Yes'] : state.hasFixedAssets === false ? ['No'] : []
+                  (state.hasFixedAssets === true || state.hasNewFixedAssets === true) ? ['Yes'] : (state.hasFixedAssets === false || state.hasNewFixedAssets === false) ? ['No'] : []
                 }
                 onChange={([val]) => {
                   const hasAssets = val === 'Yes';
                   updateState(prev => ({
                     ...prev,
                     hasFixedAssets: hasAssets,
-                    // If switching to No, clear any previously added assets
+                    hasNewFixedAssets: hasAssets,
                     assets: hasAssets ? prev.assets : [],
                   }));
                 }}
@@ -89,7 +89,7 @@ export default function NrsCitWizardPage() {
             </div>
 
             {/* If Yes — show asset entry cards */}
-            {state.hasFixedAssets === true && (
+            {(state.hasFixedAssets === true || state.hasNewFixedAssets === true) && (
               <>
                 <div style={{ marginBottom: 16 }}>
                   {state.assets.map((asset, idx) => {
@@ -135,7 +135,7 @@ export default function NrsCitWizardPage() {
             )}
 
             {/* If No — confirmation */}
-            {state.hasFixedAssets === false && (
+            {(state.hasFixedAssets === false || state.hasNewFixedAssets === false) && (
               <div style={{ padding: 16, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <HelpCircle size={16} color="var(--text-muted)" />
                 <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -465,25 +465,93 @@ export default function NrsCitWizardPage() {
 
       case 'done':
         return (
-          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Review & Submit</h2>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 32 }}>
-              Please ensure all ledger values reflect your business's true state for the {state.yearOfAssessment} filing period. 
-              Submitting will record this in the ROVA app.
-            </p>
-            <button
-              onClick={() => {
-                alert("Tax filed successfully in ROVA! (Note: backend integration to tax authority API is planned for a future update).");
-                navigate('/app/tax');
-              }}
-              style={{
-                padding: '12px 32px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
-                color: '#fff', border: 'none', borderRadius: 'var(--radius-lg)', fontSize: 16, fontWeight: 700,
-                cursor: 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.25)'
-              }}
-            >
-              Sign and submit
-            </button>
+          <div style={{ padding: '24px 0' }}>
+            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Review & Submit</h2>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 0 }}>
+                Please ensure all ledger values reflect your business's true state for the {state.yearOfAssessment} filing period.
+              </p>
+            </div>
+
+            {/* Export Actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 420, margin: '0 auto 32px' }}>
+              
+              {/* Download Filing Data JSON */}
+              <button
+                onClick={() => {
+                  const data = exportForFiling();
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `ROVA_CIT_Filing_${data.year || 'data'}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                style={{
+                  padding: '12px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
+                  borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8
+                }}
+              >
+                📄 Download Filing Data (JSON)
+              </button>
+
+              {/* Send to Chrome Extension for NRS autofill */}
+              <button
+                onClick={() => {
+                  const data = exportForFiling();
+                  // Dispatch to Chrome extension (both CustomEvent & postMessage for cross-world reliability)
+                  window.dispatchEvent(new CustomEvent('ROVA_FILE_TAXES', { detail: data }));
+                  window.postMessage({ type: 'ROVA_FILE_TAXES', data }, '*');
+                  alert('Filing data sent to the Rova Tax Co-Pilot extension!\n\nIf the extension is installed, the NRS portal will open automatically.\n\nIf not, click "📥 Load ROVA JSON File" on the NRS widget using your downloaded JSON file.');
+                }}
+                style={{
+                  padding: '12px 20px',
+                  background: 'linear-gradient(135deg, #1B4332, #2D6A4F)',
+                  border: 'none', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700,
+                  color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8
+                }}
+              >
+                ⚡ File on NRS Portal (Co-Pilot)
+              </button>
+            </div>
+
+            {/* Instructions */}
+            <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)', maxWidth: 420, margin: '0 auto 32px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                CLI Filing Bot
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: 1.5 }}>
+                Download the JSON above, then run in your terminal:
+              </p>
+              <code style={{ display: 'block', padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--accent-light)', wordBreak: 'break-all' }}>
+                npm run file-taxes -- path/to/ROVA_CIT_Filing_{state.yearOfAssessment || '2026'}.json
+              </code>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.4 }}>
+                The bot will generate the filled Excel template and automate the NRS self-service portal.
+              </p>
+            </div>
+
+            {/* Divider */}
+            <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)', maxWidth: 420, margin: '0 auto 24px' }} />
+
+            {/* Original submit */}
+            <div style={{ textAlign: 'center' }}>
+              <button
+                onClick={() => {
+                  alert("Tax filed successfully in ROVA! (Note: backend integration to tax authority API is planned for a future update).");
+                  navigate('/app/tax');
+                }}
+                style={{
+                  padding: '12px 32px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
+                  color: '#fff', border: 'none', borderRadius: 'var(--radius-lg)', fontSize: 16, fontWeight: 700,
+                  cursor: 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.25)'
+                }}
+              >
+                Sign and submit
+              </button>
+            </div>
           </div>
         );
       
