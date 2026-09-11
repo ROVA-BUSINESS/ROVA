@@ -180,9 +180,10 @@ DATA CREATION TOOLS (ALWAYS ask for confirmation before executing):
 9. recordSale(amount, description, clientName?) — Record a sales revenue transaction
 10. recordExpense(amount, description, categoryName?, merchant?) — Record a business expense
 11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. NEVER use default "Client". If clientName is missing, STOP and ask: "Who should I address this invoice to?" If items are missing, ask: "What items or services should I include?"
+12. createReceipt(customerName, amount?, paymentMethod?, description?) — Create a payment receipt. If customerName is missing, STOP and ask: "Who should I address this receipt to?"
 
 HIGH-RISK TOOLS (NEVER execute from ambiguous instructions — require explicit typed confirmation):
-12. deleteTransaction(transactionId) — Permanently delete a transaction record
+13. deleteTransaction(transactionId) — Permanently delete a transaction record
 
 ─────────────────────────────────
 CRITICAL BEHAVIOUR RULES
@@ -200,7 +201,7 @@ RESPONSE FORMAT (strict JSON)
 {
   "reply": "your response text",
   "tool_call": {
-    "name": "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "deleteTransaction",
+    "name": "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "createReceipt" | "deleteTransaction",
     "parameters": {}
   } | null,
   "requires_confirmation": false,
@@ -267,7 +268,7 @@ RESPONSE FORMAT (strict JSON)
     // For write operations, if LLM flagged requires_confirmation, return early with pending state.
     // The client will display a confirm bubble. When the user confirms, client re-sends with
     // body.confirmed = true.
-    const WRITE_TOOLS = ["createInvoice"];
+    const WRITE_TOOLS = ["createInvoice", "createReceipt"];
     const HIGH_RISK_TOOLS = ["deleteTransaction"];
     const toolName = toolCall?.name || "";
 
@@ -371,6 +372,8 @@ RESPONSE FORMAT (strict JSON)
           execResult = await executeRecordSale(supabaseClient, activeUserId, params, lastUserMsg);
         } else if (toolName === "createInvoice") {
           execResult = await executeCreateInvoice(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "createReceipt") {
+          execResult = await executeCreateReceipt(supabaseClient, activeUserId, params, lastUserMsg);
         } else if (toolName === "recordExpense") {
           execResult = await executeRecordExpense(supabaseClient, activeUserId, params, lastUserMsg);
         } else if (toolName === "getSales") {
@@ -458,6 +461,12 @@ function detectRuleBasedToolCall(text: string) {
     const clientName = clientMatch ? clientMatch[1].trim() : "";
     const amount = extractAmount(q);
     return { name: "createInvoice", parameters: { clientName, amount, description: text } };
+  }
+  if (/\b(create receipt|new receipt|receipt for|send receipt|generate receipt)\b/.test(q)) {
+    const customerMatch = q.match(/(?:for|to)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|$)/i);
+    const customerName = customerMatch ? customerMatch[1].trim() : "";
+    const amount = extractAmount(q);
+    return { name: "createReceipt", parameters: { customerName, amount, description: text } };
   }
   if (/\b(spent|expense|bought|paid for|cost|fuel|data|generator)\b/.test(q) && !/\b(inventory|stock)\b/.test(q)) {
     return { name: "recordExpense", parameters: { amount: extractAmount(q), description: text } };
@@ -610,6 +619,67 @@ async function executeCreateInvoice(supabaseClient: any, userId: string, params:
     formattedSummary: `📄 **Invoice #${invoiceNumber} Created** for **${clientName}**!\n• Subtotal: ${formatCurrency(subtotal)}\n• Tax (${taxRate}%): ${formatCurrency(taxAmount)}\n• **Total**: **${formatCurrency(total)}**\n• Due: ${dueDate}`,
     actions: [{ type: "view_invoice", label: "View Invoice", payload: { invoice_id: invoice.id } }],
     recordId: invoice.id,
+  };
+}
+
+async function executeCreateReceipt(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const customerName = params.customerName || params.clientName;
+  if (!customerName || customerName.trim() === "") {
+    return {
+      formattedSummary: "Who should I address this receipt to? Please provide the customer's name.",
+      requiresClarification: true,
+    };
+  }
+
+  const amount = params.amount || extractAmount(rawMsg) || 0;
+  const description = params.description || "Payment received";
+  const paymentMethod = params.paymentMethod || "Bank Transfer";
+  const receiptDate = new Date().toISOString().split("T")[0];
+
+  const { data: countData, error: countErr } = await supabaseClient
+    .rpc("generate_next_receipt_number", { p_user_id: userId });
+  let receiptNumber = "RCPT-001";
+  if (!countErr && countData) {
+    receiptNumber = countData;
+  } else {
+    receiptNumber = `RCPT-${Date.now().toString().slice(-6)}`;
+  }
+
+  const { data: receipt, error } = await supabaseClient
+    .from("receipts")
+    .insert({
+      user_id: userId,
+      receipt_number: receiptNumber,
+      customer_name: customerName,
+      payment_method: paymentMethod,
+      description,
+      receipt_date: receiptDate,
+      total: amount,
+      status: "generated",
+      created_by: "ROVA AI",
+    })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '42P01') {
+      throw new Error("Receipts feature is not yet enabled in the database (Pending Migration). Please generate the receipt from the web app.");
+    }
+    throw error;
+  }
+
+  await supabaseClient.from("receipt_items").insert({
+    receipt_id: receipt.id,
+    description,
+    quantity: 1,
+    unit_price: amount,
+    amount: amount,
+  });
+
+  return {
+    formattedSummary: `🧾 **Receipt #${receipt.receipt_number} Generated** for **${customerName}**!\n• Amount: **${formatCurrency(amount)}**\n• Method: ${paymentMethod}\n\nYou can view and share this receipt from the Receipts tab.`,
+    actions: [{ type: "view_receipt", label: "View Receipt", payload: { receipt_id: receipt.id } }],
+    recordId: receipt.id,
   };
 }
 

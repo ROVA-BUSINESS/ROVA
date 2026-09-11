@@ -95,8 +95,8 @@ export default function LandingPage() {
         .lp-root {
           min-height: 100vh;
           background: ${isLight
-            ? 'radial-gradient(circle at 50% 0%, rgba(147,51,234,0.03) 0%, #f4f4f5 100%)'
-            : 'radial-gradient(circle at 50% 0%, rgba(147,51,234,0.06) 0%, #09090b 100%)'};
+          ? 'radial-gradient(circle at 50% 0%, rgba(147,51,234,0.03) 0%, #f4f4f5 100%)'
+          : 'radial-gradient(circle at 50% 0%, rgba(147,51,234,0.06) 0%, #09090b 100%)'};
           color: var(--text-primary);
           font-family: 'Inter', 'Geist', sans-serif;
           overflow-x: hidden;
@@ -164,8 +164,8 @@ export default function LandingPage() {
           position: relative; z-index: 1;
           overflow: hidden;
           background: ${isLight
-            ? 'radial-gradient(circle at 50% 30%, rgba(147,51,234,0.05), transparent 70%), #f8f9fa'
-            : 'radial-gradient(circle at 50% 30%, rgba(147,51,234,0.1), transparent 70%), #09090b'};
+          ? 'radial-gradient(circle at 50% 30%, rgba(147,51,234,0.05), transparent 70%), #f8f9fa'
+          : 'radial-gradient(circle at 50% 30%, rgba(147,51,234,0.1), transparent 70%), #09090b'};
         }
         .lp-hero::before {
           content: '';
@@ -557,8 +557,8 @@ export default function LandingPage() {
         .lp-cta-inner {
           max-width: 1200px; margin: 0 auto; padding: 60px 32px;
           background: ${isLight
-            ? 'linear-gradient(135deg, #9d5bd3 0%, #7d3cae 50%, #662d91 100%)'
-            : 'linear-gradient(135deg, #662d91 0%, #4c1a72 50%, #2e0947 100%)'};
+          ? 'linear-gradient(135deg, #9d5bd3 0%, #7d3cae 50%, #662d91 100%)'
+          : 'linear-gradient(135deg, #662d91 0%, #4c1a72 50%, #2e0947 100%)'};
           border-radius: 28px; position: relative; overflow: hidden;
           text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
         }
@@ -1738,8 +1738,8 @@ export default function LandingPage() {
                 padding: '14px 40px', fontSize: 15, fontWeight: 800, borderRadius: 'var(--radius-lg)',
                 boxShadow: '0 8px 20px rgba(0,0,0,0.06)', display: 'inline-flex', alignItems: 'center', transition: 'transform 0.2s'
               }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'none'}
               >
                 Get Started for Free
               </Link>

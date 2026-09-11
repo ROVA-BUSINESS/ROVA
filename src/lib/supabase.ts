@@ -99,6 +99,47 @@ export type InvoiceItem = {
   amount: number;
 };
 
+export type Receipt = {
+  id: string;
+  user_id: string;
+  transaction_id?: string | null;
+  customer_id?: string | null;
+  customer_name: string;
+  customer_phone?: string;
+  customer_email?: string;
+  receipt_number: string;
+  amount: number;
+  currency: string;
+  payment_method: string;
+  payment_reference?: string;
+  description?: string;
+  receipt_date: string;
+  subtotal: number;
+  discount: number;
+  total: number;
+  status: 'draft' | 'generated' | 'sent' | 'viewed' | 'cancelled';
+  pdf_url?: string;
+  image_url?: string;
+  verification_code?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at?: string;
+  items?: ReceiptItem[];
+  transaction?: Transaction;
+};
+
+export type ReceiptItem = {
+  id: string;
+  receipt_id: string;
+  product_id?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  discount: number;
+  total: number;
+  created_at?: string;
+};
+
 export type TaxRecord = {
   id: string;
   user_id: string;

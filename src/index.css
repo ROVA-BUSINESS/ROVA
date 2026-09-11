@@ -8,6 +8,8 @@
 
 :root {
   --bg-base: #09090b;
+  --nav-bg: rgba(9,9,11,0.92);
+  --grid-line-color: rgba(255,255,255,0.04);
   --bg-base-rgb: 9, 9, 11;
   --bg-surface: #111113;
   --bg-elevated: #18181b;
@@ -47,6 +49,8 @@
 }
 
 [data-theme="light"] {
+  --nav-bg: rgba(255,255,255,0.94);
+  --grid-line-color: rgba(0,0,0,0.04);
   --bg-base: #f4f4f5;
   --bg-base-rgb: 244, 244, 245;
   --bg-surface: #ffffff;
