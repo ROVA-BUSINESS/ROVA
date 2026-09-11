@@ -40,15 +40,7 @@ export default function NoSubscriptionPage() {
       padding: '40px 20px', background: 'var(--bg-base)',
     }}>
       <div style={{ maxWidth: 520, width: '100%', textAlign: 'center' }}>
-        {/* Icon */}
-        <div style={{
-          width: 72, height: 72, margin: '0 auto 24px',
-          background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
-          borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 8px 24px rgba(147,51,234,0.3)',
-        }}>
-          <Sparkles size={32} color="white" />
-        </div>
+
 
         {/* Heading */}
         <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 12, color: 'var(--text-primary)' }}>

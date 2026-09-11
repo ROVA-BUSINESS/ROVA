@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Bell, Sparkles, Menu, Search, ArrowLeft } from 'lucide-react';
+import { Bell, Sparkles, Menu, Search, ArrowLeft, Sun, Moon } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useMobile } from '../../hooks/useMobile';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -12,7 +12,7 @@ import SearchModal from '../SearchModal';
 
 export default function AppLayout() {
   const { user, profile, isStaff, staffData, refreshAuth } = useAuth();
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMobile();
@@ -297,6 +297,16 @@ export default function AppLayout() {
               title="Search (Press /)"
             >
               <Search size={16} />
+            </button>
+
+            {/* Light/Dark Mode Toggle */}
+            <button onClick={toggleTheme}
+              style={{ position: 'relative', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', transition: 'all 0.15s', background: 'transparent' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            >
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
 
             {/* Settings / Profile Avatar Button */}

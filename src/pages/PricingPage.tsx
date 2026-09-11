@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Check, X } from 'lucide-react';
@@ -6,43 +7,44 @@ import Button from '../components/ui/Button';
 export default function PricingPage() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  const [expandedBasic, setExpandedBasic] = useState(false);
+  const [expandedBusiness, setExpandedBusiness] = useState(false);
 
-  const BASIC_FEATURES = [
-    { name: 'AI Bookkeeping & Transaction Recording', included: true },
-    { name: 'Income & Expense Tracking', included: true },
-    { name: 'P&L and Financial Reports', included: true },
-    { name: 'Professional Invoicing', included: true },
-    { name: 'Receipt Storage', included: true },
-    { name: 'Basic Inventory Management', included: true },
-    { name: 'Bank Connection (Mono)', included: true },
-    { name: 'Financial Records & Ledger', included: true },
-    { name: 'Basic Business Insights', included: true },
-    { name: 'WhatsApp ROVA (AI on WhatsApp)', included: false },
-    { name: 'Staff Accounts & Permissions', included: false },
-    { name: 'Payroll Management', included: false },
-    { name: 'Advanced Inventory Management', included: false },
-    { name: 'Advanced Reports & Analytics', included: false },
-    { name: 'Tax Filing Service', included: false },
-    { name: 'Priority Support', included: false },
+  const BASIC_INCLUDES = [
+    'AI bookkeeping',
+    'Income and expense recording',
+    'P&L and financial reports',
+    'Receipts and invoices',
+    'Basic inventory',
+    'Bank connection / Mono',
+    'Financial records and ledger',
+    'Basic business insights',
   ];
 
-  const BUSINESS_FEATURES = [
-    { name: 'Everything in Basic Plan', included: true, highlight: true },
-    { name: 'WhatsApp ROVA (AI on WhatsApp)', included: true },
-    { name: 'Multiple Staff Accounts', included: true },
-    { name: 'Staff Roles & Permissions', included: true },
-    { name: 'Advanced Inventory Management', included: true },
-    { name: 'Payroll Management', included: true },
-    { name: 'Advanced Reports & Insights', included: true },
-    { name: 'Tax Filing Service', included: true },
-    { name: 'Higher Usage Limits', included: true },
-    { name: 'Priority Support', included: true },
+  const BASIC_EXCLUDES = [
+    'WhatsApp ROVA',
+    'Payroll',
+    'Staff accounts and permissions',
+    'Advanced inventory',
+    'Tax filing',
+  ];
+
+  const BUSINESS_INCLUDES = [
+    'WhatsApp ROVA',
+    'Multiple staff accounts',
+    'Staff roles and permissions',
+    'Advanced inventory management',
+    'Payroll',
+    'Advanced reports and insights',
+    'Tax filing',
+    'Higher usage limits',
+    'Priority support',
   ];
 
   const FAQ = [
     {
       q: 'What is the difference between Basic and Business?',
-      a: 'ROVA Basic manages your finances — bookkeeping, invoicing, P&L, receipts, and bank sync. ROVA Business does all of that plus runs your business operations: WhatsApp AI, payroll, staff accounts with role permissions, and full tax filing support.'
+      a: 'ROVA Basic manages your finances (bookkeeping, invoices, reports, bank sync). ROVA Business manages your finances PLUS helps run the business (WhatsApp AI, payroll, staff accounts & permissions, tax filing).'
     },
     {
       q: 'Can I switch between daily and monthly billing?',
@@ -94,6 +96,7 @@ export default function PricingPage() {
         .prc-badge-text { font-size: 11px; font-weight: 800; color: var(--accent-light); text-transform: uppercase; letter-spacing: 2px; }
         .prc-title { font-size: clamp(32px, 4vw, 52px); font-weight: 800; line-height: 1.15; margin-bottom: 20px; }
         .prc-subtitle { font-size: clamp(15px, 1.8vw, 17px); color: var(--text-secondary); line-height: 1.6; }
+        .prc-distinction { background: ${isLight ? 'rgba(255,255,255,0.7)' : 'rgba(20,20,22,0.6)'}; backdrop-filter: blur(20px); border: 1px solid var(--bg-border); border-radius: var(--radius-xl); padding: 20px 28px; max-width: 720px; margin: 0 auto 40px; text-align: center; }
         .prc-plans-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 24px; }
         @media (max-width: 768px) { .prc-plans-grid { grid-template-columns: 1fr; } }
         .prc-plan-card { background: ${isLight ? 'rgba(255,255,255,0.7)' : 'rgba(20,20,22,0.6)'}; backdrop-filter: blur(30px); border: 1px solid var(--bg-border); border-radius: var(--radius-xl); padding: 36px 32px; display: flex; flex-direction: column; gap: 0; position: relative; transition: all 0.25s ease; }
@@ -161,6 +164,17 @@ export default function PricingPage() {
             </p>
           </header>
 
+          {/* Distinction Banner */}
+          <div className="prc-distinction">
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
+              Plan Distinction
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+              <strong>Basic:</strong> ROVA manages your finances.<br />
+              <strong>Business:</strong> ROVA manages your finances + helps run the business.
+            </div>
+          </div>
+
           {/* Plan Cards */}
           <section style={{ marginBottom: 80 }}>
             <div className="prc-plans-grid">
@@ -169,7 +183,9 @@ export default function PricingPage() {
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 6 }}>ROVA Basic</div>
                   <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Financial Records</h2>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>For business owners who want ROVA to manage their finances.</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    For small business owners who mainly want ROVA to handle their financial records.
+                  </p>
                 </div>
                 <div style={{ display: 'flex', gap: 16, margin: '24px 0', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div>
@@ -186,15 +202,44 @@ export default function PricingPage() {
                   <Button variant="secondary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0' }}>Get Started — Basic</Button>
                 </Link>
                 <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)', margin: '24px 0' }} />
-                <ul className="prc-feature-list">
-                  {BASIC_FEATURES.map((f, i) => (
-                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: f.included ? 500 : 400, color: f.included ? 'var(--text-primary)' : 'var(--text-disabled)', alignItems: 'flex-start' }}>
-                      {f.included
-                        ? <Check size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} />
-                        : <X size={15} style={{ color: 'var(--text-disabled)', flexShrink: 0, marginTop: 1, opacity: 0.5 }} />}
-                      {f.name}
+                
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#10b981', marginBottom: 8 }}>
+                  Includes:
+                </div>
+                <ul className="prc-feature-list" style={{ margin: 0 }}>
+                  {BASIC_INCLUDES.slice(0, 4).map((f, i) => (
+                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', alignItems: 'flex-start' }}>
+                      <Check size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} />
+                      {f}
                     </li>
                   ))}
+                  {expandedBasic && (
+                    <>
+                      {BASIC_INCLUDES.slice(4).map((f, i) => (
+                        <li key={`inc_${i}`} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', alignItems: 'flex-start' }}>
+                          <Check size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} />
+                          {f}
+                        </li>
+                      ))}
+                      <li style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginTop: 12, marginBottom: 4 }}>
+                        Does not include:
+                      </li>
+                      {BASIC_EXCLUDES.map((f, i) => (
+                        <li key={`exc_${i}`} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: 400, color: 'var(--text-disabled)', alignItems: 'flex-start' }}>
+                          <X size={15} style={{ color: 'var(--text-disabled)', flexShrink: 0, marginTop: 1, opacity: 0.5 }} />
+                          {f}
+                        </li>
+                      ))}
+                    </>
+                  )}
+                  <li style={{ marginTop: 10 }}>
+                    <button
+                      onClick={() => setExpandedBasic(!expandedBasic)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'underline' }}
+                    >
+                      {expandedBasic ? '▲ Show less' : '▼ + More features'}
+                    </button>
+                  </li>
                 </ul>
               </div>
 
@@ -204,7 +249,9 @@ export default function PricingPage() {
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-light)', letterSpacing: 1, marginBottom: 6 }}>ROVA Business</div>
                   <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Full Business Operations</h2>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>For growing businesses that need ROVA to manage finance + operations.</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    For businesses that are growing and need ROVA to manage more of the business operations.
+                  </p>
                 </div>
                 <div style={{ display: 'flex', gap: 16, margin: '24px 0', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div>
@@ -221,13 +268,33 @@ export default function PricingPage() {
                   <Button variant="primary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)' }}>Get Started — Business</Button>
                 </Link>
                 <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)', margin: '24px 0' }} />
-                <ul className="prc-feature-list">
-                  {BUSINESS_FEATURES.map((f, i) => (
-                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: f.highlight ? 700 : 500, color: f.highlight ? 'var(--accent-light)' : 'var(--text-primary)', alignItems: 'flex-start' }}>
-                      <Check size={15} style={{ color: f.highlight ? 'var(--accent-light)' : '#10b981', flexShrink: 0, marginTop: 1 }} />
-                      {f.name}
+                
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#10b981', marginBottom: 8 }}>
+                  Includes everything in Basic, plus:
+                </div>
+                <ul className="prc-feature-list" style={{ margin: 0 }}>
+                  {BUSINESS_INCLUDES.slice(0, 3).map((f, i) => (
+                    <li key={i} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', alignItems: 'flex-start' }}>
+                      <Check size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} />
+                      {f}
                     </li>
                   ))}
+                  {expandedBusiness && (
+                    BUSINESS_INCLUDES.slice(3).map((f, i) => (
+                      <li key={`biz_${i}`} style={{ display: 'flex', gap: 10, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', alignItems: 'flex-start' }}>
+                        <Check size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} />
+                        {f}
+                      </li>
+                    ))
+                  )}
+                  <li style={{ marginTop: 10 }}>
+                    <button
+                      onClick={() => setExpandedBusiness(!expandedBusiness)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'underline' }}
+                    >
+                      {expandedBusiness ? '▲ Show less' : '▼ + More features'}
+                    </button>
+                  </li>
                 </ul>
               </div>
             </div>
@@ -262,7 +329,7 @@ export default function PricingPage() {
               </div>
               <Link to="/login" style={{ textDecoration: 'none' }}>
                 <Button variant="primary" style={{ padding: '12px 32px', background: 'linear-gradient(135deg, #059669, #10b981)', border: 'none' }}>
-                  Purchase Tax Filing — ₦5,000
+                  Purchase Tax Filing: ₦5,000
                 </Button>
               </Link>
             </div>
@@ -282,16 +349,16 @@ export default function PricingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {BASIC_FEATURES.map((f, i) => (
-                    <tr key={i} className="prc-tr">
-                      <td className="prc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f.name}</td>
-                      <td className="prc-td">{f.included ? <Check size={16} style={{ color: '#10b981' }} /> : <X size={16} style={{ color: 'var(--text-disabled)', opacity: 0.4 }} />}</td>
+                  {BASIC_INCLUDES.map((f, i) => (
+                    <tr key={`inc_${i}`} className="prc-tr">
+                      <td className="prc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f}</td>
+                      <td className="prc-td"><Check size={16} style={{ color: '#10b981' }} /></td>
                       <td className="prc-td"><Check size={16} style={{ color: '#10b981' }} /></td>
                     </tr>
                   ))}
-                  {BUSINESS_FEATURES.slice(1).map((f, i) => (
-                    <tr key={`b${i}`} className="prc-tr">
-                      <td className="prc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f.name}</td>
+                  {BUSINESS_INCLUDES.map((f, i) => (
+                    <tr key={`biz_${i}`} className="prc-tr">
+                      <td className="prc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{f}</td>
                       <td className="prc-td"><X size={16} style={{ color: 'var(--text-disabled)', opacity: 0.4 }} /></td>
                       <td className="prc-td"><Check size={16} style={{ color: '#10b981' }} /></td>
                     </tr>

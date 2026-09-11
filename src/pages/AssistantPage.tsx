@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Send, RefreshCw,
   Bell, ChevronRight, Package, Users, FileText, X,
-  MessageCircle, HelpCircle, TrendingUp, Brain
+  MessageCircle, MessageSquare, ExternalLink, HelpCircle, TrendingUp, Brain
 } from 'lucide-react';
 import { supabase, type Transaction, type Account, type Expense, type Bill, type ExternalWorker, type ServiceAgreement } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,14 +41,16 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   record_payroll: Users,
   clarify_transaction: HelpCircle,
   view_report: TrendingUp,
+  open_whatsapp_bot: MessageCircle,
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  create_invoice: '#6366f1',
-  add_inventory: '#10b981',
-  record_payroll: '#f59e0b',
-  clarify_transaction: '#3b82f6',
-  view_report: '#8b5cf6',
+  create_invoice: '#818cf8',
+  add_inventory: '#34d399',
+  record_payroll: '#fbbf24',
+  clarify_transaction: '#60a5fa',
+  view_report: '#a78bfa',
+  open_whatsapp_bot: '#25D366',
 };
 
 const STARTERS = [
@@ -167,22 +169,62 @@ function ActionButton({
   onAction: (action: ChatAction) => void;
 }) {
   const Icon = ACTION_ICONS[action.type] ?? ChevronRight;
-  const color = ACTION_COLORS[action.type] ?? 'var(--accent-primary)';
+  const isWhatsApp = action.type === 'open_whatsapp_bot';
+  const color = isWhatsApp ? '#25D366' : (ACTION_COLORS[action.type] ?? '#a78bfa');
+
+  if (isWhatsApp) {
+    return (
+      <button
+        onClick={() => onAction(action)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '8px 16px', borderRadius: 'var(--radius-full)',
+          background: 'linear-gradient(135deg, #1da851, #128C3E)',
+          border: '1px solid rgba(18, 140, 62, 0.8)',
+          color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', marginTop: 6,
+          boxShadow: '0 4px 14px rgba(18, 140, 62, 0.35)',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.background = 'linear-gradient(135deg, #25D366, #1da851)';
+          el.style.transform = 'translateY(-1px)';
+          el.style.boxShadow = '0 6px 20px rgba(18, 140, 62, 0.45)';
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.background = 'linear-gradient(135deg, #1da851, #128C3E)';
+          el.style.transform = 'none';
+          el.style.boxShadow = '0 4px 14px rgba(18, 140, 62, 0.35)';
+        }}
+      >
+        <img
+          src="/whatsapp-logo.png"
+          alt="WhatsApp"
+          style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }}
+        />
+        <span>{action.label.replace(/^💬\s*/, '')}</span>
+        <ExternalLink size={13} style={{ opacity: 0.9, marginLeft: 2 }} />
+      </button>
+    );
+  }
 
   return (
     <button
       onClick={() => onAction(action)}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '6px 12px', borderRadius: 'var(--radius-full)',
-        background: `${color}18`, border: `1px solid ${color}40`,
-        color, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        padding: '7px 14px', borderRadius: 'var(--radius-full)',
+        background: `${color}25`, border: `1px solid ${color}45`,
+        color: '#ffffff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
         transition: 'all 0.15s', marginTop: 4,
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${color}30`; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${color}18`; }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${color}40`; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${color}25`; }}
     >
-      <Icon size={12} />
+      <Icon size={13} color={color} />
       {action.label}
     </button>
   );

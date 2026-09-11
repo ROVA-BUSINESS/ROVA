@@ -98,11 +98,11 @@ export default function EmployeesTab({ employees, onRefresh }: Props) {
         </Card>
         <Card>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Employees</div>
-          <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--success)' }}>{activeCount}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>{activeCount}</div>
         </Card>
         <Card>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Monthly Payroll</div>
-          <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)' }}>{formatCurrency(totalPayroll)}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>{formatCurrency(totalPayroll)}</div>
         </Card>
       </div>
 

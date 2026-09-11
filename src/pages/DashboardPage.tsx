@@ -11,6 +11,7 @@ import Button from '../components/ui/Button';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 import QuickAddModal from '../components/QuickAddModal';
 import { useMobile } from '../hooks/useMobile';
+import { useTheme } from '../contexts/ThemeContext';
 import { PLANS } from '../lib/paystack';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -18,6 +19,8 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 export default function DashboardPage() {
   const { user, profile, isStaff, staffData } = useAuth();
   const { subscription, servicePayments, isActive, isBusiness, planKey } = useSubscription();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -138,8 +141,8 @@ export default function DashboardPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginBottom: 32 }}>
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 12 }}>
-                  <TrendingUp size={20} color="var(--accent-primary)" />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'rgba(16,185,129,0.12)', borderRadius: 12 }}>
+                  <TrendingUp size={20} color="var(--success)" />
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Total Revenue</span>
               </div>
@@ -177,7 +180,7 @@ export default function DashboardPage() {
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Net Cashflow</span>
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netFlow >= 0 ? 'var(--success)' : 'var(--error)', marginBottom: 12 }}>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 12 }}>
                 {formatCurrency(netFlow)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
@@ -200,12 +203,12 @@ export default function DashboardPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
                 {/* Subscription card */}
-                <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: `1px solid ${isActive ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.25)'}`, background: isActive ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.04)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: isActive ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {isActive ? <CreditCard size={18} color="#10b981" /> : <AlertCircle size={18} color="var(--error)" />}
+                <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: `1px solid ${isActive ? (isDark ? 'rgba(16,185,129,0.3)' : 'var(--bg-border)') : 'rgba(239,68,68,0.25)'}`, background: isActive ? (isDark ? 'rgba(16,185,129,0.05)' : 'var(--bg-card)') : 'rgba(239,68,68,0.04)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: isActive ? (isDark ? 'rgba(16,185,129,0.12)' : 'var(--bg-elevated)') : 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {isActive ? <CreditCard size={18} color={isDark ? '#10b981' : 'var(--text-primary)'} /> : <AlertCircle size={18} color="var(--error)" />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#10b981' : 'var(--error)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: isActive ? (isDark ? '#10b981' : 'var(--text-primary)') : 'var(--error)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
                       {isActive ? 'Active' : 'No Subscription'}
                     </div>
                     {isActive && subscription && planKey ? (
@@ -222,14 +225,14 @@ export default function DashboardPage() {
                     )}
                   </div>
                   {!isActive && (
-                    <button onClick={() => navigate('/app/billing')} style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: 'white', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', flexShrink: 0 }}>Subscribe</button>
+                    <button onClick={() => navigate('/app/billing')} style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', background: 'var(--text-primary)', color: 'var(--bg-base)', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', flexShrink: 0 }}>Subscribe</button>
                   )}
                 </div>
 
                 {/* Tax filing / Business upgrade card */}
                 {isActive && isBusiness ? (
                   <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ fontSize: 18 }}>📋</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -243,7 +246,7 @@ export default function DashboardPage() {
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No active tax filings</div>
                       )}
                     </div>
-                    <button onClick={() => navigate('/app/billing')} style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: 11, fontWeight: 700, border: '1px solid rgba(16,185,129,0.2)', cursor: 'pointer', flexShrink: 0 }}>File Tax</button>
+                    <button onClick={() => navigate('/app/billing')} style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#ffffff', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', flexShrink: 0 }}>File Tax</button>
                   </div>
                 ) : isActive && !isBusiness ? (
                   <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent-border)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -322,7 +325,7 @@ export default function DashboardPage() {
                   </button>
                   <button 
                     onClick={() => navigate('/app/settings')}
-                    style={{ color: 'var(--accent-light)', fontSize: 12, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ color: 'var(--accent-primary)', fontSize: 12, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Manage
                   </button>
@@ -338,10 +341,10 @@ export default function DashboardPage() {
                     }}>
                       <div style={{
                         width: 32, height: 32, borderRadius: 'var(--radius-md)',
-                        background: (acc.color && acc.color.toLowerCase() === '#9333ea') ? 'var(--accent-primary)' : (acc.color || 'var(--accent-dim)'),
+                        background: 'var(--accent-primary)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        <Wallet size={14} color="white" style={{ display: 'block' }} />
+                        <Wallet size={14} color="var(--bg-base)" style={{ display: 'block' }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{acc.name}</div>
@@ -382,11 +385,11 @@ export default function DashboardPage() {
 
               {accounts.length > 0 && (
                 <div style={{
-                  marginTop: 16, padding: '12px', background: 'var(--accent-dim)',
-                  borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-border)',
+                  marginTop: 16, padding: '12px', background: 'var(--bg-elevated)',
+                  borderRadius: 'var(--radius-md)', border: '1px solid rgba(147,51,234,0.3)',
                 }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Total Balance</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-primary)' }}>
                     {formatCurrency(totalBalance)}
                   </div>
                 </div>
@@ -398,7 +401,7 @@ export default function DashboardPage() {
                 <div 
                   onClick={() => setIsBankChoiceOpen(true)}
                   style={{
-                    border: '1px dashed var(--accent-border)',
+                    border: '1px dashed rgba(147,51,234,0.4)',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--bg-elevated)',
                     padding: '24px 16px',
@@ -416,15 +419,15 @@ export default function DashboardPage() {
                     (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
                   }}
                   onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border)';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'rgba(147,51,234,0.4)';
                     (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)';
                   }}
                 >
                   <div style={{
                     width: 38, height: 38, borderRadius: '50%',
-                    background: 'rgba(147,51,234,0.1)',
+                    background: 'var(--accent-primary)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'var(--accent-primary)',
+                    color: '#ffffff',
                   }}>
                     <Plus size={18} />
                   </div>

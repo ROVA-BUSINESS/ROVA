@@ -223,8 +223,8 @@ export default function LandingPage() {
         }
         .lp-badge-dot {
           width: 8px; height: 8px; border-radius: 50%;
-          background: #f97316;
-          box-shadow: 0 0 10px #f97316;
+          background: #10b981;
+          box-shadow: 0 0 10px #10b981;
           animation: pulseDot 2s infinite;
         }
         @keyframes pulseDot {
@@ -241,10 +241,17 @@ export default function LandingPage() {
           letter-spacing: -0.02em; font-family: 'Playfair Display', 'Georgia', serif;
           color: var(--text-primary); text-align: center;
         }
+        @keyframes textGradientShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
         .lp-h1-italic {
           font-family: 'Playfair Display', 'Georgia', serif;
           font-style: italic; font-weight: 500;
-          background: linear-gradient(135deg, #f97316, #a855f7, #3b82f6);
+          background: linear-gradient(135deg, #10b981, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #10b981);
+          background-size: 300% auto;
+          animation: textGradientShift 7s ease infinite;
           -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
         .lp-hero-sub {
@@ -732,8 +739,9 @@ export default function LandingPage() {
           backdrop-filter: blur(12px);
           border: 1.5px solid var(--badge-color, ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'});
           box-shadow: 
-            0 8px 32px rgba(0, 0, 0, 0.2), 
-            0 0 20px var(--badge-color-dim, rgba(255,255,255,0)), 
+            0 8px 32px rgba(0, 0, 0, ${isLight ? '0.08' : '0.2'}), 
+            0 0 ${isLight ? '28px' : '20px'} var(--badge-color-dim, rgba(255,255,255,0)), 
+            ${isLight ? '0 0 48px var(--badge-color-dim, rgba(255,255,255,0)),' : ''}
             inset 0 1px 0 rgba(255,255,255,0.05);
           border-radius: 50%;
           width: 100px;
@@ -770,12 +778,12 @@ export default function LandingPage() {
           color: #ffffff !important;
         }
 
-        .orbit-badge-right-1 { --badge-color: #10b981; --badge-color-dim: rgba(16, 185, 129, 0.25); }
-        .orbit-badge-right-2 { --badge-color: #ef4444; --badge-color-dim: rgba(239, 68, 68, 0.25); }
-        .orbit-badge-right-3 { --badge-color: #3b82f6; --badge-color-dim: rgba(59, 130, 246, 0.25); }
-        .orbit-badge-left-1  { --badge-color: #0ea5e9; --badge-color-dim: rgba(14, 165, 233, 0.25); }
-        .orbit-badge-left-2  { --badge-color: #f59e0b; --badge-color-dim: rgba(245, 158, 11, 0.25); }
-        .orbit-badge-left-3  { --badge-color: #a855f7; --badge-color-dim: rgba(168, 85, 247, 0.25); }
+        .orbit-badge-right-1 { --badge-color: #10b981; --badge-color-dim: rgba(16, 185, 129, ${isLight ? '0.45' : '0.25'}); }
+        .orbit-badge-right-2 { --badge-color: #ef4444; --badge-color-dim: rgba(239, 68, 68, ${isLight ? '0.45' : '0.25'}); }
+        .orbit-badge-right-3 { --badge-color: #3b82f6; --badge-color-dim: rgba(59, 130, 246, ${isLight ? '0.45' : '0.25'}); }
+        .orbit-badge-left-1  { --badge-color: #0ea5e9; --badge-color-dim: rgba(14, 165, 233, ${isLight ? '0.45' : '0.25'}); }
+        .orbit-badge-left-2  { --badge-color: #f59e0b; --badge-color-dim: rgba(245, 158, 11, ${isLight ? '0.45' : '0.25'}); }
+        .orbit-badge-left-3  { --badge-color: #a855f7; --badge-color-dim: rgba(168, 85, 247, ${isLight ? '0.45' : '0.25'}); }
 
         .orbit-badge-right-1 { animation: badge-unspin-right-1 30s linear infinite; }
         .orbit-badge-right-2 { animation: badge-unspin-right-2 30s linear infinite; }
@@ -1007,12 +1015,14 @@ export default function LandingPage() {
           margin-bottom: 20px;
         }
         .showcase-h2-accent {
-          background: linear-gradient(135deg, #25D366, #a855f7, #3b82f6);
+          background: linear-gradient(135deg, #10b981, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #10b981);
+          background-size: 300% auto;
+          animation: textGradientShift 7s ease infinite;
           -webkit-background-clip: text; -webkit-text-fill-color: transparent;
           font-style: italic;
         }
         .showcase-desc-right {
-          font-size: 16px; color: var(--text-secondary);
+          font-size: 16px; color: #ffffff;
           line-height: 1.65; margin-bottom: 32px;
           font-family: 'Plus Jakarta Sans', sans-serif;
         }
@@ -1043,7 +1053,8 @@ export default function LandingPage() {
           font-family: 'Plus Jakarta Sans', sans-serif;
         }
         .showcase-feature-text {
-          font-size: 12.5px; color: var(--text-secondary); line-height: 1.5;
+          font-size: 12.5px; color: #ffffff; line-height: 1.5; opacity: 0.95;
+          font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
         @media (max-width: 900px) {
@@ -1359,10 +1370,11 @@ export default function LandingPage() {
                   className="lp-cta-primary"
                   style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 >
-                  Chat on WhatsApp AI <ArrowRight size={17} />
+                  <img src="/whatsapp-logo.png" alt="WhatsApp" style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                  <span>Chat on WhatsApp AI</span> <ArrowRight size={17} />
                 </a>
                 <Link to="/signup" style={{ textDecoration: 'none' }}>
-                  <button className="lp-cta-secondary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Start Free Dashboard</button>
+                  <button className="lp-cta-secondary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Get Started</button>
                 </Link>
               </div>
 
@@ -1385,7 +1397,7 @@ export default function LandingPage() {
                     <defs>
                       <linearGradient id="traceGradRight1" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#10b981" stopOpacity="0" />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity={isLight ? 0.8 : 0.45} />
                       </linearGradient>
                     </defs>
                     <path d="M 0 -360 A 360 360 0 0 1 360 0" fill="none" stroke="url(#traceGradRight1)" strokeWidth="2" strokeDasharray="4 4" />
@@ -1401,7 +1413,7 @@ export default function LandingPage() {
                     <defs>
                       <linearGradient id="traceGradRight2" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#ef4444" stopOpacity="0" />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={isLight ? 0.8 : 0.45} />
                       </linearGradient>
                     </defs>
                     <path d="M 0 -360 A 360 360 0 0 1 360 0" fill="none" stroke="url(#traceGradRight2)" strokeWidth="2" strokeDasharray="4 4" />
@@ -1417,7 +1429,7 @@ export default function LandingPage() {
                     <defs>
                       <linearGradient id="traceGradRight3" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#3b82f6" stopOpacity="0" />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={isLight ? 0.8 : 0.45} />
                       </linearGradient>
                     </defs>
                     <path d="M 0 -360 A 360 360 0 0 1 360 0" fill="none" stroke="url(#traceGradRight3)" strokeWidth="2" strokeDasharray="4 4" />
@@ -1436,7 +1448,7 @@ export default function LandingPage() {
                     <defs>
                       <linearGradient id="traceGradLeft1" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0" />
-                        <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#0ea5e9" stopOpacity={isLight ? 0.8 : 0.45} />
                       </linearGradient>
                     </defs>
                     <path d="M 0 -360 A 360 360 0 0 1 360 0" fill="none" stroke="url(#traceGradLeft1)" strokeWidth="2" strokeDasharray="4 4" />
@@ -1452,7 +1464,7 @@ export default function LandingPage() {
                     <defs>
                       <linearGradient id="traceGradLeft2" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#f59e0b" stopOpacity="0" />
-                        <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={isLight ? 0.8 : 0.45} />
                       </linearGradient>
                     </defs>
                     <path d="M 0 -360 A 360 360 0 0 1 360 0" fill="none" stroke="url(#traceGradLeft2)" strokeWidth="2" strokeDasharray="4 4" />
@@ -1468,7 +1480,7 @@ export default function LandingPage() {
                     <defs>
                       <linearGradient id="traceGradLeft3" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#a855f7" stopOpacity="0" />
-                        <stop offset="100%" stopColor="#a855f7" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#a855f7" stopOpacity={isLight ? 0.8 : 0.45} />
                       </linearGradient>
                     </defs>
                     <path d="M 0 -360 A 360 360 0 0 1 360 0" fill="none" stroke="url(#traceGradLeft3)" strokeWidth="2" strokeDasharray="4 4" />

@@ -250,7 +250,7 @@ export default function TaxPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <FileCheck size={22} />
+              <FileText size={22} />
             </div>
             <div>
               <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>NRS Companies Income Tax (CIT) Return Generator</h3>
@@ -259,7 +259,7 @@ export default function TaxPage() {
               </p>
             </div>
           </div>
-          <Button variant="primary" icon={<FileCheck size={16} />} onClick={() => navigate('/app/tax/cit/new')} style={{ minWidth: 'fit-content' }}>
+          <Button variant="primary" icon={<FileText size={16} />} onClick={() => navigate('/app/tax/cit/new')} style={{ minWidth: 'fit-content' }}>
             Start NRS CIT Filing
           </Button>
         </div>

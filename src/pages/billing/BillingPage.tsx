@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   CreditCard, CheckCircle, Clock, AlertCircle,
   ChevronRight, FileText, Zap, Star, Check,
-  Sparkles, Receipt
+  Sparkles, Receipt, X
 } from 'lucide-react';
 import { supabase, type RovaSubscription, type RovaServicePayment } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,26 +19,33 @@ import Modal from '../../components/ui/Modal';
 import { useMobile } from '../../hooks/useMobile';
 
 // ─── Plan feature definitions ────────────────────────────────
-const BASIC_FEATURES = [
-  'AI bookkeeping & transaction recording',
-  'Income & expense tracking',
+const BASIC_INCLUDES = [
+  'AI bookkeeping',
+  'Income and expense recording',
   'P&L and financial reports',
-  'Professional invoicing',
-  'Receipt storage',
-  'Basic inventory management',
-  'Bank connection (Mono)',
-  'Financial records & ledger',
+  'Receipts and invoices',
+  'Basic inventory',
+  'Bank connection / Mono',
+  'Financial records and ledger',
   'Basic business insights',
 ];
 
-const BUSINESS_EXTRAS = [
-  'WhatsApp ROVA (AI on WhatsApp)',
+const BASIC_EXCLUDES = [
+  'WhatsApp ROVA',
+  'Payroll',
+  'Staff accounts and permissions',
+  'Advanced inventory',
+  'Tax filing',
+];
+
+const BUSINESS_INCLUDES = [
+  'WhatsApp ROVA',
   'Multiple staff accounts',
-  'Staff roles & permissions',
+  'Staff roles and permissions',
   'Advanced inventory management',
-  'Payroll management',
-  'Advanced reports & insights',
-  'Tax filing service included',
+  'Payroll',
+  'Advanced reports and insights',
+  'Tax filing',
   'Higher usage limits',
   'Priority support',
 ];
@@ -97,7 +104,7 @@ function CheckoutModal({ type, planKey, taxYear, filingType, open, onClose, onSu
   const amount = type === 'subscription' ? (plan?.amountNaira ?? 0) : TAX_FILING_AMOUNT;
   const label = type === 'subscription'
     ? plan?.label
-    : `${taxYear} Tax Filing — ${filingType}`;
+    : `${taxYear} Tax Filing: ${filingType}`;
 
   async function handlePay() {
     if (!user?.email) return;
@@ -184,14 +191,14 @@ function CheckoutModal({ type, planKey, taxYear, filingType, open, onClose, onSu
         {/* Summary */}
         <div style={{
           padding: '20px 24px',
-          background: 'linear-gradient(135deg, var(--accent-dim), var(--bg-elevated))',
-          borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent-border)',
+          background: 'var(--bg-elevated)',
+          borderRadius: 'var(--radius-lg)', border: '1px solid var(--bg-border)',
         }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
             {type === 'subscription' ? 'ROVA Subscription' : 'Tax Filing Service'}
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{label}</div>
-          <div style={{ fontSize: 32, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)' }}>
+          <div style={{ fontSize: 32, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>
             {formatCurrency(amount)}
             {type === 'subscription' && plan && (
               <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>
@@ -223,7 +230,7 @@ function CheckoutModal({ type, planKey, taxYear, filingType, open, onClose, onSu
           </Button>
           <Button
             variant="primary"
-            style={{ flex: 2, justifyContent: 'center', background: 'linear-gradient(135deg, #059669, #10b981)', border: 'none' }}
+            style={{ flex: 2, justifyContent: 'center', background: 'var(--text-primary)', border: 'none', color: 'var(--bg-base)', fontWeight: 700 }}
             loading={paying}
             icon={<CreditCard size={16} />}
             onClick={handlePay}
@@ -254,8 +261,8 @@ function TaxFilingModal({ open, onClose, onProceed }: TaxFilingModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="Purchase Tax Filing Service">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ padding: '14px 16px', background: 'rgba(147,51,234,0.07)', borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-border)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          ROVA will handle your tax filing with FIRS on your behalf. A one-time fee of <strong style={{ color: 'var(--accent-light)' }}>₦5,000</strong> applies per filing.
+        <div style={{ padding: '14px 16px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          ROVA will handle your tax filing with FIRS on your behalf. A one-time fee of <strong style={{ color: 'var(--text-primary)' }}>₦5,000</strong> applies per filing.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -298,6 +305,10 @@ export default function BillingPage() {
   const { user } = useAuth();
   const { subscription, servicePayments, loading, isActive, planKey, refresh } = useSubscription();
   const isMobile = useMobile(1024);
+
+  // Dropdown states for plan features
+  const [expandedBasic, setExpandedBasic] = useState(false);
+  const [expandedBusiness, setExpandedBusiness] = useState(false);
 
   // Subscription history (all records, not just active)
   const [allSubscriptions, setAllSubscriptions] = useState<RovaSubscription[]>([]);
@@ -366,9 +377,9 @@ export default function BillingPage() {
           position: relative; transition: all 0.2s ease;
           cursor: pointer; background: var(--bg-card);
         }
-        .bil-plan-card:hover { border-color: var(--accent-primary); box-shadow: 0 8px 24px -8px rgba(147,51,234,0.2); }
-        .bil-plan-card.selected { border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(147,51,234,0.12); }
-        .bil-plan-card.featured { border-color: var(--accent-primary); }
+        .bil-plan-card:hover { border-color: var(--text-primary); box-shadow: 0 8px 24px -8px rgba(0,0,0,0.15); }
+        .bil-plan-card.selected { border-color: var(--text-primary); box-shadow: 0 0 0 3px rgba(0,0,0,0.12); }
+        .bil-plan-card.featured { border-color: var(--text-primary); }
         .bil-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 700px) { .bil-grid-2 { grid-template-columns: 1fr; } }
         .bil-status-pill {
@@ -388,14 +399,14 @@ export default function BillingPage() {
           background: var(--bg-elevated); color: var(--text-secondary);
         }
         .bil-freq-btn.active {
-          border-color: var(--accent-primary); background: var(--accent-dim);
-          color: var(--accent-light);
+          border-color: var(--text-primary); background: var(--bg-hover);
+          color: var(--text-primary);
         }
         .step-dot {
           width: 10px; height: 10px; border-radius: 50%; background: var(--bg-border); flex-shrink: 0;
         }
         .step-dot.done { background: #10b981; }
-        .step-dot.active { background: var(--accent-primary); box-shadow: 0 0 0 3px rgba(147,51,234,0.2); }
+        .step-dot.active { background: var(--text-primary); box-shadow: 0 0 0 3px rgba(0,0,0,0.15); }
       `}</style>
 
       {/* ── Header ─────────────────────────────────── */}
@@ -406,6 +417,19 @@ export default function BillingPage() {
         </p>
       </div>
 
+      {/* ── Developer Test Account Banner ───────── */}
+      {!loading && isDeveloper && (
+        <Card style={{ marginBottom: 24, padding: '16px 20px', border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>
+              Developer Test Account: Full Business Access (Free)
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+              Whitelisted developer account or secret bypass code active. All ROVA Business features are unlocked for system testing.
+            </div>
+          </div>
+        </Card>
+      )}
       {/* ── Current Subscription Status Banner ──── */}
       {!loading && isActive && subscription && (
         <Card style={{ marginBottom: 24, padding: '20px 24px', border: '1px solid rgba(16,185,129,0.3)', background: 'linear-gradient(135deg, rgba(16,185,129,0.07), var(--bg-elevated))' }}>
@@ -446,14 +470,34 @@ export default function BillingPage() {
       {/* ── Section 1: Choose / Change Plan ──────── */}
       <section style={{ marginBottom: 40 }}>
         <h2 className="bil-section-title">
-          <CreditCard size={18} color="var(--accent-light)" />
+          <CreditCard size={18} color="var(--text-primary)" />
           {isActive ? 'Change Plan' : 'Choose Your ROVA Plan'}
         </h2>
 
+        {/* Distinction Banner */}
+        <div style={{
+          marginBottom: 24, padding: '16px 20px',
+          background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--bg-border)', display: 'flex', flexDirection: 'column', gap: 6
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)' }}>
+            Plan Distinction
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+            <strong>Basic:</strong> ROVA manages your finances.<br />
+            <strong>Business:</strong> ROVA manages your finances + helps run the business.
+          </div>
+        </div>
+
         {/* Basic Plan */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 12 }}>
-            ROVA Basic — Financial Records
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 2 }}>
+              ROVA Basic: Financial Records
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+              For small business owners who mainly want ROVA to handle their financial records.
+            </p>
           </div>
           <div className="bil-grid-2">
             {/* Basic Daily */}
@@ -461,22 +505,44 @@ export default function BillingPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Daily</span>
-                  {planKey === 'basic_daily' && <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '3px 10px', borderRadius: 100 }}>Active</span>}
+                  {planKey === 'basic_daily' && <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-primary)', background: 'var(--bg-border)', padding: '3px 10px', borderRadius: 100 }}>Active</span>}
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>
                   ₦100<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/day</span>
                 </div>
               </div>
               <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {BASIC_FEATURES.slice(0, 4).map((f, i) => (
+                {BASIC_INCLUDES.slice(0, 4).map((f, i) => (
                   <li key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                    <Check size={13} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} /> {f}
+                    <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
                   </li>
                 ))}
-                <li style={{ fontSize: 12, color: 'var(--text-muted)' }}>+ {BASIC_FEATURES.length - 4} more features</li>
+                {expandedBasic && (
+                  <>
+                    {BASIC_INCLUDES.slice(4).map((f, i) => (
+                      <li key={`inc_${i}`} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
+                      </li>
+                    ))}
+                    <li style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: 6, marginBottom: 2 }}>Does not include:</li>
+                    {BASIC_EXCLUDES.map((f, i) => (
+                      <li key={`exc_${i}`} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-disabled)', fontWeight: 400 }}>
+                        <X size={13} style={{ color: 'var(--text-disabled)', flexShrink: 0, marginTop: 1, opacity: 0.6 }} /> {f}
+                      </li>
+                    ))}
+                  </>
+                )}
+                <li>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setExpandedBasic(!expandedBasic); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2, textDecoration: 'underline' }}
+                  >
+                    {expandedBasic ? '▲ Show less' : '▼ + More features'}
+                  </button>
+                </li>
               </ul>
-              <Button variant={planKey === 'basic_daily' ? 'secondary' : 'primary'} style={{ width: '100%', justifyContent: 'center' }} icon={<CreditCard size={14} />}>
-                {planKey === 'basic_daily' ? 'Renew Plan' : 'Subscribe — ₦100/day'}
+              <Button variant={planKey === 'basic_daily' ? 'secondary' : 'primary'} style={{ width: '100%', justifyContent: 'center', background: planKey === 'basic_daily' ? undefined : 'var(--text-primary)', border: 'none', color: 'var(--bg-base)', fontWeight: 800 }} icon={<CreditCard size={14} />}>
+                {planKey === 'basic_daily' ? 'Renew Plan' : 'Subscribe ₦100/day'}
               </Button>
             </div>
 
@@ -485,25 +551,44 @@ export default function BillingPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Monthly</span>
-                  {planKey === 'basic_monthly'
-                    ? <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '3px 10px', borderRadius: 100 }}>Active</span>
-                    : <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-light)', background: 'var(--accent-dim)', padding: '3px 10px', borderRadius: 100 }}>Save 17%</span>
-                  }
+                  {planKey === 'basic_monthly' && <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-primary)', background: 'var(--bg-border)', padding: '3px 10px', borderRadius: 100 }}>Active</span>}
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>
                   ₦3,000<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/month</span>
                 </div>
               </div>
               <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {BASIC_FEATURES.slice(0, 4).map((f, i) => (
+                {BASIC_INCLUDES.slice(0, 4).map((f, i) => (
                   <li key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                    <Check size={13} style={{ color: '#10b981', flexShrink: 0, marginTop: 1 }} /> {f}
+                    <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
                   </li>
                 ))}
-                <li style={{ fontSize: 12, color: 'var(--text-muted)' }}>+ {BASIC_FEATURES.length - 4} more features</li>
+                {expandedBasic && (
+                  <>
+                    {BASIC_INCLUDES.slice(4).map((f, i) => (
+                      <li key={`inc_${i}`} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
+                      </li>
+                    ))}
+                    <li style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: 6, marginBottom: 2 }}>Does not include:</li>
+                    {BASIC_EXCLUDES.map((f, i) => (
+                      <li key={`exc_${i}`} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-disabled)', fontWeight: 400 }}>
+                        <X size={13} style={{ color: 'var(--text-disabled)', flexShrink: 0, marginTop: 1, opacity: 0.6 }} /> {f}
+                      </li>
+                    ))}
+                  </>
+                )}
+                <li>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setExpandedBasic(!expandedBasic); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2, textDecoration: 'underline' }}
+                  >
+                    {expandedBasic ? '▲ Show less' : '▼ + More features'}
+                  </button>
+                </li>
               </ul>
-              <Button variant={planKey === 'basic_monthly' ? 'secondary' : 'primary'} style={{ width: '100%', justifyContent: 'center' }} icon={<CreditCard size={14} />}>
-                {planKey === 'basic_monthly' ? 'Renew Plan' : 'Subscribe — ₦3,000/month'}
+              <Button variant={planKey === 'basic_monthly' ? 'secondary' : 'primary'} style={{ width: '100%', justifyContent: 'center', background: planKey === 'basic_monthly' ? undefined : 'var(--text-primary)', border: 'none', color: 'var(--bg-base)', fontWeight: 800 }} icon={<CreditCard size={14} />}>
+                {planKey === 'basic_monthly' ? 'Renew Plan' : 'Subscribe ₦3,000/month'}
               </Button>
             </div>
           </div>
@@ -511,13 +596,18 @@ export default function BillingPage() {
 
         {/* Business Plan */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)' }}>
-              ROVA Business — Full Business Operations
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)' }}>
+                ROVA Business: Full Business Operations
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-primary)', background: 'var(--bg-border)', padding: '3px 10px', borderRadius: 100, border: '1px solid var(--bg-border)' }}>
+                ★ Recommended
+              </span>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-light)', background: 'var(--accent-dim)', padding: '3px 10px', borderRadius: 100, border: '1px solid var(--accent-border)' }}>
-              ★ Recommended
-            </span>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+              For businesses that are growing and need ROVA to manage more of the business operations.
+            </p>
           </div>
           <div className="bil-grid-2">
             {/* Business Daily */}
@@ -525,25 +615,39 @@ export default function BillingPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Daily</span>
-                  {planKey === 'business_daily' && <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '3px 10px', borderRadius: 100 }}>Active</span>}
+                  {planKey === 'business_daily' && <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-primary)', background: 'var(--bg-border)', padding: '3px 10px', borderRadius: 100 }}>Active</span>}
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  ₦500<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)', WebkitTextFillColor: 'var(--text-muted)' }}>/day</span>
+                <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>
+                  ₦500<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/day</span>
                 </div>
               </div>
               <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <li style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                  <Sparkles size={13} style={{ color: 'var(--accent-light)', flexShrink: 0, marginTop: 1 }} /> Everything in Basic
+                  <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> Everything in Basic, plus:
                 </li>
-                {BUSINESS_EXTRAS.slice(0, 4).map((f, i) => (
+                {BUSINESS_INCLUDES.slice(0, 3).map((f, i) => (
                   <li key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                    <Check size={13} style={{ color: 'var(--accent-light)', flexShrink: 0, marginTop: 1 }} /> {f}
+                    <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
                   </li>
                 ))}
-                <li style={{ fontSize: 12, color: 'var(--text-muted)' }}>+ {BUSINESS_EXTRAS.length - 4} more features</li>
+                {expandedBusiness && (
+                  BUSINESS_INCLUDES.slice(3).map((f, i) => (
+                    <li key={`biz_${i}`} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
+                    </li>
+                  ))
+                )}
+                <li>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setExpandedBusiness(!expandedBusiness); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2, textDecoration: 'underline' }}
+                  >
+                    {expandedBusiness ? '▲ Show less' : '▼ + More features'}
+                  </button>
+                </li>
               </ul>
-              <Button variant="primary" style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)' }} icon={<Star size={14} />}>
-                {planKey === 'business_daily' ? 'Renew Plan' : 'Subscribe — ₦500/day'}
+              <Button variant="primary" style={{ width: '100%', justifyContent: 'center', background: 'var(--text-primary)', border: 'none', color: 'var(--bg-base)', fontWeight: 800 }} icon={<Star size={14} />}>
+                {planKey === 'business_daily' ? 'Renew Plan' : 'Subscribe ₦500/day'}
               </Button>
             </div>
 
@@ -553,27 +657,41 @@ export default function BillingPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Monthly</span>
                   {planKey === 'business_monthly'
-                    ? <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '3px 10px', borderRadius: 100 }}>Active</span>
-                    : <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-light)', background: 'var(--accent-dim)', padding: '3px 10px', borderRadius: 100 }}>Best Value</span>
+                    ? <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-primary)', background: 'var(--bg-border)', padding: '3px 10px', borderRadius: 100 }}>Active</span>
+                    : <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-primary)', background: 'var(--bg-border)', padding: '3px 10px', borderRadius: 100 }}>Best Value</span>
                   }
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  ₦15,000<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)', WebkitTextFillColor: 'var(--text-muted)' }}>/month</span>
+                <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>
+                  ₦15,000<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/month</span>
                 </div>
               </div>
               <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <li style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                  <Sparkles size={13} style={{ color: 'var(--accent-light)', flexShrink: 0, marginTop: 1 }} /> Everything in Basic
+                  <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> Everything in Basic, plus:
                 </li>
-                {BUSINESS_EXTRAS.slice(0, 4).map((f, i) => (
+                {BUSINESS_INCLUDES.slice(0, 3).map((f, i) => (
                   <li key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                    <Check size={13} style={{ color: 'var(--accent-light)', flexShrink: 0, marginTop: 1 }} /> {f}
+                    <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
                   </li>
                 ))}
-                <li style={{ fontSize: 12, color: 'var(--text-muted)' }}>+ {BUSINESS_EXTRAS.length - 4} more features</li>
+                {expandedBusiness && (
+                  BUSINESS_INCLUDES.slice(3).map((f, i) => (
+                    <li key={`biz_${i}`} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      <Check size={13} style={{ color: 'var(--text-primary)', flexShrink: 0, marginTop: 1 }} /> {f}
+                    </li>
+                  ))
+                )}
+                <li>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setExpandedBusiness(!expandedBusiness); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2, textDecoration: 'underline' }}
+                  >
+                    {expandedBusiness ? '▲ Show less' : '▼ + More features'}
+                  </button>
+                </li>
               </ul>
-              <Button variant="primary" style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)' }} icon={<Star size={14} />}>
-                {planKey === 'business_monthly' ? 'Renew Plan' : 'Subscribe — ₦15,000/month'}
+              <Button variant="primary" style={{ width: '100%', justifyContent: 'center', background: 'var(--text-primary)', border: 'none', color: 'var(--bg-base)', fontWeight: 800 }} icon={<Star size={14} />}>
+                {planKey === 'business_monthly' ? 'Renew Plan' : 'Subscribe ₦15,000/month'}
               </Button>
             </div>
           </div>
@@ -586,16 +704,16 @@ export default function BillingPage() {
       <section style={{ marginBottom: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="bil-section-title" style={{ marginBottom: 0 }}>
-            <FileText size={18} color="var(--accent-light)" />
+            <FileText size={18} color="var(--text-primary)" />
             Tax Filing Service
           </h2>
           <Button
             variant="primary"
             icon={<Receipt size={14} />}
             onClick={() => setShowTaxModal(true)}
-            style={{ background: 'linear-gradient(135deg, #059669, #10b981)', border: 'none' }}
+            style={{ background: 'var(--text-primary)', border: 'none', color: 'var(--bg-base)', fontWeight: 800 }}
           >
-            Purchase Tax Filing — ₦5,000
+            Purchase Tax Filing: ₦5,000
           </Button>
         </div>
 
@@ -650,7 +768,7 @@ export default function BillingPage() {
                       <>
                         <div key={s} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                           <div className={`step-dot${isDone ? ' done' : isActive2 ? ' active' : ''}`} />
-                          <span style={{ fontSize: 10, color: isActive2 ? 'var(--accent-light)' : isDone ? '#10b981' : 'var(--text-disabled)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          <span style={{ fontSize: 10, color: isActive2 ? 'var(--text-primary)' : isDone ? '#10b981' : 'var(--text-disabled)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                             {s}
                           </span>
                         </div>
@@ -670,7 +788,7 @@ export default function BillingPage() {
       {/* ── Section 3: Payment History ────────────── */}
       <section>
         <h2 className="bil-section-title">
-          <Clock size={18} color="var(--accent-light)" />
+          <Clock size={18} color="var(--text-primary)" />
           Payment History
         </h2>
 
@@ -682,8 +800,8 @@ export default function BillingPage() {
             {allSubscriptions.map(sub => (
               <div key={sub.id} className="bil-history-row">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Zap size={15} color="var(--accent-light)" />
+                  <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Zap size={15} color="var(--text-primary)" />
                   </div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
@@ -715,7 +833,7 @@ export default function BillingPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
-                      {sp.tax_year} Tax Filing — {sp.filing_type}
+                      {sp.tax_year} Tax Filing: {sp.filing_type}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {formatDateStr(sp.payment_date || sp.created_at)}

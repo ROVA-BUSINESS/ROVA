@@ -258,14 +258,31 @@ export default function SettingsPage() {
                   target="_blank"
                   rel="noreferrer"
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '10px 16px', borderRadius: 10,
-                    background: '#25D366', color: '#fff', fontSize: 13, fontWeight: 700,
-                    textDecoration: 'none', boxShadow: '0 4px 12px rgba(37,211,102,0.25)',
-                    transition: 'transform 0.2s'
+                    display: 'inline-flex', alignItems: 'center', gap: 10,
+                    padding: '10px 20px', borderRadius: 'var(--radius-full)',
+                    background: 'linear-gradient(135deg, #1da851, #128C3E)',
+                    border: '1px solid rgba(18, 140, 62, 0.8)',
+                    color: '#ffffff', fontSize: 13.5, fontWeight: 700,
+                    textDecoration: 'none', boxShadow: '0 4px 16px rgba(18,140,62,0.35)',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = 'linear-gradient(135deg, #25D366, #1da851)';
+                    el.style.transform = 'translateY(-1px)';
+                    el.style.boxShadow = '0 6px 22px rgba(18, 140, 62, 0.45)';
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = 'linear-gradient(135deg, #1da851, #128C3E)';
+                    el.style.transform = 'none';
+                    el.style.boxShadow = '0 4px 16px rgba(18,140,62,0.35)';
                   }}
                 >
-                  <MessageSquare size={16} /> Launch ROVA Bot on WhatsApp <ExternalLink size={14} />
+                  <img src="/whatsapp-logo.png" alt="WhatsApp" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
+                  <span>Launch ROVA Bot on WhatsApp</span>
+                  <ExternalLink size={14} style={{ opacity: 0.9, marginLeft: 2 }} />
                 </a>
               </div>
 
