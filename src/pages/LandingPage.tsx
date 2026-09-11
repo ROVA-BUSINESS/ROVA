@@ -4,17 +4,11 @@ import { useTheme } from '../contexts/ThemeContext';
 import {
   ShieldCheck,
   ArrowRight,
-  Globe,
   Users2,
-  CheckCircle2,
-  ArrowUpRight,
   Check,
   TrendingUp,
   FileText,
   Link2,
-  UserCheck,
-  Zap,
-  BarChart3,
   MessageSquare,
   Package,
   Receipt,
@@ -53,7 +47,6 @@ export default function LandingPage() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
-  const [compVisible, setCompVisible] = useState(false);
   const [devicesVisible, setDevicesVisible] = useState(false);
   const [featuresVisible, setFeaturesVisible] = useState(false);
 
@@ -68,23 +61,6 @@ export default function LandingPage() {
       { threshold: 0.4 }
     );
     const element = document.getElementById('devices-section');
-    if (element) {
-      observer.observe(element);
-    }
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setCompVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.1 }
-    );
-    const element = document.getElementById('comparison-section');
     if (element) {
       observer.observe(element);
     }
