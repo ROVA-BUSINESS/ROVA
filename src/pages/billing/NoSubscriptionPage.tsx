@@ -120,12 +120,12 @@ export default function NoSubscriptionPage() {
               ) : (
                 <>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, textAlign: 'left', fontWeight: 600 }}>
-                    Enter your Paystack reference (e.g. ROVA_SUB_...):
+                    Enter Paystack reference or Developer Code:
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
                       type="text"
-                      placeholder="ROVA_SUB_1789064857..."
+                      placeholder="e.g. ROVA_SUB_... or DEV_BYPASS_2026"
                       value={refInput}
                       onChange={(e) => setRefInput(e.target.value)}
                       style={{

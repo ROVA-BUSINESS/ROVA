@@ -61,10 +61,25 @@ export default function SignupPage() {
               style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
             />
           </div>
-          <h1 style={{ fontSize: 24, marginBottom: 6 }}>Create your account</h1>
+          <h1 style={{ fontSize: 24, marginBottom: 6 }}>Create your business account</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-            Start managing your finances with ROVA
+            Start managing your business finances with ROVA
           </p>
+        </div>
+
+        {/* Staff onboarding restriction notice */}
+        <div style={{
+          padding: '11px 14px',
+          marginBottom: 20,
+          background: 'var(--info-dim)',
+          border: '1px solid rgba(59,130,246,0.25)',
+          borderRadius: 'var(--radius-lg)',
+          fontSize: 12,
+          color: 'var(--info)',
+          lineHeight: 1.5,
+          textAlign: 'left',
+        }}>
+          <strong>Staff Account Notice:</strong> Staff members cannot create standalone accounts here. If you are a staff member, your Administrator must onboard you from their Team settings and send an invitation link to your email.
         </div>
 
         <div style={{
