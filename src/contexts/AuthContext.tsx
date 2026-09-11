@@ -93,6 +93,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signUp(email: string, password: string, fullName: string) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if email has been onboarded by an Admin as staff
+    const { data: existingStaff } = await supabase
+      .from('team_members')
+      .select('id, owner_id')
+      .ilike('invite_email', cleanEmail)
+      .maybeSingle();
+
+    if (existingStaff) {
+      return {
+        error: new Error('This email address has been onboarded as a Staff member by an Administrator. Staff members cannot create standalone accounts. Please check your email for the invitation link sent by your Admin, or sign in at the Login page.'),
+        needsEmailConfirmation: false,
+      };
+    }
+
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (!error && data.user) {
       await supabase.from('profiles').insert({
