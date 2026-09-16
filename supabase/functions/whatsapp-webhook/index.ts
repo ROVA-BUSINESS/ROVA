@@ -299,6 +299,16 @@ serve(async (req) => {
       return new Response(JSON.stringify({ status: "extraction_empty" }), { headers: corsHeaders, status: 200 });
     }
 
+    // ── STEP A.5: INTERCEPT SPECIFIC QUERIES (E.G. TAX) ────────────────────────
+    if (/\b(tax|vat|cit|file tax|taxes|tax return|tax action)\b/i.test(extractedText)) {
+      await sendWhatsAppMessage(
+        fromNumber,
+        'Tax filing and management is available on our website. Please visit https://www.rovabusiness.com/app/tax to perform your tax actions securely.\n\nView full dashboard: https://www.rovabusiness.com',
+        WHATSAPP_ACCESS_TOKEN
+      );
+      return new Response(JSON.stringify({ status: "tax_handled" }), { headers: corsHeaders, status: 200 });
+    }
+
     // ── STEP B: ROUTE TO UNIFIED CENTRAL ROVA AI AGENT BRAIN VIA SUPABASE SDK ─
     console.log(`[WhatsApp Webhook -> Central ROVA AI Agent] Processing query for User ${userId}: "${extractedText}"`);
 
@@ -320,7 +330,7 @@ serve(async (req) => {
     }
 
     // ── STEP C: SEND RESPONSE BACK VIA WHATSAPP API ────────────────────────────
-    const formattedWhatsAppReply = `${replyText}\n\n🌐 *View full dashboard*: https://www.rovabusiness.com`;
+    const formattedWhatsAppReply = `${replyText}\n\nView full dashboard: https://www.rovabusiness.com`;
     await sendWhatsAppMessage(fromNumber, formattedWhatsAppReply, WHATSAPP_ACCESS_TOKEN);
 
     return new Response(

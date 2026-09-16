@@ -176,11 +176,11 @@ READ-ONLY TOOLS (execute immediately, no confirmation needed):
 7. getCustomers() — Query all clients who have ever been invoiced
 8. getTransactions(date?, period?, type?) — Query specific transactions by date or period
 
-DATA CREATION TOOLS (ALWAYS ask for confirmation before executing):
-9. recordSale(amount, description, clientName?) — Record a sales revenue transaction
-10. recordExpense(amount, description, categoryName?, merchant?) — Record a business expense
-11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. NEVER use default "Client". If clientName is missing, STOP and ask: "Who should I address this invoice to?" If items are missing, ask: "What items or services should I include?"
-12. createReceipt(customerName, amount?, paymentMethod?, description?) — Create a payment receipt. If customerName is missing, STOP and ask: "Who should I address this receipt to?"
+DATA CREATION TOOLS:
+9. recordSale(amount, description, clientName?) — Record a sales revenue transaction (MUST NOT ask for confirmation)
+10. recordExpense(amount, description, categoryName?, merchant?) — Record a business expense (MUST NOT ask for confirmation)
+11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. NEVER use default "Client". If clientName is missing, STOP and ask: "Who should I address this invoice to?" If items are missing, ask: "What items or services should I include?". MUST ask for confirmation before executing.
+12. createReceipt(customerName, amount?, paymentMethod?, description?) — Create a payment receipt. If customerName is missing, STOP and ask: "Who should I address this receipt to?". MUST ask for confirmation before executing.
 
 HIGH-RISK TOOLS (NEVER execute from ambiguous instructions — require explicit typed confirmation):
 13. deleteTransaction(transactionId) — Permanently delete a transaction record
@@ -291,7 +291,7 @@ RESPONSE FORMAT (strict JSON)
       );
     }
 
-    // High-risk tools — block from WhatsApp entirely, require explicit confirmation from web
+    // High-risk tools — require explicit confirmation from web and WhatsApp
     if (HIGH_RISK_TOOLS.includes(toolName) && !userConfirmed) {
       if (source === "whatsapp") {
         await logAIAction(supabaseClient, {
@@ -300,12 +300,15 @@ RESPONSE FORMAT (strict JSON)
           userRequest: lastUserMsg,
           toolCalled: toolName,
           parameters: toolCall?.parameters || {},
-          confirmationStatus: "high_risk_blocked",
-          resultStatus: "cancelled",
+          confirmationStatus: "pending",
+          resultStatus: "pending_confirmation",
         });
+        const waConfirmMsg = `${reply || "⚠️ I'm about to permanently delete this record. This cannot be undone. Are you absolutely sure?"}\n\nReply *YES* to confirm or *NO* to cancel.`;
         return new Response(
           JSON.stringify({
-            reply: "⚠️ This action (delete) is too high-risk to execute via WhatsApp. Please log into the ROVA web app to perform deletions: https://www.rovabusiness.com",
+            reply: waConfirmMsg,
+            requiresConfirmation: true,
+            pendingToolCall: toolCall,
             actions: [],
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }

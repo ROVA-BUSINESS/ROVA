@@ -4,7 +4,11 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 console.log('🚀 CURRENT SUPABASE URL BEING USED BY THE APP:', supabaseUrl);
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: window.sessionStorage,
+  },
+});
 
 export type Profile = {
   id: string;
