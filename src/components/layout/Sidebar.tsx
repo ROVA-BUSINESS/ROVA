@@ -46,20 +46,20 @@ type NavGroupItem = {
 };
 
 const mainNavItems: NavGroupItem[] = [
-  { type: 'link', to: '/app/dashboard', icon: Home, label: '🚀 Home' },
-  { type: 'link', to: '/app/transactions', icon: ArrowLeftRight, label: '📋 Transactions' },
-  { type: 'link', to: '/app/invoices', icon: Receipt, label: '📄 Invoices' },
-  { type: 'link', to: '/app/receipts', icon: FileText, label: '🧾 Receipts' },
-  { type: 'link', to: '/app/expenses', icon: TrendingDown, label: '💸 Bills & Expenses' },
-  { type: 'link', to: '/app/reports', icon: BarChart2, label: '📊 Reports Hub' },
-  { type: 'link', to: '/app/assistant', icon: Brain, label: '🤖 ROVA Assistant' },
+  { type: 'link', to: '/app/dashboard', icon: Home, label: 'Home' },
+  { type: 'link', to: '/app/transactions', icon: ArrowLeftRight, label: 'Transactions' },
+  { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices' },
+  { type: 'link', to: '/app/receipts', icon: FileText, label: 'Receipts' },
+  { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
+  { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
+  { type: 'link', to: '/app/assistant', icon: Brain, label: 'AI Assistant' },
   {
     type: 'group',
     label: 'Accounting',
     key: 'accounting',
     icon: BookOpen,
     items: [
-      { to: '/app/accounting', icon: BookOpen, label: '🧮 Accounting Hub' }
+      { to: '/app/accounting', icon: BookOpen, label: 'Accounting Hub' }
     ]
   },
   {
@@ -68,7 +68,7 @@ const mainNavItems: NavGroupItem[] = [
     key: 'compliance',
     icon: Shield,
     items: [
-      { to: '/app/tax', icon: FileText, label: '🧮 Tax & Filing' }
+      { to: '/app/tax', icon: FileText, label: 'Tax' }
     ]
   },
   {
@@ -77,9 +77,9 @@ const mainNavItems: NavGroupItem[] = [
     key: 'operations',
     icon: Users,
     items: [
-      { to: '/app/team', icon: Shield, label: '👥 Team & Access' },
-      { to: '/app/payroll', icon: Users, label: '👥 Payroll' },
-      { to: '/app/inventory', icon: Package, label: '📦 Inventory' }
+      { to: '/app/team', icon: Shield, label: 'Team & Access' },
+      { to: '/app/payroll', icon: Users, label: 'Payroll' },
+      { to: '/app/inventory', icon: Package, label: 'Inventory' }
     ]
   }
 ];
@@ -573,7 +573,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               }}
             >
               <CreditCard size={16} style={{ flexShrink: 0 }} />
-              {!isDesktopCollapsed && '💳 Billing'}
+              {!isDesktopCollapsed && 'Billing'}
             </NavLink>
           )}
 
@@ -611,7 +611,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             }}
           >
             <Settings size={16} style={{ flexShrink: 0 }} />
-            {!isDesktopCollapsed && '⚙️ Settings'}
+            {!isDesktopCollapsed && 'Settings'}
           </NavLink>
 
           {/* Sign Out Button */}
