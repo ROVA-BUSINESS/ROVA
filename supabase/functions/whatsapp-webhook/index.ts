@@ -84,7 +84,7 @@ serve(async (req) => {
       console.log(`[WhatsApp Webhook] Unlinked phone number ${fromNumber}. Sending setup prompt.`);
       await sendWhatsAppMessage(
         fromNumber,
-        "⚠️ Welcome to ROVA! Your WhatsApp phone number is not linked to a ROVA account yet.\n\nPlease log in to https://www.rovabusiness.com, go to Settings → Business Profile, and update your Business Phone number to enable instant WhatsApp accounting.",
+        "⚠️ Welcome to ROVA! Your WhatsApp phone number is not linked to a ROVA account yet.\n\n📲 Please log in to https://www.rovabusiness.com, go to ⚙️ Settings → Business Profile, and update your Business Phone number to enable instant WhatsApp accounting.",
         WHATSAPP_ACCESS_TOKEN
       );
       return new Response(JSON.stringify({ status: "user_not_found" }), { headers: corsHeaders, status: 200 });
@@ -292,8 +292,8 @@ serve(async (req) => {
     if (!extractedText.trim()) {
       const isVoice = messageType === "audio" || messageType === "voice";
       const helpMsg = isVoice
-        ? "🎙️ ROVA received your voice note! To process this transaction instantly, please send a text message (e.g. 'Recorded sale of ₦25,000') or send a photo of your receipt."
-        : "📷 ROVA could not read text from this image clearly. Please ensure good lighting or type out the transaction details in a text message.";
+        ? "🎙️ ROVA received your voice note! To process this transaction instantly, please send a text message (e.g. 💰 'Recorded sale of ₦25,000') or send a photo of your receipt 📄."
+        : "📷 ROVA could not read text from this image clearly. Please ensure good lighting or type out the transaction details in a text message 💬.";
 
       await sendWhatsAppMessage(fromNumber, helpMsg, WHATSAPP_ACCESS_TOKEN);
       return new Response(JSON.stringify({ status: "extraction_empty" }), { headers: corsHeaders, status: 200 });
@@ -303,7 +303,7 @@ serve(async (req) => {
     if (/\b(tax|vat|cit|file tax|taxes|tax return|tax action)\b/i.test(extractedText)) {
       await sendWhatsAppMessage(
         fromNumber,
-        'Tax filing and management is available on our website. Please visit https://www.rovabusiness.com/app/tax to perform your tax actions securely.\n\nView full dashboard: https://www.rovabusiness.com',
+        '🏛️ Tax filing and management is available on our website. Please visit 🔗 https://www.rovabusiness.com/app/tax to perform your tax actions securely.\n\n📲 View full dashboard: https://www.rovabusiness.com',
         WHATSAPP_ACCESS_TOKEN
       );
       return new Response(JSON.stringify({ status: "tax_handled" }), { headers: corsHeaders, status: 200 });
@@ -330,7 +330,7 @@ serve(async (req) => {
     }
 
     // ── STEP C: SEND RESPONSE BACK VIA WHATSAPP API ────────────────────────────
-    const formattedWhatsAppReply = `${replyText}\n\nView full dashboard: https://www.rovabusiness.com`;
+    const formattedWhatsAppReply = `${replyText}\n\n📲 View full dashboard: https://www.rovabusiness.com`;
     await sendWhatsAppMessage(fromNumber, formattedWhatsAppReply, WHATSAPP_ACCESS_TOKEN);
 
     return new Response(

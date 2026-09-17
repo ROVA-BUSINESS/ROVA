@@ -73,7 +73,7 @@ export class TransactionWorker {
         if (user) {
           await this.whatsappService.sendTextMessage(
             from,
-            `🎉 Welcome to ROVA! Your business account "${businessName}" has been successfully created and linked to this WhatsApp number.\n\nYou can now send transaction text messages 💬, voice notes 🎙️, or paper receipt photos 📷 to record your business records automatically.\n\nView full dashboard: https://www.rovabusiness.com`
+            `🎉 Welcome to ROVA! Your business account "${businessName}" has been successfully created and linked to this WhatsApp number.\n\nYou can now send transaction text messages 💬, voice notes 🎙️, or paper receipt photos 📷 to record your business records automatically.\n\n📲 View full dashboard: https://www.rovabusiness.com`
           );
           return;
         }
@@ -81,7 +81,7 @@ export class TransactionWorker {
 
       await this.whatsappService.sendTextMessage(
         from,
-        '👋 Welcome to ROVA AI!\nYour WhatsApp number is not linked to a ROVA account.\n\nTo sign up directly on WhatsApp, reply with:\nRegister: [Your Business Name]\n(e.g., Register: Acme Enterprise)\n\nOr register on the web: https://www.rovabusiness.com/signup'
+        '👋 Welcome to ROVA AI!\nYour WhatsApp number is not linked to a ROVA account.\n\nTo sign up directly on WhatsApp, reply with:\n📝 Register: [Your Business Name]\n(e.g., Register: Acme Enterprise)\n\n🌐 Or register on the web: https://www.rovabusiness.com/signup'
       );
       return;
     }
@@ -167,7 +167,7 @@ export class TransactionWorker {
       if (/\b(tax|vat|cit|file tax|taxes|tax return|tax action)\b/i.test(extractedText)) {
         await this.whatsappService.sendTextMessage(
           from,
-          'Tax filing and management is available on our website. Please visit https://www.rovabusiness.com/app/tax to perform your tax actions securely.\n\nView full dashboard: https://www.rovabusiness.com'
+          '🏛️ Tax filing and management is available on our website. Please visit 🔗 https://www.rovabusiness.com/app/tax to perform your tax actions securely.\n\n📲 View full dashboard: https://www.rovabusiness.com'
         );
         return;
       }
@@ -197,8 +197,8 @@ export class TransactionWorker {
       // Remove any leftover asterisks
       replyMessage = replyMessage.replace(/\*/g, '');
 
-      // Add clean dashboard link footer without globe symbol
-      replyMessage += `\n\nView full dashboard: https://www.rovabusiness.com`;
+      // Add clean dashboard link footer with icon
+      replyMessage += `\n\n📲 View full dashboard: https://www.rovabusiness.com`;
 
       await this.whatsappService.sendTextMessage(from, replyMessage);
       Logger.info(`[WhatsApp Pipeline] Successfully processed ${type} message for user ${user.id}`);
