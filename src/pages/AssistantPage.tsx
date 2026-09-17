@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Send, RefreshCw,
   Bell, ChevronRight, Package, Users, FileText, X,
-  MessageCircle, MessageSquare, ExternalLink, HelpCircle, TrendingUp, Brain
+  MessageCircle, ExternalLink, HelpCircle, TrendingUp, Brain
 } from 'lucide-react';
 import { supabase, type Transaction, type Account, type Expense, type Bill, type ExternalWorker, type ServiceAgreement } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';

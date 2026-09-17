@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Zap, Shield, BarChart2, FileText, Sparkles, CheckCircle2 } from 'lucide-react';
+import { CreditCard, Zap, Shield, BarChart2, FileText, CheckCircle2 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 
