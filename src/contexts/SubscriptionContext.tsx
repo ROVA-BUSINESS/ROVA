@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { supabase, type RovaSubscription, type RovaServicePayment } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { getNextPaymentDate, type PlanKey } from '../lib/paystack';
+import { isDeveloperEmail, isDeveloperBypassCode } from '../config/developers';
 
 interface SubscriptionContextValue {
   subscription: RovaSubscription | null;
@@ -10,6 +11,7 @@ interface SubscriptionContextValue {
   isActive: boolean;
   isBasic: boolean;
   isBusiness: boolean;
+  isDeveloper: boolean;
   planKey: PlanKey | null;
   refresh: () => Promise<void>;
   activateByReference: (reference: string, planKey?: PlanKey) => Promise<{ success: boolean; error?: string }>;
@@ -22,6 +24,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   isActive: false,
   isBasic: false,
   isBusiness: false,
+  isDeveloper: false,
   planKey: null,
   refresh: async () => {},
   activateByReference: async () => ({ success: false, error: 'Not initialized' }),
@@ -61,6 +64,27 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     ]);
 
     let activeSub = subRes.data?.[0] ?? null;
+
+    // Auto-grant developer subscription for whitelisted emails
+    if (!activeSub && isDeveloperEmail(user.email)) {
+      try {
+        const { data: devSub } = await supabase.from('rova_subscriptions').insert({
+          user_id: user.id,
+          plan: 'business_monthly',
+          amount: 0,
+          status: 'active',
+          payment_reference: 'DEV_AUTO_BYPASS',
+          paystack_transaction_id: 'DEV_AUTO_BYPASS',
+          payment_date: new Date().toISOString(),
+          start_date: new Date().toISOString().split('T')[0],
+          next_payment_date: '2099-12-31',
+        }).select().single();
+
+        if (devSub) activeSub = devSub;
+      } catch (err) {
+        console.error('Failed to auto-grant dev subscription:', err);
+      }
+    }
 
     // Auto-recover pending payment from localStorage (e.g. if user did bank transfer and closed popup)
     if (!activeSub) {
@@ -115,9 +139,10 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         .eq('user_id', user.id)
         .eq('status', 'active');
 
-      const isBusiness = cleanRef.toLowerCase().includes('business') || targetPlanKey.includes('business');
-      const selectedPlan: PlanKey = targetPlanKey || (isBusiness ? 'business_daily' : 'basic_daily');
-      const amount = selectedPlan === 'business_monthly' ? 15000 : selectedPlan === 'business_daily' ? 500 : selectedPlan === 'basic_monthly' ? 3000 : 100;
+      const isDevBypass = isDeveloperBypassCode(cleanRef);
+      const isBusiness = isDevBypass || cleanRef.toLowerCase().includes('business') || targetPlanKey.includes('business');
+      const selectedPlan: PlanKey = isDevBypass ? 'business_monthly' : (targetPlanKey || (isBusiness ? 'business_daily' : 'basic_daily'));
+      const amount = isDevBypass ? 0 : (selectedPlan === 'business_monthly' ? 15000 : selectedPlan === 'business_daily' ? 500 : selectedPlan === 'basic_monthly' ? 3000 : 100);
 
       const { data: newSub, error } = await supabase.from('rova_subscriptions').insert({
         user_id: user.id,
@@ -128,7 +153,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         paystack_transaction_id: cleanRef,
         payment_date: new Date().toISOString(),
         start_date: new Date().toISOString().split('T')[0],
-        next_payment_date: getNextPaymentDate(selectedPlan),
+        next_payment_date: isDevBypass ? '2099-12-31' : getNextPaymentDate(selectedPlan),
       }).select().single();
 
       if (error) throw error;
@@ -145,16 +170,18 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     load();
   }, [user?.id]);
 
-  const isActive = subscription?.status === 'active';
-  const planKey = (subscription?.plan ?? null) as PlanKey | null;
+  const isDeveloper = isDeveloperEmail(user?.email) || isDeveloperBypassCode(subscription?.payment_reference);
+  const isActive = isDeveloper || subscription?.status === 'active';
+  const planKey = (isDeveloper && !subscription?.plan ? 'business_monthly' : subscription?.plan ?? null) as PlanKey | null;
   const isBasic = isActive && (planKey === 'basic_daily' || planKey === 'basic_monthly');
-  const isBusiness = isActive && (planKey === 'business_daily' || planKey === 'business_monthly');
+  const isBusiness = isDeveloper || (isActive && (planKey === 'business_daily' || planKey === 'business_monthly'));
 
   return (
     <SubscriptionContext.Provider
-      value={{ subscription, servicePayments, loading, isActive, isBasic, isBusiness, planKey, refresh: load, activateByReference }}
+      value={{ subscription, servicePayments, loading, isActive, isBasic, isBusiness, isDeveloper, planKey, refresh: load, activateByReference }}
     >
       {children}
     </SubscriptionContext.Provider>
   );
 }
+

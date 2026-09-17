@@ -183,13 +183,13 @@ export async function recordSale(params: RecordSaleParams, customSupabaseClient?
 
   const todayTotal = (todayTxs || []).reduce((sum: number, t: any) => sum + t.amount, 0);
 
-  const formattedMsg = `✅ **Sale Recorded**: ${formatCurrency(amount)} for "${desc}".\n📊 Today's Total Sales: ${formatCurrency(todayTotal)}${stockUpdated ? ` (Stock updated for ${quantity} unit(s))` : ''}.`;
+  const formattedMsg = `✅ Sale Recorded: ${formatCurrency(amount)} for "${desc}".\n📊 Today's Total Sales: ${formatCurrency(todayTotal)}${stockUpdated ? ` (Stock updated for ${quantity} unit(s))` : ''}.`;
 
   return {
     success: true,
     transaction,
     todayTotal,
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }
 
@@ -282,17 +282,17 @@ export async function createInvoice(params: CreateInvoiceParams, customSupabaseC
     });
   }
 
-  const formattedMsg = `📄 **Invoice Created Successfully**!\n` +
-    `• Invoice #: **${invoiceNumber}**\n` +
-    `• Client: **${clientName}**\n` +
-    `• Total Amount: **${formatCurrency(total)}** (Incl. ${taxRate}% Tax: ${formatCurrency(taxAmount)})\n` +
-    `• Status: **${status.toUpperCase()}** (${formatCurrency(computedPaid)} Paid)\n` +
-    `• Due Date: **${dueDate}**`;
+  const formattedMsg = `📄 Invoice Created Successfully!\n` +
+    `• Invoice #: ${invoiceNumber}\n` +
+    `• Client: ${clientName}\n` +
+    `• Total Amount: ${formatCurrency(total)} (Incl. ${taxRate}% Tax: ${formatCurrency(taxAmount)})\n` +
+    `• Status: ${status.toUpperCase()} (${formatCurrency(computedPaid)} Paid)\n` +
+    `• Due Date: ${dueDate}`;
 
   return {
     success: true,
     invoice: { ...invoice, items: invoiceItemsToInsert },
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }
 
@@ -350,7 +350,7 @@ export async function recordExpense(params: RecordExpenseParams, customSupabaseC
 
   const monthTotal = (monthTxs || []).reduce((sum: number, t: any) => sum + t.amount, 0);
 
-  const formattedMsg = `💸 **Expense Recorded**: ${formatCurrency(amount)} for "${fullDesc}".\n` +
+  const formattedMsg = `💸 Expense Recorded: ${formatCurrency(amount)} for "${fullDesc}".\n` +
     `🏷️ Category: ${categoryName}\n` +
     `📊 Total Expenses This Month: ${formatCurrency(monthTotal)}`;
 
@@ -358,7 +358,7 @@ export async function recordExpense(params: RecordExpenseParams, customSupabaseC
     success: true,
     transaction,
     monthTotal,
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }
 
@@ -392,10 +392,10 @@ export async function getSales(params: QueryPeriodParams, customSupabaseClient?:
     .map((t: any) => `• ${t.date?.slice(0, 10)}: ${formatCurrency(t.amount)} - ${t.description}`)
     .join('\n');
 
-  const formattedMsg = `📈 **Sales Overview (${periodLabel.toUpperCase()})**\n` +
-    `• Total Revenue: **${formatCurrency(totalAmount)}**\n` +
-    `• Total Transactions: **${count}**\n` +
-    (count > 0 ? `\n**Recent Sales:**\n${recentLines}` : '\nNo sales recorded for this period.');
+  const formattedMsg = `📈 Sales Overview (${periodLabel.toUpperCase()})\n` +
+    `• Total Revenue: ${formatCurrency(totalAmount)}\n` +
+    `• Total Transactions: ${count}\n` +
+    (count > 0 ? `\nRecent Sales:\n${recentLines}` : '\nNo sales recorded for this period.');
 
   return {
     success: true,
@@ -403,7 +403,7 @@ export async function getSales(params: QueryPeriodParams, customSupabaseClient?:
     totalAmount,
     count,
     sales: salesList,
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }
 
@@ -449,10 +449,10 @@ export async function getExpenses(params: QueryPeriodParams, customSupabaseClien
     .slice(0, 5)
     .join('\n');
 
-  const formattedMsg = `📉 **Expense Breakdown (${periodLabel.toUpperCase()})**\n` +
-    `• Total Expenses: **${formatCurrency(totalAmount)}**\n` +
-    `• Total Transactions: **${count}**\n` +
-    (catMap.size > 0 ? `\n**Top Categories:**\n${catBreakdown}` : '\nNo expenses recorded for this period.');
+  const formattedMsg = `📉 Expense Breakdown (${periodLabel.toUpperCase()})\n` +
+    `• Total Expenses: ${formatCurrency(totalAmount)}\n` +
+    `• Total Transactions: ${count}\n` +
+    (catMap.size > 0 ? `\nTop Categories:\n${catBreakdown}` : '\nNo expenses recorded for this period.');
 
   return {
     success: true,
@@ -461,7 +461,7 @@ export async function getExpenses(params: QueryPeriodParams, customSupabaseClien
     count,
     expenses: expenseList,
     categoryBreakdown: Array.from(catMap.entries()).map(([cat, amt]) => ({ category: cat, amount: amt })),
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }
 
@@ -502,22 +502,22 @@ export async function getInventory(params: QueryInventoryParams, customSupabaseC
     .slice(0, 8)
     .map(
       (i: any) =>
-        `• **${i.name}**: ${i.current_stock} ${i.unit || 'units'} in stock (Selling: ${formatCurrency(i.selling_price || 0)})`
+        `• ${i.name}: ${i.current_stock} ${i.unit || 'units'} in stock (Selling: ${formatCurrency(i.selling_price || 0)})`
     )
     .join('\n');
 
-  const formattedMsg = `📦 **Inventory Status**\n` +
-    `• Total Stock Items: **${inventoryList.length}**\n` +
-    `• Inventory Valuation (Cost): **${formatCurrency(totalValuation)}**\n` +
-    `• Low Stock Alerts: **${lowStockItems.length}** item(s)\n` +
-    (inventoryList.length > 0 ? `\n**Current Stock Items:**\n${itemSummaryLines}` : '\nNo inventory items found.');
+  const formattedMsg = `📦 Inventory Status\n` +
+    `• Total Stock Items: ${inventoryList.length}\n` +
+    `• Inventory Valuation (Cost): ${formatCurrency(totalValuation)}\n` +
+    `• Low Stock Alerts: ${lowStockItems.length} item(s)\n` +
+    (inventoryList.length > 0 ? `\nCurrent Stock Items:\n${itemSummaryLines}` : '\nNo inventory items found.');
 
   return {
     success: true,
     items: inventoryList,
     lowStockCount: lowStockItems.length,
     totalValuation,
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }
 
@@ -546,20 +546,20 @@ export async function getOutstandingInvoices(params: { userId: string }, customS
   const debtorLines = unpaidList
     .map(
       (inv: any) =>
-        `• **${inv.client_name}** — Invoice #${inv.invoice_number}: Owed **${formatCurrency((inv.total || 0) - (inv.amount_paid || 0))}** (Due: ${inv.due_date || 'N/A'})`
+        `• ${inv.client_name} — Invoice #${inv.invoice_number}: Owed ${formatCurrency((inv.total || 0) - (inv.amount_paid || 0))} (Due: ${inv.due_date || 'N/A'})`
     )
     .join('\n');
 
-  const formattedMsg = `📋 **Outstanding Invoices / Receivables**\n` +
-    `• Total Amount Owed to You: **${formatCurrency(totalOutstanding)}**\n` +
-    `• Outstanding Invoices Count: **${unpaidList.length}**\n` +
-    (unpaidList.length > 0 ? `\n**Unpaid Client Breakdown:**\n${debtorLines}` : '\n🎉 All invoices have been paid! No outstanding receivables.');
+  const formattedMsg = `📋 Outstanding Invoices / Receivables\n` +
+    `• Total Amount Owed to You: ${formatCurrency(totalOutstanding)}\n` +
+    `• Outstanding Invoices Count: ${unpaidList.length}\n` +
+    (unpaidList.length > 0 ? `\nUnpaid Client Breakdown:\n${debtorLines}` : '\n🎉 All invoices have been paid! No outstanding receivables.');
 
   return {
     success: true,
     invoices: unpaidList,
     totalOutstanding,
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }
 
@@ -601,15 +601,15 @@ export async function calculateTax(params: CalculateTaxParams, customSupabaseCli
   const estimatedCIT = netProfit * citRate;
   const totalTaxEstimate = vatLiability + estimatedCIT;
 
-  const formattedMsg = `🏛️ **Tax Estimation & Computation (${period.replace('_', ' ').toUpperCase()})**\n` +
-    `• Gross Business Revenue: **${formatCurrency(grossIncome)}**\n` +
-    `• Allowable Deductible Expenses: **${formatCurrency(allowableExpenses)}**\n` +
-    `• Net Taxable Profit: **${formatCurrency(netProfit)}**\n\n` +
-    `📊 **Tax Breakdown:**\n` +
-    `• VAT Liability (7.5%): **${formatCurrency(vatLiability)}**\n` +
-    `• Estimated Companies Income Tax (${(citRate * 100).toFixed(0)}% SME tier): **${formatCurrency(estimatedCIT)}**\n` +
-    `• **Total Estimated Tax Liability**: **${formatCurrency(totalTaxEstimate)}**\n` +
-    (grossIncome < 25000000 ? `\n💡 *Note: Your business turnover is under ₦25M, qualifying for 0% Companies Income Tax exemption under Nigerian Tax laws.*` : '');
+  const formattedMsg = `🏛️ Tax Estimation & Computation (${period.replace('_', ' ').toUpperCase()})\n` +
+    `• Gross Business Revenue: ${formatCurrency(grossIncome)}\n` +
+    `• Allowable Deductible Expenses: ${formatCurrency(allowableExpenses)}\n` +
+    `• Net Taxable Profit: ${formatCurrency(netProfit)}\n\n` +
+    `📊 Tax Breakdown:\n` +
+    `• VAT Liability (7.5%): ${formatCurrency(vatLiability)}\n` +
+    `• Estimated Companies Income Tax (${(citRate * 100).toFixed(0)}% SME tier): ${formatCurrency(estimatedCIT)}\n` +
+    `• Total Estimated Tax Liability: ${formatCurrency(totalTaxEstimate)}\n` +
+    (grossIncome < 25000000 ? `\n💡 Note: Your business turnover is under ₦25M, qualifying for 0% Companies Income Tax exemption under Nigerian Tax laws.` : '');
 
   return {
     success: true,
@@ -619,6 +619,6 @@ export async function calculateTax(params: CalculateTaxParams, customSupabaseCli
     vatLiability,
     estimatedCIT,
     totalTaxEstimate,
-    formattedSummary: formattedMsg,
+    formattedSummary: formattedMsg.replace(/\*/g, ''),
   };
 }

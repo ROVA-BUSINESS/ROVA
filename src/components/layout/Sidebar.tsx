@@ -49,6 +49,7 @@ const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/dashboard', icon: Home, label: 'Home' },
   { type: 'link', to: '/app/transactions', icon: ArrowLeftRight, label: 'Transactions' },
   { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices' },
+  { type: 'link', to: '/app/receipts', icon: FileText, label: 'Receipts' },
   { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
   { type: 'link', to: '/app/assistant', icon: Brain, label: 'AI Assistant' },

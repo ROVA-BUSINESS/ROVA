@@ -153,6 +153,12 @@ Current ROVA Financial Snapshot (Real-Time Database):
       ? "STAFF MODE STRICT RULE: You MUST NOT reveal total profit margins, total net income, or tax liabilities. Only answer transaction and operational inventory queries."
       : "";
 
+    // Helper to strip asterisks from response text
+    function cleanAsterisks(str: string): string {
+      if (!str) return "";
+      return str.replace(/\*/g, "");
+    }
+
     // ── 2. SYSTEM PROMPT ─────────────────────────────────────────────────────────
     const systemPrompt = `You are ROVA AI, the single unified AI Agent and conversational ERP operating layer for Nigerian businesses.
 You operate identically whether the user is on the ROVA web app or WhatsApp — same database, same tools, same rules.
@@ -176,13 +182,14 @@ READ-ONLY TOOLS (execute immediately, no confirmation needed):
 7. getCustomers() — Query all clients who have ever been invoiced
 8. getTransactions(date?, period?, type?) — Query specific transactions by date or period
 
-DATA CREATION TOOLS (ALWAYS ask for confirmation before executing):
-9. recordSale(amount, description, clientName?) — Record a sales revenue transaction
-10. recordExpense(amount, description, categoryName?, merchant?) — Record a business expense
-11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. NEVER use default "Client". If clientName is missing, STOP and ask: "Who should I address this invoice to?" If items are missing, ask: "What items or services should I include?"
+DATA CREATION TOOLS:
+9. recordSale(amount, description, clientName?) — Record a sales revenue transaction (MUST NOT ask for confirmation)
+10. recordExpense(amount, description, categoryName?, merchant?) — Record a business expense (MUST NOT ask for confirmation)
+11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. NEVER use default "Client". If clientName is missing, STOP and ask: "Who should I address this invoice to?" If items are missing, ask: "What items or services should I include?". MUST ask for confirmation before executing.
+12. createReceipt(customerName, amount?, paymentMethod?, description?) — Create a payment receipt. If customerName is missing, STOP and ask: "Who should I address this receipt to?". MUST ask for confirmation before executing.
 
 HIGH-RISK TOOLS (NEVER execute from ambiguous instructions — require explicit typed confirmation):
-12. deleteTransaction(transactionId) — Permanently delete a transaction record
+13. deleteTransaction(transactionId) — Permanently delete a transaction record
 
 ─────────────────────────────────
 CRITICAL BEHAVIOUR RULES
@@ -192,7 +199,8 @@ CRITICAL BEHAVIOUR RULES
 3. CREATE TOOLS: Normal transactions (recordSale, recordExpense) MUST be automatically recorded immediately without asking for confirmation. Only createInvoice requires asking if client or items are missing.
 4. INVOICE CREATION: If client name OR line items are missing, ask for them before doing anything. Do not fill in defaults.
 5. DISAMBIGUATION: If getInventory returns multiple matches, list them as numbered options and ask "Which one did you mean?"
-6. SOURCE AWARENESS: You are operating via ${source === "whatsapp" ? "WhatsApp" : "the ROVA web app"}. Tailor your reply format accordingly — for WhatsApp, use plain readable text without markdown tables.
+6. SOURCE AWARENESS: You are operating via ${source === "whatsapp" ? "WhatsApp" : "the ROVA web app"}. For WhatsApp responses (${source === "whatsapp" ? "ACTIVE" : "inactive"}), structure reply text using rich, clear domain icons and emojis (e.g. 💰 for sales/revenue, 💸 for expenses, 📄 for invoices, 🧾 for receipts, 📦 for inventory, 📊 for financial reports, 📋 for lists, 🏦 for banks, 👥 for staff/payroll, 🏛️ for tax, 📲 for app links, ✅ for success, ⚠️ for alerts) to make WhatsApp messages visual and easy to scan.
+7. CRITICAL FORMATTING RULE: Do NOT use asterisks (*) or double asterisks (**) anywhere in your reply text. Write all text in clean plain text with zero asterisks.
 
 ─────────────────────────────────
 RESPONSE FORMAT (strict JSON)
@@ -200,7 +208,7 @@ RESPONSE FORMAT (strict JSON)
 {
   "reply": "your response text",
   "tool_call": {
-    "name": "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "deleteTransaction",
+    "name": "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "createReceipt" | "deleteTransaction",
     "parameters": {}
   } | null,
   "requires_confirmation": false,
@@ -267,7 +275,7 @@ RESPONSE FORMAT (strict JSON)
     // For write operations, if LLM flagged requires_confirmation, return early with pending state.
     // The client will display a confirm bubble. When the user confirms, client re-sends with
     // body.confirmed = true.
-    const WRITE_TOOLS = ["createInvoice"];
+    const WRITE_TOOLS = ["createInvoice", "createReceipt"];
     const HIGH_RISK_TOOLS = ["deleteTransaction"];
     const toolName = toolCall?.name || "";
 
@@ -290,7 +298,7 @@ RESPONSE FORMAT (strict JSON)
       );
     }
 
-    // High-risk tools — block from WhatsApp entirely, require explicit confirmation from web
+    // High-risk tools — require explicit confirmation from web and WhatsApp
     if (HIGH_RISK_TOOLS.includes(toolName) && !userConfirmed) {
       if (source === "whatsapp") {
         await logAIAction(supabaseClient, {
@@ -299,12 +307,15 @@ RESPONSE FORMAT (strict JSON)
           userRequest: lastUserMsg,
           toolCalled: toolName,
           parameters: toolCall?.parameters || {},
-          confirmationStatus: "high_risk_blocked",
-          resultStatus: "cancelled",
+          confirmationStatus: "pending",
+          resultStatus: "pending_confirmation",
         });
+        const waConfirmMsg = `${reply || "⚠️ I'm about to permanently delete this record. This cannot be undone. Are you absolutely sure?"}\n\nReply YES to confirm or NO to cancel.`;
         return new Response(
           JSON.stringify({
-            reply: "⚠️ This action (delete) is too high-risk to execute via WhatsApp. Please log into the ROVA web app to perform deletions: https://www.rovabusiness.com",
+            reply: cleanAsterisks(waConfirmMsg),
+            requiresConfirmation: true,
+            pendingToolCall: toolCall,
             actions: [],
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -314,9 +325,9 @@ RESPONSE FORMAT (strict JSON)
       const confirmReply = reply || `⚠️ I'm about to permanently delete this record. This cannot be undone. Are you absolutely sure?`;
       return new Response(
         JSON.stringify({
-          reply: confirmReply,
+          reply: cleanAsterisks(confirmReply),
           requiresConfirmation: true,
-          confirmationSummary: confirmationSummary || "Delete transaction",
+          confirmationSummary: cleanAsterisks(confirmationSummary || "Delete transaction"),
           pendingToolCall: toolCall,
           actions: [],
         }),
@@ -338,9 +349,9 @@ RESPONSE FORMAT (strict JSON)
 
       // For WhatsApp: ask via text
       if (source === "whatsapp") {
-        const waConfirmMsg = `${reply}\n\nReply *YES* to confirm or *NO* to cancel.`;
+        const waConfirmMsg = `${reply}\n\nReply YES to confirm or NO to cancel.`;
         return new Response(
-          JSON.stringify({ reply: waConfirmMsg, requiresConfirmation: true, pendingToolCall: toolCall, actions: [] }),
+          JSON.stringify({ reply: cleanAsterisks(waConfirmMsg), requiresConfirmation: true, pendingToolCall: toolCall, actions: [] }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
         );
       }
@@ -371,6 +382,8 @@ RESPONSE FORMAT (strict JSON)
           execResult = await executeRecordSale(supabaseClient, activeUserId, params, lastUserMsg);
         } else if (toolName === "createInvoice") {
           execResult = await executeCreateInvoice(supabaseClient, activeUserId, params, lastUserMsg);
+        } else if (toolName === "createReceipt") {
+          execResult = await executeCreateReceipt(supabaseClient, activeUserId, params, lastUserMsg);
         } else if (toolName === "recordExpense") {
           execResult = await executeRecordExpense(supabaseClient, activeUserId, params, lastUserMsg);
         } else if (toolName === "getSales") {
@@ -432,6 +445,10 @@ RESPONSE FORMAT (strict JSON)
       reply = `Hi! I'm ROVA AI, your business financial assistant. I can help you record sales, create invoices, log expenses, check stock levels, review payroll, see who owes you money, and calculate taxes. What would you like to do?`;
     }
 
+    // Clean all asterisks from final reply and summaries
+    reply = cleanAsterisks(reply);
+    confirmationSummary = cleanAsterisks(confirmationSummary);
+
     return new Response(JSON.stringify({ reply, actions, toolExecuted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -458,6 +475,12 @@ function detectRuleBasedToolCall(text: string) {
     const clientName = clientMatch ? clientMatch[1].trim() : "";
     const amount = extractAmount(q);
     return { name: "createInvoice", parameters: { clientName, amount, description: text } };
+  }
+  if (/\b(create receipt|new receipt|receipt for|send receipt|generate receipt)\b/.test(q)) {
+    const customerMatch = q.match(/(?:for|to)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|$)/i);
+    const customerName = customerMatch ? customerMatch[1].trim() : "";
+    const amount = extractAmount(q);
+    return { name: "createReceipt", parameters: { customerName, amount, description: text } };
   }
   if (/\b(spent|expense|bought|paid for|cost|fuel|data|generator)\b/.test(q) && !/\b(inventory|stock)\b/.test(q)) {
     return { name: "recordExpense", parameters: { amount: extractAmount(q), description: text } };
@@ -543,7 +566,7 @@ async function executeRecordSale(supabaseClient: any, userId: string, params: an
   const todayTotal = (todayTxs || []).reduce((s: number, t: any) => s + t.amount, 0);
 
   return {
-    formattedSummary: `✅ **Sale Recorded**: ${formatCurrency(amount)} for "${description}".\n📊 Today's Total Sales: **${formatCurrency(todayTotal)}**.`,
+    formattedSummary: `✅ Sale Recorded: ${formatCurrency(amount)} for "${description}".\n📊 Today's Total Sales: ${formatCurrency(todayTotal)}.`,
     actions: [{ type: "view_report", label: "View Sales Report", payload: {} }],
     recordId: transaction.id,
   };
@@ -607,9 +630,70 @@ async function executeCreateInvoice(supabaseClient: any, userId: string, params:
   }
 
   return {
-    formattedSummary: `📄 **Invoice #${invoiceNumber} Created** for **${clientName}**!\n• Subtotal: ${formatCurrency(subtotal)}\n• Tax (${taxRate}%): ${formatCurrency(taxAmount)}\n• **Total**: **${formatCurrency(total)}**\n• Due: ${dueDate}`,
+    formattedSummary: `📄 Invoice #${invoiceNumber} Created for ${clientName}!\n• Subtotal: ${formatCurrency(subtotal)}\n• Tax (${taxRate}%): ${formatCurrency(taxAmount)}\n• Total: ${formatCurrency(total)}\n• Due: ${dueDate}`,
     actions: [{ type: "view_invoice", label: "View Invoice", payload: { invoice_id: invoice.id } }],
     recordId: invoice.id,
+  };
+}
+
+async function executeCreateReceipt(supabaseClient: any, userId: string, params: any, rawMsg: string) {
+  const customerName = params.customerName || params.clientName;
+  if (!customerName || customerName.trim() === "") {
+    return {
+      formattedSummary: "Who should I address this receipt to? Please provide the customer's name.",
+      requiresClarification: true,
+    };
+  }
+
+  const amount = params.amount || extractAmount(rawMsg) || 0;
+  const description = params.description || "Payment received";
+  const paymentMethod = params.paymentMethod || "Bank Transfer";
+  const receiptDate = new Date().toISOString().split("T")[0];
+
+  const { data: countData, error: countErr } = await supabaseClient
+    .rpc("generate_next_receipt_number", { p_user_id: userId });
+  let receiptNumber = "RCPT-001";
+  if (!countErr && countData) {
+    receiptNumber = countData;
+  } else {
+    receiptNumber = `RCPT-${Date.now().toString().slice(-6)}`;
+  }
+
+  const { data: receipt, error } = await supabaseClient
+    .from("receipts")
+    .insert({
+      user_id: userId,
+      receipt_number: receiptNumber,
+      customer_name: customerName,
+      payment_method: paymentMethod,
+      description,
+      receipt_date: receiptDate,
+      total: amount,
+      status: "generated",
+      created_by: "ROVA AI",
+    })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '42P01') {
+      throw new Error("Receipts feature is not yet enabled in the database (Pending Migration). Please generate the receipt from the web app.");
+    }
+    throw error;
+  }
+
+  await supabaseClient.from("receipt_items").insert({
+    receipt_id: receipt.id,
+    description,
+    quantity: 1,
+    unit_price: amount,
+    amount: amount,
+  });
+
+  return {
+    formattedSummary: `🧾 Receipt #${receipt.receipt_number} Generated for ${customerName}!\n• Amount: ${formatCurrency(amount)}\n• Method: ${paymentMethod}\n\nYou can view and share this receipt from the Receipts tab.`,
+    actions: [{ type: "view_receipt", label: "View Receipt", payload: { receipt_id: receipt.id } }],
+    recordId: receipt.id,
   };
 }
 
@@ -646,7 +730,7 @@ async function executeRecordExpense(supabaseClient: any, userId: string, params:
   const monthTotal = (monthTxs || []).reduce((s: number, t: any) => s + t.amount, 0);
 
   return {
-    formattedSummary: `💸 **Expense Recorded**: ${formatCurrency(amount)} for "${description}".\n📊 Total Expenses This Month: **${formatCurrency(monthTotal)}**.`,
+    formattedSummary: `💸 Expense Recorded: ${formatCurrency(amount)} for "${description}".\n📊 Total Expenses This Month: ${formatCurrency(monthTotal)}.`,
     actions: [{ type: "view_report", label: "View Expense Report", payload: {} }],
     recordId: transaction.id,
   };
@@ -679,10 +763,10 @@ async function executeGetSales(supabaseClient: any, userId: string, params: any)
 
   const salesList = txs || [];
   const totalAmount = salesList.reduce((s: number, t: any) => s + t.amount, 0);
-  const topSales = salesList.slice(0, 5).map((t: any) => `• ${t.date}: **${formatCurrency(t.amount)}** — ${t.description}`).join("\n");
+  const topSales = salesList.slice(0, 5).map((t: any) => `• ${t.date}: ${formatCurrency(t.amount)} — ${t.description}`).join("\n");
 
   return {
-    formattedSummary: `📈 **Sales Summary (${period.replace(/_/g, " ").toUpperCase()})**\n• Total Revenue: **${formatCurrency(totalAmount)}**\n• Transactions: **${salesList.length}**\n\n${topSales || "No sales recorded for this period."}`,
+    formattedSummary: `📈 Sales Summary (${period.replace(/_/g, " ").toUpperCase()})\n• Total Revenue: ${formatCurrency(totalAmount)}\n• Transactions: ${salesList.length}\n\n${topSales || "No sales recorded for this period."}`,
   };
 }
 
@@ -709,10 +793,10 @@ async function executeGetExpenses(supabaseClient: any, userId: string, params: a
 
   const expenseList = txs || [];
   const totalAmount = expenseList.reduce((s: number, t: any) => s + t.amount, 0);
-  const top = expenseList.slice(0, 5).map((t: any) => `• ${t.date}: **${formatCurrency(t.amount)}** — ${t.description}`).join("\n");
+  const top = expenseList.slice(0, 5).map((t: any) => `• ${t.date}: ${formatCurrency(t.amount)} — ${t.description}`).join("\n");
 
   return {
-    formattedSummary: `📉 **Expense Summary (${period.replace(/_/g, " ").toUpperCase()})**\n• Total Spent: **${formatCurrency(totalAmount)}**\n• Transactions: **${expenseList.length}**\n\n${top || "No expenses recorded for this period."}`,
+    formattedSummary: `📉 Expense Summary (${period.replace(/_/g, " ").toUpperCase()})\n• Total Spent: ${formatCurrency(totalAmount)}\n• Transactions: ${expenseList.length}\n\n${top || "No expenses recorded for this period."}`,
   };
 }
 
@@ -731,10 +815,10 @@ async function executeGetInventory(supabaseClient: any, userId: string, params: 
   // Disambiguation: multiple matches for a search query
   if (params.search && inventoryList.length > 1) {
     const options = inventoryList
-      .map((i: any, idx: number) => `${idx + 1}. **${i.name}** — ${i.current_stock} ${i.unit || "units"} in stock (Cost: ${formatCurrency(i.cost_price)})`)
+      .map((i: any, idx: number) => `${idx + 1}. ${i.name} — ${i.current_stock} ${i.unit || "units"} in stock (Cost: ${formatCurrency(i.cost_price)})`)
       .join("\n");
     return {
-      formattedSummary: `🔍 I found **${inventoryList.length} items** matching "${params.search}". Which one did you mean?\n\n${options}`,
+      formattedSummary: `🔍 I found ${inventoryList.length} items matching "${params.search}". Which one did you mean?\n\n${options}`,
       actions: inventoryList.map((i: any) => ({
         type: "select_inventory_item",
         label: `${i.name} (${i.current_stock} ${i.unit || "units"})`,
@@ -748,7 +832,7 @@ async function executeGetInventory(supabaseClient: any, userId: string, params: 
     const i = inventoryList[0];
     const isLow = (i.current_stock || 0) <= (i.reorder_level || 5);
     return {
-      formattedSummary: `📦 **${i.name}**\n• In Stock: **${i.current_stock} ${i.unit || "units"}** ${isLow ? "⚠️ LOW STOCK" : "✅"}\n• Cost Price: ${formatCurrency(i.cost_price)}\n• Selling Price: ${formatCurrency(i.selling_price)}\n• Reorder Level: ${i.reorder_level || 5} units`,
+      formattedSummary: `📦 ${i.name}\n• In Stock: ${i.current_stock} ${i.unit || "units"} ${isLow ? "⚠️ LOW STOCK" : "✅"}\n• Cost Price: ${formatCurrency(i.cost_price)}\n• Selling Price: ${formatCurrency(i.selling_price)}\n• Reorder Level: ${i.reorder_level || 5} units`,
     };
   }
 
@@ -757,11 +841,11 @@ async function executeGetInventory(supabaseClient: any, userId: string, params: 
   const lowStock = inventoryList.filter((i: any) => (i.current_stock || 0) <= (i.reorder_level || 5));
   const sampleList = inventoryList
     .slice(0, 8)
-    .map((i: any) => `• **${i.name}**: ${i.current_stock} ${i.unit || "units"} ${(i.current_stock || 0) <= (i.reorder_level || 5) ? "⚠️" : ""}`)
+    .map((i: any) => `• ${i.name}: ${i.current_stock} ${i.unit || "units"} ${(i.current_stock || 0) <= (i.reorder_level || 5) ? "⚠️" : ""}`)
     .join("\n");
 
   return {
-    formattedSummary: `📦 **Inventory Overview**\n• Total Items: **${inventoryList.length}**\n• Stock Valuation: **${formatCurrency(totalValuation)}**\n• Low Stock Alerts: **${lowStock.length}**\n\n${sampleList || "No items in stock."}`,
+    formattedSummary: `📦 Inventory Overview\n• Total Items: ${inventoryList.length}\n• Stock Valuation: ${formatCurrency(totalValuation)}\n• Low Stock Alerts: ${lowStock.length}\n\n${sampleList || "No items in stock."}`,
     actions: [{ type: "add_inventory", label: "Add Item", payload: {} }],
   };
 }
@@ -780,11 +864,11 @@ async function executeGetOutstandingInvoices(supabaseClient: any, userId: string
   const totalOwed = unpaidList.reduce((s: number, i: any) => s + ((i.total || 0) - (i.amount_paid || 0)), 0);
   const clientList = unpaidList
     .slice(0, 8)
-    .map((i: any) => `• **${i.client_name}**: ${formatCurrency((i.total || 0) - (i.amount_paid || 0))} (Due: ${i.due_date || "N/A"})`)
+    .map((i: any) => `• ${i.client_name}: ${formatCurrency((i.total || 0) - (i.amount_paid || 0))} (Due: ${i.due_date || "N/A"})`)
     .join("\n");
 
   return {
-    formattedSummary: `📋 **Outstanding Receivables**\n• Total Owed to You: **${formatCurrency(totalOwed)}**\n• Pending Invoices: **${unpaidList.length}**\n\n${clientList || "🎉 No outstanding client debts!"}`,
+    formattedSummary: `📋 Outstanding Receivables\n• Total Owed to You: ${formatCurrency(totalOwed)}\n• Pending Invoices: ${unpaidList.length}\n\n${clientList || "🎉 No outstanding client debts!"}`,
   };
 }
 
@@ -802,11 +886,11 @@ async function executeGetStaff(supabaseClient: any, userId: string) {
   const totalGross = list.reduce((s: number, e: any) => s + (e.gross_salary || 0), 0);
   const staffLines = list
     .slice(0, 10)
-    .map((e: any) => `• **${e.full_name}** — ${e.role || "No role"} | ${formatCurrency(e.gross_salary)}/month`)
+    .map((e: any) => `• ${e.full_name} — ${e.role || "No role"} | ${formatCurrency(e.gross_salary)}/month`)
     .join("\n");
 
   return {
-    formattedSummary: `👥 **Active Staff (${list.length})**\n• Total Monthly Payroll Liability: **${formatCurrency(totalGross)}**\n\n${staffLines || "No active employees on record."}`,
+    formattedSummary: `👥 Active Staff (${list.length})\n• Total Monthly Payroll Liability: ${formatCurrency(totalGross)}\n\n${staffLines || "No active employees on record."}`,
     actions: list.length === 0 ? [{ type: "view_report", label: "Add Employee", payload: { page: "payroll" } }] : [],
   };
 }
@@ -823,11 +907,11 @@ async function executeGetPayroll(supabaseClient: any, userId: string, params: an
 
   const runList = runs || [];
   const runLines = runList
-    .map((r: any) => `• **${r.period_label}**: Gross ${formatCurrency(r.total_gross)} → Net ${formatCurrency(r.total_net)} (${r.employee_count} staff)`)
+    .map((r: any) => `• ${r.period_label}: Gross ${formatCurrency(r.total_gross)} → Net ${formatCurrency(r.total_net)} (${r.employee_count} staff)`)
     .join("\n");
 
   return {
-    formattedSummary: `💰 **Payroll History**\n\n${runLines || "No payroll runs recorded yet."}`,
+    formattedSummary: `💰 Payroll History\n\n${runLines || "No payroll runs recorded yet."}`,
     actions: [{ type: "view_report", label: "View Payroll", payload: { page: "payroll" } }],
   };
 }
@@ -855,11 +939,11 @@ async function executeGetCustomers(supabaseClient: any, userId: string) {
   const clients = Object.values(clientMap);
   const clientLines = clients
     .slice(0, 10)
-    .map((c) => `• **${c.name}** — ${c.invoiceCount} invoice(s) | Total billed: ${formatCurrency(c.totalInvoiced)} | Paid: ${formatCurrency(c.totalPaid)}`)
+    .map((c) => `• ${c.name} — ${c.invoiceCount} invoice(s) | Total billed: ${formatCurrency(c.totalInvoiced)} | Paid: ${formatCurrency(c.totalPaid)}`)
     .join("\n");
 
   return {
-    formattedSummary: `🧑‍💼 **Your Clients/Customers (${clients.length})**\n\n${clientLines || "No clients on record yet. Create your first invoice to add a client."}`,
+    formattedSummary: `🧑‍💼 Your Clients/Customers (${clients.length})\n\n${clientLines || "No clients on record yet. Create your first invoice to add a client."}`,
     actions: [{ type: "create_invoice", label: "Create Invoice", payload: {} }],
   };
 }
@@ -891,12 +975,12 @@ async function executeGetTransactions(supabaseClient: any, userId: string, param
   const totalOut = list.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + t.amount, 0);
   const lines = list
     .slice(0, 10)
-    .map((t: any) => `• ${t.date} | ${t.type === "income" ? "📈" : "📉"} **${formatCurrency(t.amount)}** — ${t.description}`)
+    .map((t: any) => `• ${t.date} | ${t.type === "income" ? "📈" : "📉"} ${formatCurrency(t.amount)} — ${t.description}`)
     .join("\n");
 
   const label = params.date ? `on ${params.date}` : "this month";
   return {
-    formattedSummary: `🗒️ **Transactions ${label}** (${list.length} records)\n• In: **${formatCurrency(totalIn)}** | Out: **${formatCurrency(totalOut)}**\n\n${lines || "No transactions found for this period."}`,
+    formattedSummary: `🗒️ Transactions ${label} (${list.length} records)\n• In: ${formatCurrency(totalIn)} | Out: ${formatCurrency(totalOut)}\n\n${lines || "No transactions found for this period."}`,
   };
 }
 
@@ -941,7 +1025,7 @@ async function executeDeleteTransaction(supabaseClient: any, userId: string, par
   if (delErr) throw delErr;
 
   return {
-    formattedSummary: `🗑️ **Transaction Deleted**: "${tx.description || 'Transaction'}" (${formatCurrency(tx.amount)}) has been permanently removed.`,
+    formattedSummary: `🗑️ Transaction Deleted: "${tx.description || 'Transaction'}" (${formatCurrency(tx.amount)}) has been permanently removed.`,
     recordId: txId,
   };
 }
@@ -969,7 +1053,7 @@ async function executeCalculateTax(supabaseClient: any, userId: string, params: 
   const totalTax = vatLiability + estimatedCIT;
 
   return {
-    formattedSummary: `🏛️ **Tax Liability Estimate — This Year**\n• Gross Revenue: **${formatCurrency(grossIncome)}**\n• Allowable Expenses: **${formatCurrency(allowableExpenses)}**\n• Net Taxable Profit: **${formatCurrency(netProfit)}**\n\n📊 **Breakdown:**\n• VAT (7.5% on revenue): **${formatCurrency(vatLiability)}**\n• CIT (${(citRate * 100).toFixed(0)}%): **${formatCurrency(estimatedCIT)}**\n• Dev Levy (4%): **${formatCurrency(devLevy)}**\n• **Total Estimated Tax: ${formatCurrency(totalTax)}**\n\n⚠️ *This is an estimate. Please consult a tax professional for official filing.*`,
+    formattedSummary: `🏛️ Tax Liability Estimate — This Year\n• Gross Revenue: ${formatCurrency(grossIncome)}\n• Allowable Expenses: ${formatCurrency(allowableExpenses)}\n• Net Taxable Profit: ${formatCurrency(netProfit)}\n\n📊 Breakdown:\n• VAT (7.5% on revenue): ${formatCurrency(vatLiability)}\n• CIT (${(citRate * 100).toFixed(0)}%): ${formatCurrency(estimatedCIT)}\n• Dev Levy (4%): ${formatCurrency(devLevy)}\n• Total Estimated Tax: ${formatCurrency(totalTax)}\n\n⚠️ This is an estimate. Please consult a tax professional for official filing.`,
   };
 }
 

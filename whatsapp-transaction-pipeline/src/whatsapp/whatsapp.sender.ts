@@ -13,6 +13,7 @@ export class WhatsAppSender {
   };
 
   async sendText(to: string, text: string): Promise<void> {
+    const cleanText = (text || '').replace(/\*/g, '');
     try {
       await axios.post(
         this.baseUrl,
@@ -20,7 +21,7 @@ export class WhatsAppSender {
           messaging_product: 'whatsapp',
           to,
           type: 'text',
-          text: { body: text },
+          text: { body: cleanText },
         },
         { headers: this.headers }
       );
@@ -38,18 +39,18 @@ export class WhatsAppSender {
     const typeLower = transactionType.toLowerCase();
 
     if (typeLower.includes('income') || typeLower.includes('customer payment')) {
-      return `Income of ${formatted} has been recorded successfully.`;
+      return `💰 Income of ${formatted} has been recorded successfully.`;
     }
 
     if (typeLower.includes('inventory')) {
-      return `Inventory updated successfully.`;
+      return `📦 Inventory updated successfully.`;
     }
 
     if (typeLower.includes('expense') || typeLower.includes('supplier payment')) {
-      return `Expense of ${formatted} has been recorded successfully.`;
+      return `💸 Expense of ${formatted} has been recorded successfully.`;
     }
 
-    return `Transaction of ${formatted} has been recorded successfully.`;
+    return `✅ Transaction of ${formatted} has been recorded successfully.`;
   }
 
 }

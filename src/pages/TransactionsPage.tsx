@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Sparkles, Download, Edit2 } from 'lucide-react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Sparkles, Download, Edit2, Receipt } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib/format';
@@ -15,6 +16,7 @@ type FilterType = 'all' | 'income' | 'expense';
 
 
 export default function TransactionsPage() {
+  const navigate = useNavigate();
   const { user, isStaff, profile, isAdmin, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -390,6 +392,17 @@ export default function TransactionsPage() {
                   </td>
                   <td className="mobile-tight-td mobile-actions" style={{ padding: '12px 16px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      {tx.type === 'income' && (
+                        <button
+                          onClick={() => navigate('/app/receipts', { state: { openCreateModal: true, transactionId: tx.id } })}
+                          title="Generate Receipt"
+                          style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--accent-light)', transition: 'all 0.15s' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-primary)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)'; }}
+                        >
+                          <Receipt size={13} />
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleVerify(tx)}
                         title={tx.is_verified ? 'Mark as unverified' : 'Mark as verified'}

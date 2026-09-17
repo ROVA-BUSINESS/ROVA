@@ -271,6 +271,41 @@ Date: ${transaction.date ?? "unknown"}`;
           status: "pending",
           notification_id: notif?.id ?? null,
         });
+
+        // ── Send WhatsApp Notification for Clarification ──────────────────
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select("phone")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (profile?.phone) {
+          const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+          const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+          if (WHATSAPP_ACCESS_TOKEN && PHONE_NUMBER_ID) {
+            const cleanPhone = profile.phone.replace(/\D/g, "");
+            const textMsg = `🏦 *ROVA Bank Sync:*\nWe recorded a transaction of ₦${transaction.amount?.toLocaleString()} for "${transaction.description}".\n\n🤔 ${result.ai_question ?? 'Please reply with what this transaction was for so we can categorize it correctly.'}`;
+            
+            try {
+              await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  messaging_product: "whatsapp",
+                  recipient_type: "individual",
+                  to: cleanPhone,
+                  type: "text",
+                  text: { body: textMsg },
+                }),
+              });
+            } catch (e) {
+              console.error("Failed to send WhatsApp clarification:", e);
+            }
+          }
+        }
       } else {
         // Find category to set on transaction
         const { data: catData } = await supabaseClient
