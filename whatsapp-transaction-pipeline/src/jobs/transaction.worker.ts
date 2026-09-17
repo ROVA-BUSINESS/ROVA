@@ -81,7 +81,7 @@ export class TransactionWorker {
 
       await this.whatsappService.sendTextMessage(
         from,
-        '👋 Welcome to ROVA AI!\nYour WhatsApp number is not linked to a ROVA account.\n\nTo sign up directly on WhatsApp, reply with:\n*Register: [Your Business Name]*\n(e.g., Register: Acme Enterprise)\n\nOr register on the web: https://www.rovabusiness.com/signup'
+        '👋 Welcome to ROVA AI!\nYour WhatsApp number is not linked to a ROVA account.\n\nTo sign up directly on WhatsApp, reply with:\nRegister: [Your Business Name]\n(e.g., Register: Acme Enterprise)\n\nOr register on the web: https://www.rovabusiness.com/signup'
       );
       return;
     }
@@ -189,12 +189,15 @@ export class TransactionWorker {
       await this.idempotencyService.markProcessed(messageId);
 
       // ── Step 4: Send Response to User via WhatsApp ─────────────────────
-      let replyMessage = aiResponse.reply;
+      let replyMessage = aiResponse.reply || '';
 
-      // Remove automatic monthly transaction record blocks if present (Item 20/21 from docx)
-      replyMessage = replyMessage.replace(/🗒️ \*\*Transactions [^\n]+\n(?:• [^\n]+\n?)*/g, '').trim();
+      // Remove automatic monthly transaction record blocks if present
+      replyMessage = replyMessage.replace(/🗒️ Transactions [^\n]+\n(?:• [^\n]+\n?)*/g, '').trim();
 
-      // Add clean dashboard link footer without globe symbol (Item 22/23 from docx)
+      // Remove any leftover asterisks
+      replyMessage = replyMessage.replace(/\*/g, '');
+
+      // Add clean dashboard link footer without globe symbol
       replyMessage += `\n\nView full dashboard: https://www.rovabusiness.com`;
 
       await this.whatsappService.sendTextMessage(from, replyMessage);

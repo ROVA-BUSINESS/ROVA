@@ -42,19 +42,19 @@ export class ROVAAIService {
    */
   formatTranscriptionVerificationMessage(type: 'voice' | 'ocr', extractedText: string, metadata?: any): string {
     const header = type === 'voice' 
-      ? '🎙️ **Voice Note Transcribed**' 
-      : '📷 **Document/Receipt OCR Extracted**';
+      ? '🎙️ Voice Note Transcribed' 
+      : '📷 Document/Receipt OCR Extracted';
 
-    let summaryText = `${header}:\n_"${extractedText}"_\n\n`;
+    let summaryText = `${header}:\n"${extractedText}"\n\n`;
 
     if (metadata && metadata.totalAmount) {
-      summaryText += `• **Extracted Amount**: ₦${Number(metadata.totalAmount).toLocaleString()}\n`;
+      summaryText += `• Extracted Amount: ₦${Number(metadata.totalAmount).toLocaleString()}\n`;
     }
     if (metadata && metadata.supplier) {
-      summaryText += `• **Supplier/Merchant**: ${metadata.supplier}\n`;
+      summaryText += `• Supplier/Merchant: ${metadata.supplier}\n`;
     }
     if (metadata && metadata.date) {
-      summaryText += `• **Date**: ${metadata.date}\n`;
+      summaryText += `• Date: ${metadata.date}\n`;
     }
 
     summaryText += `\nWould you like me to process this? If anything is incorrect, reply with your correction or edit.`;

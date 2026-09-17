@@ -13,6 +13,7 @@ export class WhatsAppSender {
   };
 
   async sendText(to: string, text: string): Promise<void> {
+    const cleanText = (text || '').replace(/\*/g, '');
     try {
       await axios.post(
         this.baseUrl,
@@ -20,7 +21,7 @@ export class WhatsAppSender {
           messaging_product: 'whatsapp',
           to,
           type: 'text',
-          text: { body: text },
+          text: { body: cleanText },
         },
         { headers: this.headers }
       );
