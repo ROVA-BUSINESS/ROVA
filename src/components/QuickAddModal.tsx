@@ -204,7 +204,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Quick Add Transaction" size="md">
+    <Modal open={open} onClose={onClose} title="🛒 Quick Add Transaction" size="md">
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <Input
@@ -276,7 +276,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
                 transition: 'all 0.15s', textTransform: 'capitalize',
               }}
             >
-              {t === 'income' ? '↑ Income' : '↓ Expense'}
+              {t === 'income' ? '💵 Income' : '💸 Expense'}
             </button>
           ))}
         </div>

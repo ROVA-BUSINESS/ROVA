@@ -109,21 +109,21 @@ export default function DashboardPage() {
       {/* Header controls bar */}
       <div style={{ marginBottom: 32, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: isMobile ? 16 : 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Good {getGreeting()}, {profile?.business_name || profile?.full_name?.split(' ')[0] || 'User'}!</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>🚀 Good {getGreeting()}, {profile?.business_name || profile?.full_name?.split(' ')[0] || 'User'}!</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Here's what's happening with your business today.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           <Button variant="secondary" size="sm" onClick={handleSyncBanks} loading={isSyncing} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
-            <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> Sync Banks
+            <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> 🔄 Sync Banks
           </Button>
           <Button variant="secondary" size="sm" onClick={() => navigate('/app/transactions')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
-            View History
+            📋 View History
           </Button>
           <Button variant="secondary" size="sm" onClick={() => navigate('/app/invoices')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
-            New Invoice
+            📄 New Invoice
           </Button>
           <Button variant="primary" size="sm" onClick={() => setIsQuickAddOpen(true)} style={{ flex: isMobile ? '100%' : 'none', minWidth: 'fit-content' }}>
-            <Plus size={16} /> Add Transaction
+            <Plus size={16} /> 🛒 Add Transaction
           </Button>
         </div>
       </div>
@@ -141,7 +141,7 @@ export default function DashboardPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--accent-dim)', borderRadius: 12 }}>
                   <TrendingUp size={20} color="var(--accent-primary)" />
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Total Revenue</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>💰 Total Revenue</span>
               </div>
               <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', marginBottom: 12 }}>
                 {formatCurrency(income)}
@@ -158,7 +158,7 @@ export default function DashboardPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--error-dim)', borderRadius: 12 }}>
                   <TrendingDown size={20} color="var(--error)" />
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Expenses</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>💸 Expenses</span>
               </div>
               <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', marginBottom: 12 }}>
                 {formatCurrency(expenses)}
@@ -175,7 +175,7 @@ export default function DashboardPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'var(--success-dim)', borderRadius: 12 }}>
                   <DollarSign size={20} color="var(--success)" />
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Net Cashflow</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>💵 Net Cashflow</span>
               </div>
               <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netFlow >= 0 ? 'var(--success)' : 'var(--error)', marginBottom: 12 }}>
                 {formatCurrency(netFlow)}
@@ -193,7 +193,7 @@ export default function DashboardPage() {
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <CreditCard size={16} color="var(--text-muted)" />
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>Subscription & Services</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>💳 Subscription & Services</h3>
                 <button onClick={() => navigate('/app/billing')} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent-light)', fontSize: 12, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer' }}>
                   Manage Billing <ChevronRight size={12} />
                 </button>
@@ -206,7 +206,7 @@ export default function DashboardPage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#10b981' : 'var(--error)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
-                      {isActive ? 'Active' : 'No Subscription'}
+                      {isActive ? '✅ Active' : '❌ No Subscription'}
                     </div>
                     {isActive && subscription && planKey ? (
                       <>
@@ -265,7 +265,7 @@ export default function DashboardPage() {
             <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
               <Card>
                 <div style={{ marginBottom: 24 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700 }}>Financial Performance</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 700 }}>📈 Financial Performance</h3>
                 </div>
                 <div style={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -288,7 +288,7 @@ export default function DashboardPage() {
 
               <Card>
                 <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h3 style={{ fontSize: 14 }}>Recent Transactions</h3>
+                  <h3 style={{ fontSize: 14 }}>📋 Recent Transactions</h3>
                   <button 
                     onClick={() => navigate('/app/transactions')}
                     style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent-light)', fontSize: 12, fontWeight: 500 }}
@@ -311,7 +311,7 @@ export default function DashboardPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <Card>
               <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h3 style={{ fontSize: 14 }}>Accounts</h3>
+                <h3 style={{ fontSize: 14 }}>🏦 Bank Accounts</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <button 
                     onClick={handleSyncBanks}
