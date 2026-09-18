@@ -43,10 +43,35 @@ serve(async (req) => {
       });
     }
 
+    const wamid = message.id;
     const fromNumber = message.from || ""; // User's WhatsApp Phone Number
     const messageType = message.type; // 'text' | 'image' | 'audio' | 'voice'
 
     console.log(`[WhatsApp Webhook Received] From: ${fromNumber} | Type: ${messageType}`);
+
+    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") || Deno.env.get("PHONE_NUMBER_ID");
+    const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") || Deno.env.get("WHATSAPP_TOKEN");
+
+    // STEP 1: SHOW 3 DOTS IMMEDIATELY (must be first thing)
+    if (PHONE_NUMBER_ID && WHATSAPP_ACCESS_TOKEN && wamid) {
+      try {
+        await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            status: "read",
+            message_id: wamid,
+            typing_indicator: { type: "text" }
+          }),
+        });
+      } catch (err) {
+        console.error("Failed sending initial typing indicator:", err);
+      }
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey =
@@ -307,6 +332,37 @@ serve(async (req) => {
         WHATSAPP_ACCESS_TOKEN
       );
       return new Response(JSON.stringify({ status: "tax_handled" }), { headers: corsHeaders, status: 200 });
+    }
+
+    // ── STEP 3: HEAVY TASK THINKING INDICATOR (JUMIA / PAYOUT / REPORT) ───────
+    const lowerText = (extractedText || "").toLowerCase();
+    if (lowerText.includes("jumia") || lowerText.includes("payout") || lowerText.includes("report")) {
+      await sendWhatsAppMessage(
+        fromNumber,
+        "🤔 Rova is thinking... analyzing your Jumia orders, one sec...",
+        WHATSAPP_ACCESS_TOKEN
+      );
+
+      // Show dots again after thinking text
+      if (PHONE_NUMBER_ID && WHATSAPP_ACCESS_TOKEN && wamid) {
+        try {
+          await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              status: "read",
+              message_id: wamid,
+              typing_indicator: { type: "text" },
+            }),
+          });
+        } catch (err) {
+          console.error("Failed sending typing indicator after thinking message:", err);
+        }
+      }
     }
 
     // ── STEP B: ROUTE TO UNIFIED CENTRAL ROVA AI AGENT BRAIN VIA SUPABASE SDK ─

@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
 import SearchModal from '../SearchModal';
+import BusinessOnboardingModal from '../onboarding/BusinessOnboardingModal';
 
 
 export default function AppLayout() {
@@ -358,6 +359,11 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Trigger Business Onboarding modal for first-time authenticated users */}
+      {!isStaff && profile && profile.business_profile_completed === false && (
+        <BusinessOnboardingModal />
+      )}
 
       {needsSetup && (
         <div style={{

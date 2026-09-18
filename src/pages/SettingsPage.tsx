@@ -31,6 +31,14 @@ export default function SettingsPage() {
     full_name: '',
     business_name: '',
     phone: '',
+    registration_type: 'registered' as 'registered' | 'unregistered',
+    rc_bn_number: '',
+    business_type: 'Retail & E-commerce',
+    state: 'Lagos',
+    city: 'Ikeja',
+    address: '',
+    country: 'Nigeria',
+    logo_url: '',
     mode: 'business' as 'personal' | 'business',
     currency: 'NGN',
     staff_visibility_limit: '500000'
@@ -60,6 +68,14 @@ export default function SettingsPage() {
         full_name: profile.full_name || '',
         business_name: profile.business_name || '',
         phone: profile.phone || '',
+        registration_type: profile.registration_type || 'registered',
+        rc_bn_number: profile.rc_bn_number || '',
+        business_type: profile.business_type || 'Retail & E-commerce',
+        state: profile.state || 'Lagos',
+        city: profile.city || 'Ikeja',
+        address: profile.address || '',
+        country: profile.country || 'Nigeria',
+        logo_url: profile.logo_url || '',
         mode: profile.mode || 'business',
         currency: profile.currency || 'NGN',
         staff_visibility_limit: String(profile.staff_visibility_limit || 500000)
@@ -172,50 +188,145 @@ export default function SettingsPage() {
           {section === 'profile' && (
             <Card>
               <div style={{ marginBottom: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Business Details</h3>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>This information will be used for invoices and reports.</p>
+                <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Business Profile Settings</h3>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>View and update your ROVA business profile, registration info, and contact details.</p>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Owner Full Name"
-                      value={profileForm.full_name}
-                      onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })}
-                    />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                
+                {/* 1. Business Info */}
+                <div style={{ borderBottom: '1px solid var(--bg-border)', paddingBottom: 20 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>1. Business Information</h4>
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Owner Full Name"
+                        value={profileForm.full_name}
+                        onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Business Registered Name"
+                        value={profileForm.business_name}
+                        onChange={e => setProfileForm({ ...profileForm, business_name: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Business Registered Name"
-                      value={profileForm.business_name}
-                      onChange={e => setProfileForm({ ...profileForm, business_name: e.target.value })}
-                    />
+
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>Registration Type</label>
+                      <select
+                        value={profileForm.registration_type}
+                        onChange={e => setProfileForm({ ...profileForm, registration_type: e.target.value as any })}
+                        style={{
+                          width: '100%', padding: '12px', borderRadius: 10, border: '1px solid var(--bg-border)',
+                          background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 14
+                        }}
+                      >
+                        <option value="registered">Registered Business (CAC)</option>
+                        <option value="unregistered">Unregistered Business</option>
+                      </select>
+                    </div>
+
+                    {profileForm.registration_type === 'registered' && (
+                      <div style={{ flex: 1 }}>
+                        <Input
+                          label="RC / BN Registration Number"
+                          value={profileForm.rc_bn_number}
+                          onChange={e => setProfileForm({ ...profileForm, rc_bn_number: e.target.value })}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Business Phone"
-                      value={profileForm.phone}
-                      onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    />
+                {/* 2. Verification Status Card */}
+                <div style={{ borderBottom: '1px solid var(--bg-border)', paddingBottom: 20 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>2. Verification Status</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div style={{ background: 'var(--bg-elevated)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>CAC Business Verification</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: profile?.business_verification_status === 'verified' ? 'var(--success)' : 'var(--text-secondary)' }}>
+                        {profile?.registration_type === 'registered' ? (profile?.business_verification_status === 'verified' ? 'Verified ✓' : 'Unverified / Pending') : 'N/A (Unregistered)'}
+                      </span>
+                    </div>
+
+                    <div style={{ background: 'var(--bg-elevated)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Identity Verification</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)' }}>
+                        {profile?.nin_last_4 ? `NIN Connected (***${profile.nin_last_4})` : profile?.bvn_last_4 ? `BVN Connected (***${profile.bvn_last_4})` : 'Deferred (Test Mode Active)'}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>Currency</label>
-                    <select
-                      value={profileForm.currency}
-                      onChange={e => setProfileForm({ ...profileForm, currency: e.target.value })}
-                      style={{
-                        width: '100%', padding: '12px', borderRadius: 10, border: '1px solid var(--bg-border)',
-                        background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 14
-                      }}
-                    >
-                      <option value="NGN">NGN - Nigerian Naira</option>
-                      <option value="USD">USD - US Dollar</option>
-                      <option value="GBP">GBP - British Pound</option>
-                    </select>
+                </div>
+
+                {/* 3. Address & Contact */}
+                <div style={{ borderBottom: '1px solid var(--bg-border)', paddingBottom: 20 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>3. Contact & Address</h4>
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Business Phone"
+                        value={profileForm.phone}
+                        onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Business Address"
+                        value={profileForm.address}
+                        onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="City"
+                        value={profileForm.city}
+                        onChange={e => setProfileForm({ ...profileForm, city: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="State"
+                        value={profileForm.state}
+                        onChange={e => setProfileForm({ ...profileForm, state: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Branding & Currency */}
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>4. Branding & Currency</h4>
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Logo Image URL"
+                        value={profileForm.logo_url}
+                        onChange={e => setProfileForm({ ...profileForm, logo_url: e.target.value })}
+                        placeholder="https://example.com/logo.png"
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>Primary Currency</label>
+                      <select
+                        value={profileForm.currency}
+                        onChange={e => setProfileForm({ ...profileForm, currency: e.target.value })}
+                        style={{
+                          width: '100%', padding: '12px', borderRadius: 10, border: '1px solid var(--bg-border)',
+                          background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 14
+                        }}
+                      >
+                        <option value="NGN">NGN - Nigerian Naira</option>
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="GBP">GBP - British Pound</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -223,7 +334,7 @@ export default function SettingsPage() {
                   variant="primary"
                   onClick={handleSaveProfile}
                   loading={saving}
-                  style={{ alignSelf: 'flex-start', marginTop: 12 }}
+                  style={{ alignSelf: 'flex-start', marginTop: 8 }}
                 >
                   {saved ? <><Check size={18} /> Saved</> : 'Save Changes'}
                 </Button>
