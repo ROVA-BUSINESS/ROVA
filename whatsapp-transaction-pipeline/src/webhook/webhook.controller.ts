@@ -8,15 +8,10 @@ export class WebhookController {
   private parser = new WhatsAppParser();
   private queue = new TransactionQueue();
 
-  // ── Trigger onboarding Flow ─────────────────────────────────────────────────
-  private async triggerOnboardingFlow(recipientPhone: string): Promise<void> {
-    const flowId = env.WHATSAPP_FLOW_ID;
-    if (!flowId) {
-      console.warn('⚠️  WHATSAPP_FLOW_ID not set — skipping onboarding flow trigger');
-      return;
-    }
+  // ── Send welcome text fallback ──────────────────────────────────────────────
+  private async sendWelcomeText(to: string): Promise<void> {
     try {
-      const res = await fetch(
+      await fetch(
         `https://graph.facebook.com/v20.0/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
         {
           method: 'POST',
@@ -26,48 +21,94 @@ export class WebhookController {
           },
           body: JSON.stringify({
             messaging_product: 'whatsapp',
-            to: recipientPhone,
-            type: 'interactive',
-            interactive: {
-              type: 'flow',
-              header: { type: 'text', text: 'Welcome to Rova 🚀' },
-              body: {
-                text: 'Complete your registration to start accepting payments and managing your business.',
-              },
-              footer: { text: 'Takes about 2 minutes' },
-              action: {
-                name: 'flow',
-                parameters: {
-                  flow_message_version: '3',
-                  flow_token: crypto.randomUUID(),
-                  flow_id: flowId,
-                  flow_cta: 'Start Registration',
-                  flow_action: 'navigate',
-                  flow_action_payload: {
-                    screen: 'USER_INFO',
-                    data: {
-                      full_name: '',
-                      email: '',
-                      phone_number: recipientPhone,
-                      id_type: '',
-                      id_number: '',
-                    },
-                  },
-                },
-              },
+            to,
+            type: 'text',
+            text: {
+              body:
+                '🚀 Welcome to *Rova*! Your AI-powered business finance assistant.\n\n' +
+                "Here's what I can do for you:\n" +
+                '💰 Log income & expenses\n' +
+                '🧾 Create & track invoices\n' +
+                '📊 Generate financial reports\n' +
+                '🏦 Sync your bank account\n\n' +
+                'To get started, visit: https://www.rovabusiness.com/signup\n\n' +
+                'Or just tell me what you need help with!',
             },
           }),
         }
       );
-      const result = await res.json() as any;
-      if (res.ok) {
-        console.log(`✅ Onboarding flow sent to ${recipientPhone}`);
-      } else {
-        console.error(`❌ Failed to send onboarding flow:`, result);
-      }
+      console.log(`📤 Welcome text sent to ${to}`);
     } catch (err) {
-      console.error('Error triggering onboarding flow:', err);
+      console.error('Failed to send welcome text:', err);
     }
+  }
+
+  // ── Trigger onboarding Flow ─────────────────────────────────────────────────
+  // Sends interactive WhatsApp Flow card if WHATSAPP_FLOW_ID is set,
+  // otherwise falls back to a plain-text welcome message.
+  private async triggerOnboardingFlow(recipientPhone: string): Promise<void> {
+    const flowId = env.WHATSAPP_FLOW_ID;
+
+    if (flowId) {
+      try {
+        const res = await fetch(
+          `https://graph.facebook.com/v20.0/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: recipientPhone,
+              type: 'interactive',
+              interactive: {
+                type: 'flow',
+                header: { type: 'text', text: 'Welcome to Rova 🚀' },
+                body: {
+                  text: 'Complete your registration to start accepting payments and managing your business.',
+                },
+                footer: { text: 'Takes about 2 minutes' },
+                action: {
+                  name: 'flow',
+                  parameters: {
+                    flow_message_version: '3',
+                    flow_token: crypto.randomUUID(),
+                    flow_id: flowId,
+                    flow_cta: 'Start Registration',
+                    flow_action: 'navigate',
+                    flow_action_payload: {
+                      screen: 'USER_INFO',
+                      data: {
+                        full_name: '',
+                        email: '',
+                        phone_number: recipientPhone,
+                        id_type: '',
+                        id_number: '',
+                      },
+                    },
+                  },
+                },
+              },
+            }),
+          }
+        );
+        const result = await res.json() as any;
+        if (res.ok) {
+          console.log(`✅ Onboarding flow sent to ${recipientPhone}`);
+          return; // Success — done
+        }
+        console.error(`❌ Flow API error:`, JSON.stringify(result));
+      } catch (err) {
+        console.error('Error triggering onboarding flow:', err);
+      }
+    } else {
+      console.warn('⚠️  WHATSAPP_FLOW_ID not set — sending text welcome instead');
+    }
+
+    // Fallback: send plain text welcome
+    await this.sendWelcomeText(recipientPhone);
   }
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -91,17 +132,11 @@ export class WebhookController {
 
   /**
    * Handles all incoming WhatsApp messages.
-   * We MUST respond 200 OK immediately to Meta, then do the heavy
-   * processing asynchronously via BullMQ so we don't time out.
-   */
-  /**
-   * Handles all incoming WhatsApp messages.
-   * Order:
    * STEP 1: Show typing 3 dots immediately
    * STEP 2: Respond 200 OK to WhatsApp
-   * STEP 3: Check for heavy tasks (jumia/payout/report) & send thinking message + 3 dots again
-   * STEP 4: Execute ROVA logic / Queue dispatch
-   * STEP 5: Send final answer
+   * STEP 3: Detect greetings → trigger onboarding flow
+   * STEP 4: Heavy task detection (Jumia/payout/report)
+   * STEP 5: Queue the transaction for async processing
    */
   async handle(req: Request, res: Response): Promise<void> {
     try {
@@ -120,10 +155,10 @@ export class WebhookController {
       const from = msg.from;
       const text = msg.text?.body || '';
 
-      const phoneId = process.env.PHONE_NUMBER_ID || env.WHATSAPP_PHONE_NUMBER_ID;
-      const token = process.env.WHATSAPP_TOKEN || env.WHATSAPP_ACCESS_TOKEN;
+      const phoneId = env.WHATSAPP_PHONE_NUMBER_ID;
+      const token = env.WHATSAPP_ACCESS_TOKEN;
 
-      // STEP 1: SHOW 3 DOTS IMMEDIATELY (must be first thing)
+      // STEP 1: SHOW 3 DOTS IMMEDIATELY
       if (phoneId && token && wamid) {
         try {
           await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
@@ -133,10 +168,10 @@ export class WebhookController {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              messaging_product: "whatsapp",
-              status: "read",
+              messaging_product: 'whatsapp',
+              status: 'read',
               message_id: wamid,
-              typing_indicator: { type: "text" }
+              typing_indicator: { type: 'text' }
             })
           });
         } catch (err) {
@@ -144,15 +179,37 @@ export class WebhookController {
         }
       }
 
-      // STEP 2: TELL WHATSAPP WE RECEIVED IT (to avoid duplicate)
+      // STEP 2: TELL WHATSAPP WE RECEIVED IT (prevents duplicate delivery)
       res.sendStatus(200);
 
-      // STEP 3: DO WORK IN BACKGROUND
-      // If the task is heavy (Jumia audit, AI), send thinking text
+      // STEP 3: GREETING DETECTION — trigger onboarding flow
+      const greetings = ['hi', 'hello', 'start', 'hey', 'register', 'join'];
+      if (greetings.includes(text.trim().toLowerCase())) {
+        await this.triggerOnboardingFlow(from);
+        return;
+      }
+
+      // STEP 4: HEAVY TASK DETECTION
       const lowerText = text.toLowerCase();
-      if (lowerText.includes("jumia") || lowerText.includes("payout") || lowerText.includes("report")) {
-        if (phoneId && token) {
-          try {
+      if (lowerText.includes('jumia') || lowerText.includes('payout') || lowerText.includes('report')) {
+        try {
+          await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: from,
+              type: 'text',
+              text: { body: '🤔 Rova is thinking... analyzing your Jumia orders, one sec...' }
+            })
+          });
+
+          // Show dots again after thinking text
+          if (wamid) {
             await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
               method: 'POST',
               headers: {
@@ -161,44 +218,18 @@ export class WebhookController {
               },
               body: JSON.stringify({
                 messaging_product: 'whatsapp',
-                recipient_type: 'individual',
-                to: from,
-                type: 'text',
-                text: { body: "🤔 Rova is thinking... analyzing your Jumia orders, one sec..." }
+                status: 'read',
+                message_id: wamid,
+                typing_indicator: { type: 'text' }
               })
             });
-
-            // Show dots again after thinking text
-            if (wamid) {
-              await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  messaging_product: "whatsapp",
-                  status: "read",
-                  message_id: wamid,
-                  typing_indicator: { type: "text" }
-                })
-              });
-            }
-          } catch (err) {
-            console.error('Failed sending thinking message or typing indicator:', err);
           }
+        } catch (err) {
+          console.error('Failed sending thinking message or typing indicator:', err);
         }
       }
 
-      // ── NEW USER DETECTION: trigger onboarding flow ──────────────────────
-      const greetings = ['hi', 'hello', 'start', 'hey', 'register', 'join'];
-      if (greetings.includes(text.trim().toLowerCase())) {
-        await this.triggerOnboardingFlow(from);
-        return; // Don't process as a regular transaction
-      }
-      // ─────────────────────────────────────────────────────────────────────
-
-      // STEP 4: YOUR EXISTING ROVA LOGIC
+      // STEP 5: PARSE & QUEUE FOR ASYNC PROCESSING
       const parsed = this.parser.parse(msg);
 
       if (!parsed) {
@@ -206,7 +237,6 @@ export class WebhookController {
         return;
       }
 
-      // Dispatch to BullMQ for async processing
       await this.queue.add({
         from,
         messageId: wamid,
@@ -216,7 +246,7 @@ export class WebhookController {
 
       console.log(`📨 Queued ${parsed.type} message from ${from} [${wamid}]`);
     } catch (err) {
-      // Log internally but never fail — we already sent 200 to Meta
+      // Never fail — 200 already sent to Meta
       console.error('Error processing webhook payload:', err);
     }
   }
