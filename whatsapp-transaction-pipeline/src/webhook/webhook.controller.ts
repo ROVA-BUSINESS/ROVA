@@ -11,7 +11,7 @@ export class WebhookController {
   // ── Send welcome text fallback ──────────────────────────────────────────────
   private async sendWelcomeText(to: string): Promise<void> {
     try {
-      await fetch(
+      const response = await fetch(
         `https://graph.facebook.com/v20.0/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
         {
           method: 'POST',
@@ -37,7 +37,12 @@ export class WebhookController {
           }),
         }
       );
-      console.log(`📤 Welcome text sent to ${to}`);
+      const result = await response.json() as any;
+      if (response.ok) {
+        console.log(`📤 Welcome text sent successfully to ${to}`);
+      } else {
+        console.error(`❌ Welcome text FAILED to ${to}:`, JSON.stringify(result));
+      }
     } catch (err) {
       console.error('Failed to send welcome text:', err);
     }
