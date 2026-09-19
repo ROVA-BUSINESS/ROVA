@@ -43,4 +43,11 @@ try {
 app.listen(Number(env.PORT), '0.0.0.0', () => {
   console.log(`🚀 ROVA WhatsApp Transaction Pipeline running on port ${env.PORT}`);
   console.log(`   Environment: ${env.NODE_ENV}`);
+  console.log(`   Phone Number ID: ${env.WHATSAPP_PHONE_NUMBER_ID}`);
+  console.log(`   Token suffix: ...${env.WHATSAPP_ACCESS_TOKEN.slice(-10)}`);
+  if (env.WHATSAPP_FLOW_ID) {
+    console.log(`   Flow ID configured: ${env.WHATSAPP_FLOW_ID}`);
+  } else {
+    console.log(`   Flow ID: Not configured (falling back to Welcome text)`);
+  }
 });
