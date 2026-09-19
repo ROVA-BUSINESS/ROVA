@@ -1364,7 +1364,7 @@ export default function LandingPage() {
                   <span>Chat on WhatsApp AI</span> <ArrowRight size={17} />
                 </a>
                 <a
-                  href="https://wa.me/2341168220643050432?text=register"
+                  href="https://wa.me/2349132957881?text=register"
                   target="_blank"
                   rel="noreferrer"
                   className="lp-cta-whatsapp-signup"
