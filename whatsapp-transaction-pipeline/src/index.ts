@@ -17,19 +17,6 @@ const app = express();
 app.get('/', (_req, res) => {
   res.status(200).json({ service: 'ROVA WhatsApp Pipeline', status: 'ok' });
 });
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-app.get('/diag', (_req, res) => {
-  res.status(200).json({
-    phoneId: env.WHATSAPP_PHONE_NUMBER_ID,
-    tokenPrefix: env.WHATSAPP_ACCESS_TOKEN ? env.WHATSAPP_ACCESS_TOKEN.slice(0, 10) : 'none',
-    tokenSuffix: env.WHATSAPP_ACCESS_TOKEN ? env.WHATSAPP_ACCESS_TOKEN.slice(-10) : 'none',
-    tokenLength: env.WHATSAPP_ACCESS_TOKEN ? env.WHATSAPP_ACCESS_TOKEN.length : 0,
-    flowId: env.WHATSAPP_FLOW_ID || 'none',
-  });
-});
-
 // Parse JSON bodies, attaching raw body for signature verification
 app.use(express.json({
   verify: (req: any, _res, buf) => {
