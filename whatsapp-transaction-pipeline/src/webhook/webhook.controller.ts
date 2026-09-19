@@ -3,10 +3,12 @@ import crypto from 'crypto';
 import { env } from '../config/env';
 import { WhatsAppParser } from '../whatsapp/whatsapp.parser';
 import { TransactionQueue } from '../jobs/transaction.queue';
+import { AuthService } from '../auth/auth.service';
 
 export class WebhookController {
   private parser = new WhatsAppParser();
   private queue = new TransactionQueue();
+  private authService = new AuthService();
 
   // ── Send welcome text fallback ──────────────────────────────────────────────
   private async sendWelcomeText(to: string): Promise<void> {
@@ -139,6 +141,7 @@ export class WebhookController {
    * Handles all incoming WhatsApp messages.
    * STEP 1: Show typing 3 dots immediately
    * STEP 2: Respond 200 OK to WhatsApp
+   * STEP 2.5: Flow completion handling (nfm_reply)
    * STEP 3: Detect greetings → trigger onboarding flow
    * STEP 4: Heavy task detection (Jumia/payout/report)
    * STEP 5: Queue the transaction for async processing
@@ -186,6 +189,37 @@ export class WebhookController {
 
       // STEP 2: TELL WHATSAPP WE RECEIVED IT (prevents duplicate delivery)
       res.sendStatus(200);
+
+      // STEP 2.5: WHATSAPP FLOW COMPLETION (nfm_reply)
+      if (msg.type === 'interactive' && msg.interactive?.type === 'nfm_reply') {
+        try {
+          const responseJson = JSON.parse(msg.interactive.nfm_reply.response_json || '{}');
+          const fullName = responseJson.full_name || 'Business Owner';
+          const businessName = responseJson.business_name || fullName;
+
+          await this.authService.registerUserByWhatsApp(from, businessName);
+
+          await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: from,
+              type: 'text',
+              text: {
+                body: `🎉 Congratulations *${fullName}*!\n\nYour Rova account for *${businessName}* has been successfully created and linked to this WhatsApp number.\n\nYou can start right away:\n💰 Send income/expenses: *"Spent 5,000 on fuel"*\n🎙️ Send voice notes with your transactions\n📸 Send photos of receipts or invoices\n\n📲 View your full dashboard: https://www.rovabusiness.com`
+              }
+            })
+          });
+          console.log(`✅ Onboarded user from WhatsApp Flow: ${fullName} (${businessName})`);
+        } catch (err) {
+          console.error('Failed to process WhatsApp Flow completion:', err);
+        }
+        return;
+      }
 
       // STEP 3: GREETING DETECTION — trigger onboarding flow
       const greetings = ['hi', 'hello', 'start', 'hey', 'register', 'join'];
