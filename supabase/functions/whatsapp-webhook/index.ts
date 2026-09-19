@@ -443,3 +443,81 @@ async function sendWhatsAppMessage(to: string, text: string, accessToken?: strin
     console.error("Failed to send WhatsApp message fetch error:", err);
   }
 }
+// ── HANDLE WHATSAPP FLOW COMPLETION ─────────────────────────────────────────
+if (messageType === "interactive") {
+  const interactive = message.interactive;
+
+  if (interactive?.type === "nfm_reply") {
+    // This is a WhatsApp Flow completion payload
+    const flowResponse = interactive.nfm_reply;
+    const responseJson = JSON.parse(flowResponse.response_json);
+
+    console.log("[Rova Flow Completed]", responseJson);
+
+    // Extract all fields from the 3-screen flow
+    const {
+      full_name,
+      email,
+      phone_number,
+      id_type,
+      id_number,
+      business_name,
+      business_email,
+      business_phone,
+      registration_type,
+      registration_number,
+      business_logo_link,
+      password,
+      terms_accepted,
+    } = responseJson;
+
+    // 1. Create user account in Supabase Auth
+    const { data: newUser, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      phone: phone_number,
+      email_confirm: true,
+    });
+
+    if (authError) {
+      console.error("[Rova Flow] Auth error:", authError.message);
+      await sendWhatsAppMessage(
+        fromNumber,
+        `❌ Registration failed: ${authError.message}. Please try again or visit rovabusiness.com`,
+        WHATSAPP_ACCESS_TOKEN
+      );
+      return new Response("ok", { status: 200 });
+    }
+
+    // 2. Save business profile
+    await supabase.from("business_profiles").insert({
+      user_id: newUser.user.id,
+      full_name,
+      phone_number,
+      id_type,
+      id_number,
+      business_name,
+      business_email,
+      business_phone,
+      registration_type,
+      registration_number,
+      business_logo_link,
+      terms_accepted: true,
+      source: "whatsapp_flow",
+    });
+
+    // 3. Send welcome message back to the user
+    await sendWhatsAppMessage(
+      fromNumber,
+      `🎉 Welcome to Rova, ${full_name}!\n\n` +
+      `Your account has been created successfully.\n` +
+      `Business: ${business_name}\n\n` +
+      `📲 Log in at https://www.rovabusiness.com to access your dashboard.\n\n` +
+      `You can also use this WhatsApp chat to record expenses, send invoices, and more!`,
+      WHATSAPP_ACCESS_TOKEN
+    );
+
+    return new Response("ok", { status: 200 });
+  }
+}
+

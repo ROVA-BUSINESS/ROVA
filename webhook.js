@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -34,6 +35,87 @@ async function sendMessage(to, text) {
     console.error("Error in sendMessage:", err);
   }
 }
+
+// ─── Trigger Rova Onboarding Flow ────────────────────────────────────────────
+// Sends an interactive WhatsApp Flow message to kick off user registration.
+// Call this the first time a brand-new phone number contacts Rova.
+async function triggerRovaOnboardingFlow(recipientPhone) {
+  const phoneId = process.env.PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token   = process.env.WHATSAPP_TOKEN   || process.env.WHATSAPP_ACCESS_TOKEN;
+  const flowId  = process.env.WHATSAPP_FLOW_ID;
+
+  if (!phoneId || !token) {
+    console.warn("⚠️ PHONE_NUMBER_ID or WHATSAPP_TOKEN missing — cannot trigger flow.");
+    return null;
+  }
+  if (!flowId) {
+    console.warn("⚠️ WHATSAPP_FLOW_ID missing in .env — cannot trigger onboarding flow.");
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: recipientPhone,          // e.g. "2348012345678" (no +)
+          type: "interactive",
+          interactive: {
+            type: "flow",
+            header: {
+              type: "text",
+              text: "Welcome to Rova 🚀",
+            },
+            body: {
+              text: "Complete your registration to start accepting payments and managing your business.",
+            },
+            footer: {
+              text: "Takes about 2 minutes",
+            },
+            action: {
+              name: "flow",
+              parameters: {
+                flow_message_version: "3",
+                flow_token: crypto.randomUUID(),   // unique per session
+                flow_id: flowId,
+                flow_cta: "Start Registration",
+                flow_action: "navigate",
+                flow_action_payload: {
+                  screen: "USER_INFO",
+                  data: {
+                    full_name: "",
+                    email: "",
+                    phone_number: recipientPhone,
+                    id_type: "",
+                    id_number: "",
+                  },
+                },
+              },
+            },
+          },
+        }),
+      }
+    );
+
+    const result = await response.json();
+    if (response.ok) {
+      console.log("✅ Onboarding flow sent to", recipientPhone, result);
+    } else {
+      console.error("❌ Failed to send onboarding flow:", result);
+    }
+    return result;
+  } catch (err) {
+    console.error("Error triggering onboarding flow:", err);
+    return null;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Helper to run ROVA logic
 async function runRovaLogic(text, from) {
@@ -99,6 +181,16 @@ app.post("/webhook", async (req, res) => {
 
   // STEP 2: TELL WHATSAPP WE RECEIVED IT (to avoid duplicate)
   res.sendStatus(200);
+
+  // ── NEW USER DETECTION: send onboarding flow instead of text reply ──────
+  // A simple heuristic: if the message is exactly "hi", "hello", "start", or
+  // the very first message (you can replace this with a Supabase lookup later).
+  const greetings = ["hi", "hello", "start", "hey", "register", "join"];
+  if (greetings.includes(text.trim().toLowerCase())) {
+    await triggerRovaOnboardingFlow(from);
+    return; // Don't send the normal ROVA reply for this message
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   // STEP 3: DO WORK IN BACKGROUND
   // If the task is heavy (Jumia audit, AI), send thinking text

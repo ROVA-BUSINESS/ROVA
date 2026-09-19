@@ -31,3 +31,5 @@ services:
         sync: false
       - key: WHATSAPP_BUSINESS_ACCOUNT_ID
         sync: false
+      - key: WHATSAPP_FLOW_ID
+        sync: false

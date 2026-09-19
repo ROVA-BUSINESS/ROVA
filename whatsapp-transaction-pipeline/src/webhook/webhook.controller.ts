@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { env } from '../config/env';
 import { WhatsAppParser } from '../whatsapp/whatsapp.parser';
 import { TransactionQueue } from '../jobs/transaction.queue';
@@ -6,6 +7,69 @@ import { TransactionQueue } from '../jobs/transaction.queue';
 export class WebhookController {
   private parser = new WhatsAppParser();
   private queue = new TransactionQueue();
+
+  // ── Trigger onboarding Flow ─────────────────────────────────────────────────
+  private async triggerOnboardingFlow(recipientPhone: string): Promise<void> {
+    const flowId = env.WHATSAPP_FLOW_ID;
+    if (!flowId) {
+      console.warn('⚠️  WHATSAPP_FLOW_ID not set — skipping onboarding flow trigger');
+      return;
+    }
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: recipientPhone,
+            type: 'interactive',
+            interactive: {
+              type: 'flow',
+              header: { type: 'text', text: 'Welcome to Rova 🚀' },
+              body: {
+                text: 'Complete your registration to start accepting payments and managing your business.',
+              },
+              footer: { text: 'Takes about 2 minutes' },
+              action: {
+                name: 'flow',
+                parameters: {
+                  flow_message_version: '3',
+                  flow_token: crypto.randomUUID(),
+                  flow_id: flowId,
+                  flow_cta: 'Start Registration',
+                  flow_action: 'navigate',
+                  flow_action_payload: {
+                    screen: 'USER_INFO',
+                    data: {
+                      full_name: '',
+                      email: '',
+                      phone_number: recipientPhone,
+                      id_type: '',
+                      id_number: '',
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        }
+      );
+      const result = await res.json() as any;
+      if (res.ok) {
+        console.log(`✅ Onboarding flow sent to ${recipientPhone}`);
+      } else {
+        console.error(`❌ Failed to send onboarding flow:`, result);
+      }
+    } catch (err) {
+      console.error('Error triggering onboarding flow:', err);
+    }
+  }
+  // ───────────────────────────────────────────────────────────────────────────
 
   /**
    * Handles the Meta webhook verification challenge.
@@ -125,6 +189,14 @@ export class WebhookController {
           }
         }
       }
+
+      // ── NEW USER DETECTION: trigger onboarding flow ──────────────────────
+      const greetings = ['hi', 'hello', 'start', 'hey', 'register', 'join'];
+      if (greetings.includes(text.trim().toLowerCase())) {
+        await this.triggerOnboardingFlow(from);
+        return; // Don't process as a regular transaction
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       // STEP 4: YOUR EXISTING ROVA LOGIC
       const parsed = this.parser.parse(msg);
