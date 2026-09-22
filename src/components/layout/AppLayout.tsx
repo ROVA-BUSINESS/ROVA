@@ -9,6 +9,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
 import SearchModal from '../SearchModal';
 import BusinessOnboardingModal from '../onboarding/BusinessOnboardingModal';
+import { AssistantProvider } from '../../contexts/AssistantContext';
+import FloatingAssistant from '../assistant/FloatingAssistant';
 
 
 export default function AppLayout() {
@@ -178,7 +180,8 @@ export default function AppLayout() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-base)' }}>
+    <AssistantProvider>
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-base)' }}>
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <div style={{
@@ -407,6 +410,8 @@ export default function AppLayout() {
         </div>
       )}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      <FloatingAssistant />
     </div>
+  </AssistantProvider>
   );
 }
