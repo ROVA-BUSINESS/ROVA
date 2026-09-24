@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
-  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap
+  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap, Upload, AlertTriangle
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
@@ -17,7 +18,8 @@ import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 type Section = 'profile' | 'whatsapp' | 'accounts' | 'security' | 'appearance';
 
 export default function SettingsPage() {
-  const { user, profile, updateProfile } = useAuth();
+  const navigate = useNavigate();
+  const { user, profile, updateProfile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [section, setSection] = useState<Section>('profile');
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -26,6 +28,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isBankChoiceOpen, setIsBankChoiceOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     full_name: '',
@@ -125,6 +130,50 @@ export default function SettingsPage() {
     } else {
       console.error("Failed to save profile:", error);
       alert("Failed to save profile: " + (error.message || "Unknown error"));
+    }
+  }
+
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Logo image must be under 2MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setProfileForm(prev => ({ ...prev, logo_url: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleDeleteUserAccount() {
+    if (deleteConfirmText !== 'DELETE') return;
+    setIsDeletingAccount(true);
+    try {
+      if (user) {
+        await Promise.allSettled([
+          supabase.from('transactions').delete().eq('user_id', user.id),
+          supabase.from('invoices').delete().eq('user_id', user.id),
+          supabase.from('expenses').delete().eq('user_id', user.id),
+          supabase.from('accounts').delete().eq('user_id', user.id),
+          supabase.from('categories').delete().eq('user_id', user.id),
+          supabase.from('inventory_items').delete().eq('user_id', user.id),
+          supabase.from('notifications').delete().eq('user_id', user.id),
+          supabase.from('ai_pending_clarifications').delete().eq('user_id', user.id),
+          supabase.from('team_members').delete().eq('owner_id', user.id),
+          supabase.from('profiles').delete().eq('id', user.id),
+        ]);
+        await signOut();
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Account deletion error:', err);
+      alert('Failed to delete account. Please contact support.');
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteModal(false);
     }
   }
 
@@ -239,6 +288,62 @@ export default function SettingsPage() {
                         />
                       </div>
                     )}
+                  </div>
+
+                  {/* Business Logo Upload */}
+                  <div style={{ marginTop: 20 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>
+                      Business Logo
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                      {profileForm.logo_url ? (
+                        <div style={{ position: 'relative', width: 64, height: 64, borderRadius: 12, border: '1px solid var(--bg-border)', overflow: 'hidden', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <img src={profileForm.logo_url} alt="Logo preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        </div>
+                      ) : (
+                        <div style={{ width: 64, height: 64, borderRadius: 12, border: '1px dashed var(--bg-border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                          <Building size={24} />
+                        </div>
+                      )}
+                      <div>
+                        <input
+                          type="file"
+                          id="logo-upload-input"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          onChange={handleLogoUpload}
+                          style={{ display: 'none' }}
+                        />
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label
+                            htmlFor="logo-upload-input"
+                            style={{
+                              padding: '8px 14px', borderRadius: 8, background: 'var(--bg-elevated)',
+                              border: '1px solid var(--bg-border)', color: 'var(--text-primary)',
+                              fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6
+                            }}
+                          >
+                            <Upload size={13} />
+                            {profileForm.logo_url ? 'Change Logo' : 'Upload Logo'}
+                          </label>
+                          {profileForm.logo_url && (
+                            <button
+                              type="button"
+                              onClick={() => setProfileForm(prev => ({ ...prev, logo_url: '' }))}
+                              style={{
+                                padding: '8px 12px', borderRadius: 8, background: 'transparent',
+                                border: '1px solid rgba(239,68,68,0.3)', color: 'var(--error)',
+                                fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                              }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
+                          PNG, JPG, SVG or WEBP (max 2MB). Automatically appears on invoices & receipts.
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -569,16 +674,69 @@ export default function SettingsPage() {
             <Card>
               <h3 style={{ fontSize: 15, marginBottom: 20 }}>Account Security</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                <div style={{ padding: '14px', background: 'var(--error-dim)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--error)', marginBottom: 4 }}>Danger Zone</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Permanently delete your account and all associated data.</div>
-                  <Button variant="danger" size="sm">Delete Account</Button>
+                <div style={{ padding: '16px', background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--error)', marginBottom: 6 }}>
+                    <AlertTriangle size={16} />
+                    <span>Danger Zone — Delete Account</span>
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>
+                    Permanently delete your ROVA account and all associated transactions, invoices, inventory, reports, and banking credentials. This action is irreversible.
+                  </p>
+                  <Button variant="danger" size="sm" onClick={() => { setDeleteConfirmText(''); setShowDeleteModal(true); }}>
+                    Delete Account
+                  </Button>
                 </div>
               </div>
             </Card>
           )}
         </div>
       </div>
+
+      {showDeleteModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: 'var(--radius-xl)', maxWidth: 440, width: '100%', padding: 24, boxShadow: 'var(--shadow-lg)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--error)', marginBottom: 12 }}>
+              <AlertTriangle size={22} />
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>Delete Account Permanently</h3>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>
+              This will permanently delete your ROVA account, business profile, all recorded transactions, invoices, inventory, connected bank accounts, and reports. <strong>This action cannot be undone.</strong>
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+              Please type <strong style={{ color: 'var(--text-primary)' }}>DELETE</strong> to confirm:
+            </p>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE"
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 8,
+                background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
+                color: 'var(--text-primary)', fontSize: 14, outline: 'none', marginBottom: 20
+              }}
+            />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }} disabled={isDeletingAccount}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                disabled={deleteConfirmText !== 'DELETE'}
+                loading={isDeletingAccount}
+                onClick={handleDeleteUserAccount}
+              >
+                Permanently Delete Account
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BankConnectChoiceModal
         open={isBankChoiceOpen}

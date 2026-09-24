@@ -17,6 +17,7 @@ export type Profile = {
   mode: 'personal' | 'business';
   currency: string;
   phone: string;
+  whatsapp_number?: string;
   avatar_url: string;
   staff_visibility_limit: number;
   business_profile_completed?: boolean;

@@ -129,8 +129,10 @@ export default function SignupPage() {
               type="tel"
               placeholder="e.g. 08012345678"
               value={phone}
-              onChange={e => setPhone(e.target.value)}
+              onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
               prefix={<Phone size={14} />}
+              inputMode="numeric"
+              pattern="[0-9]*"
             />
             <Input
               label="Password"

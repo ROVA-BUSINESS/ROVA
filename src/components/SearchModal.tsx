@@ -1,49 +1,52 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, FileText, CreditCard, Link2, CornerDownLeft, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-import { formatCurrency } from '../lib/format';
+import { Search, X, Link2, CornerDownLeft } from 'lucide-react';
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface SearchResultItem {
+interface SearchSectionItem {
   id: string;
   title: string;
   subtitle: string;
-  category: 'Pages' | 'Transactions' | 'Invoices';
+  category: string;
   url: string;
-  amount?: number;
-  type?: 'income' | 'expense' | 'transfer';
+  keywords: string[];
 }
 
-const STATIC_PAGES = [
-  { title: 'Dashboard', subtitle: 'Overview, financial stats, and recent activities', url: '/app/dashboard' },
-  { title: 'Transactions', subtitle: 'View, edit, and export transactions', url: '/app/transactions' },
-  { title: 'Invoices', subtitle: 'Create invoices, track customer payments', url: '/app/invoices' },
-  { title: 'Expenses & Bills', subtitle: 'Manage operating costs, vendor bills, and expenses', url: '/app/expenses' },
-  { title: 'Inventory', subtitle: 'Stock management, product catalogue, and reorder levels', url: '/app/inventory' },
-  { title: 'Tax', subtitle: 'CIT, VAT, withholding tax calculations, and NRS filing', url: '/app/tax' },
-  { title: 'Payroll', subtitle: 'Salary processing, employee payslips, and PAYE tax', url: '/app/payroll' },
-  { title: 'Team & Access Control', subtitle: 'Manage staff accounts, roles, and activity logs', url: '/app/team' },
-  { title: 'Accounting Hub', subtitle: 'Master ledger, chart of accounts, and financial reports', url: '/app/accounting' },
-  { title: 'General Ledger', subtitle: 'Detailed record of all account transactions', url: '/app/ledger' },
-  { title: 'Chart of Accounts', subtitle: 'Financial structure and account list', url: '/app/chart-of-accounts' },
-  { title: 'Reports Hub', subtitle: 'Financial statements, analytics, and export tools', url: '/app/reports' },
-  { title: 'AI Assistant', subtitle: 'Chat with ROVA AI, query financial records', url: '/app/assistant' },
-  { title: 'Settings', subtitle: 'Manage business profile, team members, and bank connections', url: '/app/settings' },
-  { title: 'Billing', subtitle: 'Subscription plans, tax filing service, payment history', url: '/app/billing' }
+const APP_SECTIONS: SearchSectionItem[] = [
+  { id: 'dashboard', title: 'Dashboard', subtitle: 'Overview, financial stats, and business health', category: 'Main Sections', url: '/app/dashboard', keywords: ['overview', 'metrics', 'home', 'stats', 'balance', 'revenue'] },
+  { id: 'transactions', title: 'Transactions', subtitle: 'View, edit, filter, and export income & expenses', category: 'Main Sections', url: '/app/transactions', keywords: ['transactions', 'records', 'income', 'expenses', 'sales', 'bank', 'history'] },
+  { id: 'invoices', title: 'Invoices', subtitle: 'Create client invoices and track customer payments', category: 'Main Sections', url: '/app/invoices', keywords: ['invoices', 'clients', 'customers', 'sales', 'billing', 'payments', 'quotes'] },
+  { id: 'receipts', title: 'Receipts', subtitle: 'Upload and manage scanned receipts with OCR', category: 'Main Sections', url: '/app/receipts', keywords: ['receipts', 'scan', 'ocr', 'vouchers', 'upload', 'proof'] },
+  { id: 'expenses', title: 'Bills & Expenses', subtitle: 'Manage operating costs, recurring bills, and vendors', category: 'Main Sections', url: '/app/expenses', keywords: ['expenses', 'bills', 'costs', 'vendors', 'recurring', 'utilities', 'rent'] },
+  { id: 'inventory', title: 'Inventory', subtitle: 'Stock management, product catalogue, and reorder alerts', category: 'Operations & Team', url: '/app/inventory', keywords: ['inventory', 'stock', 'items', 'products', 'catalogue', 'warehouse', 'goods'] },
+  { id: 'tax', title: 'Tax', subtitle: 'CIT, VAT, and withholding tax calculations and filing', category: 'Accounting & Tax', url: '/app/tax', keywords: ['tax', 'compliance', 'cit', 'vat', 'wht', 'withholding', 'nrs', 'filing', 'firs'] },
+  { id: 'cit-wizard', title: 'CIT Filing Wizard', subtitle: 'Step-by-step NRS corporate income tax return filing', category: 'Accounting & Tax', url: '/app/tax/cit/new', keywords: ['cit', 'filing wizard', 'nrs', 'company income tax', 'tax return', 'annual filing'] },
+  { id: 'payroll', title: 'Payroll', subtitle: 'Salary processing, employee payslips, and PAYE tax', category: 'Operations & Team', url: '/app/payroll', keywords: ['payroll', 'salaries', 'wages', 'employees', 'payslips', 'paye', 'remittances'] },
+  { id: 'team', title: 'Team & Access Control', subtitle: 'Manage staff accounts, invitations, roles, and logs', category: 'Operations & Team', url: '/app/team', keywords: ['team', 'staff', 'members', 'users', 'roles', 'permissions', 'access', 'invite'] },
+  { id: 'accounting-hub', title: 'Accounting Hub', subtitle: 'Master ledger, financial statements, and chart of accounts', category: 'Accounting & Tax', url: '/app/accounting', keywords: ['accounting', 'hub', 'books', 'bookkeeping', 'finance'] },
+  { id: 'ledger', title: 'General Ledger', subtitle: 'Detailed double-entry records of all accounts', category: 'Accounting & Tax', url: '/app/ledger', keywords: ['ledger', 'general ledger', 'debit', 'credit', 'double entry', 'accounts'] },
+  { id: 'chart-of-accounts', title: 'Chart of Accounts', subtitle: 'Financial structure, asset, liability, and equity accounts', category: 'Accounting & Tax', url: '/app/chart-of-accounts', keywords: ['chart of accounts', 'coa', 'assets', 'liabilities', 'equity'] },
+  { id: 'balance-sheet', title: 'Balance Sheet', subtitle: 'Assets, liabilities, and business net worth', category: 'Accounting & Tax', url: '/app/balance-sheet', keywords: ['balance sheet', 'assets', 'liabilities', 'equity', 'net worth'] },
+  { id: 'profit-loss', title: 'Profit & Loss (P&L)', subtitle: 'Income statement, gross margins, and net income', category: 'Accounting & Tax', url: '/app/profit-loss', keywords: ['profit and loss', 'p&l', 'income statement', 'revenue', 'margins'] },
+  { id: 'cash-flow', title: 'Cash Flow Statement', subtitle: 'Operating, investing, and financing cash movements', category: 'Accounting & Tax', url: '/app/cash-flow', keywords: ['cash flow', 'cashflow', 'liquidity', 'inflows', 'outflows'] },
+  { id: 'trial-balance', title: 'Trial Balance', subtitle: 'Summary of debit and credit balances across accounts', category: 'Accounting & Tax', url: '/app/trial-balance', keywords: ['trial balance', 'balancing', 'credits', 'debits'] },
+  { id: 'reports', title: 'Reports Hub', subtitle: 'Financial statements, analytics, and data exports', category: 'Accounting & Tax', url: '/app/reports', keywords: ['reports', 'analytics', 'export', 'download', 'csv', 'summary'] },
+  { id: 'assistant', title: 'AI Assistant', subtitle: 'Chat with ROVA AI, ask questions, or record data', category: 'Main Sections', url: '/app/assistant', keywords: ['ai', 'assistant', 'bot', 'chat', 'copilot', 'help', 'ask'] },
+  { id: 'settings', title: 'Business Profile & Settings', subtitle: 'Manage company information, logo, and address', category: 'Settings & Account', url: '/app/settings', keywords: ['settings', 'profile', 'business name', 'logo', 'company'] },
+  { id: 'bank-connections', title: 'Bank Connections', subtitle: 'Connect bank accounts via Mono or Email statement sync', category: 'Settings & Account', url: '/app/settings?tab=banks', keywords: ['bank', 'banks', 'connect', 'mono', 'link bank', 'sync', 'open banking'] },
+  { id: 'whatsapp-bot', title: 'WhatsApp Bot Settings', subtitle: 'Connect and configure WhatsApp automated bookkeeping', category: 'Settings & Account', url: '/app/settings?tab=whatsapp', keywords: ['whatsapp', 'bot', 'number', 'whatsapp ai', 'mobile'] },
+  { id: 'security', title: 'Security & Access', subtitle: 'Manage password, authentication, and account settings', category: 'Settings & Account', url: '/app/settings?tab=security', keywords: ['security', 'password', 'delete account', 'credentials'] },
+  { id: 'billing', title: 'Billing & Subscriptions', subtitle: 'Subscription plans, payment history, and tax services', category: 'Settings & Account', url: '/app/billing', keywords: ['billing', 'subscription', 'pricing', 'plans', 'upgrade', 'pay'] }
 ];
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<SearchResultItem[]>([]);
+  const [results, setResults] = useState<SearchSectionItem[]>(APP_SECTIONS);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -52,13 +55,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   useEffect(() => {
     if (isOpen) {
       setQuery('');
-      setResults(STATIC_PAGES.map(p => ({
-        id: p.url,
-        title: p.title,
-        subtitle: p.subtitle,
-        category: 'Pages',
-        url: p.url
-      })));
+      setResults(APP_SECTIONS);
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 100);
       document.body.style.overflow = 'hidden';
@@ -89,87 +86,24 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   useEffect(() => {
     if (!isOpen) return;
 
-    if (!query.trim()) {
-      // Show default pages
-      setResults(STATIC_PAGES.map(p => ({
-        id: p.url,
-        title: p.title,
-        subtitle: p.subtitle,
-        category: 'Pages',
-        url: p.url
-      })));
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      setResults(APP_SECTIONS);
       setSelectedIndex(0);
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const matchingPages = STATIC_PAGES.filter(p => 
-          p.title.toLowerCase().includes(query.toLowerCase()) || 
-          p.subtitle.toLowerCase().includes(query.toLowerCase())
-        ).map(p => ({
-          id: p.url,
-          title: p.title,
-          subtitle: p.subtitle,
-          category: 'Pages' as const,
-          url: p.url
-        }));
+    const matches = APP_SECTIONS.filter(item => {
+      const matchTitle = item.title.toLowerCase().includes(trimmed);
+      const matchSubtitle = item.subtitle.toLowerCase().includes(trimmed);
+      const matchCategory = item.category.toLowerCase().includes(trimmed);
+      const matchKeywords = item.keywords.some(kw => kw.toLowerCase().includes(trimmed) || trimmed.includes(kw.toLowerCase()));
+      return matchTitle || matchSubtitle || matchCategory || matchKeywords;
+    });
 
-        if (!user) {
-          setResults(matchingPages);
-          setSelectedIndex(0);
-          setLoading(false);
-          return;
-        }
-
-        // Search Transactions & Invoices in parallel
-        const [txRes, invRes] = await Promise.all([
-          supabase
-            .from('transactions')
-            .select('id, description, amount, type, date')
-            .eq('user_id', user.id)
-            .ilike('description', `%${query}%`)
-            .limit(5),
-          supabase
-            .from('invoices')
-            .select('id, client_name, invoice_number, total')
-            .eq('user_id', user.id)
-            .or(`client_name.ilike.%${query}%,invoice_number.ilike.%${query}%`)
-            .limit(5)
-        ]);
-
-        const matchingTx = (txRes.data || []).map(tx => ({
-          id: tx.id,
-          title: tx.description || 'Untitled Transaction',
-          subtitle: `${new Date(tx.date).toLocaleDateString()} • ${tx.type === 'income' ? 'Income' : tx.type === 'expense' ? 'Expense' : 'Transfer'}`,
-          category: 'Transactions' as const,
-          url: '/app/transactions',
-          amount: tx.amount,
-          type: tx.type
-        }));
-
-        const matchingInv = (invRes.data || []).map(inv => ({
-          id: inv.id,
-          title: `Invoice ${inv.invoice_number}`,
-          subtitle: `Client: ${inv.client_name}`,
-          category: 'Invoices' as const,
-          url: '/app/invoices',
-          amount: inv.total,
-          type: 'income' as const // Invoices are income source
-        }));
-
-        setResults([...matchingPages, ...matchingTx, ...matchingInv]);
-        setSelectedIndex(0);
-      } catch (err) {
-        console.error('Search error:', err);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [query, isOpen, user]);
+    setResults(matches);
+    setSelectedIndex(0);
+  }, [query, isOpen]);
 
   // Handle key navigation within results
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -187,7 +121,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     }
   };
 
-  const handleSelect = (item: SearchResultItem) => {
+  const handleSelect = (item: SearchSectionItem) => {
     navigate(item.url);
     onClose();
   };
@@ -220,7 +154,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search transactions, invoices, or pages..."
+            placeholder="Search sections, features, settings..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{
@@ -229,9 +163,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               padding: 0
             }}
           />
-          {loading ? (
-            <Loader2 size={16} color="var(--text-muted)" className="spin" style={{ marginRight: 12 }} />
-          ) : query ? (
+          {query ? (
             <button 
               onClick={() => setQuery('')}
               style={{ background: 'transparent', border: 'none', padding: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', marginRight: 8 }}
@@ -253,12 +185,12 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           {results.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
               <p style={{ fontSize: 14, fontWeight: 500 }}>No results found for "{query}"</p>
-              <p style={{ fontSize: 12, color: 'var(--text-disabled)', marginTop: 4 }}>Try searching for standard pages, transaction names, or invoice customers.</p>
+              <p style={{ fontSize: 12, color: 'var(--text-disabled)', marginTop: 4 }}>Try searching for a section like "Inventory", "Transactions", "Tax", or "Payroll".</p>
             </div>
           ) : (
             <div>
-              {/* Grouping results by category */}
-              {['Pages', 'Transactions', 'Invoices'].map((cat) => {
+              {/* Grouping results by section category */}
+              {['Main Sections', 'Accounting & Tax', 'Operations & Team', 'Settings & Account'].map((cat) => {
                 const catResults = results.filter(r => r.category === cat);
                 if (catResults.length === 0) return null;
 
@@ -293,14 +225,12 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                             color: isSelected ? '#ffffff' : 'var(--text-muted)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                           }}>
-                            {cat === 'Pages' && <Link2 size={16} />}
-                            {cat === 'Transactions' && <CreditCard size={16} />}
-                            {cat === 'Invoices' && <FileText size={16} />}
+                            <Link2 size={16} />
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{
                               fontSize: 14, fontWeight: 600,
-                              color: isSelected ? 'var(--text-primary)' : 'var(--text-primary)'
+                              color: 'var(--text-primary)'
                             }}>
                               {item.title}
                             </div>
@@ -311,14 +241,6 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                               {item.subtitle}
                             </div>
                           </div>
-                          {item.amount !== undefined && (
-                            <div style={{
-                              fontSize: 14, fontWeight: 600,
-                              color: item.type === 'income' ? 'var(--success)' : 'var(--error)'
-                            }}>
-                              {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
-                            </div>
-                          )}
                           {isSelected && (
                             <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent-primary)' }}>
                               <CornerDownLeft size={14} />

@@ -78,7 +78,7 @@ function paymentStatusBadge(status: RovaServicePayment['payment_status']): 'warn
 }
 
 function formatDateStr(d: string | null): string {
-  if (!d) return '—';
+  if (!d) return '';
   return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
