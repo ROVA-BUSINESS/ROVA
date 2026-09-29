@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Brain, Sparkles, X, Minus, Send, Mic, MicOff, Maximize2,
+  Brain, X, Minus, Send, Mic, MicOff, Maximize2,
   ChevronRight, FileText, Package, Users, TrendingUp, HelpCircle,
   ExternalLink, RotateCcw
 } from 'lucide-react';
@@ -488,7 +488,7 @@ export default function FloatingAssistant() {
                           marginTop: 2,
                         }}
                       >
-                        <Sparkles size={11} color="white" />
+                        <Brain size={11} color="white" />
                       </div>
                     )}
                     <div style={{ maxWidth: '86%' }}>
@@ -536,7 +536,7 @@ export default function FloatingAssistant() {
                         justifyContent: 'center',
                       }}
                     >
-                      <Sparkles size={11} color="white" />
+                      <Brain size={11} color="white" />
                     </div>
                     <div
                       style={{

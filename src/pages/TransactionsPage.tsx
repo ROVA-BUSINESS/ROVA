@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Sparkles, Download, Edit2, Receipt, AlertTriangle } from 'lucide-react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Brain, Download, Edit2, Receipt, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -521,7 +521,7 @@ export default function TransactionsPage() {
                 background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
               }}>
-                <Sparkles size={11} color="var(--accent-light)" />
+                <Brain size={12} color="var(--accent-light)" />
                 <span style={{ color: 'var(--text-muted)' }}>Auto-detected:</span>
                 <strong style={{ color: 'var(--accent-light)', textTransform: 'capitalize' }}>{form.type}</strong>
                 <span style={{ color: 'var(--text-muted)' }}>·</span>

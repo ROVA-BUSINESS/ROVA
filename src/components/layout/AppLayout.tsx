@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Bell, Sparkles, Menu, Search, ArrowLeft, Sun, Moon } from 'lucide-react';
+import { Bell, Menu, Search, ArrowLeft, Sun, Moon } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useMobile } from '../../hooks/useMobile';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -402,7 +402,11 @@ export default function AppLayout() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
                 border: '1px solid var(--accent-border)'
               }}>
-                <Sparkles size={24} color="var(--accent-light)" />
+                <img
+                  src={theme === 'light' ? '/rova-light.png' : '/rova.png'}
+                  alt="ROVA"
+                  style={{ height: 26, objectFit: 'contain' }}
+                />
               </div>
               <h2 style={{ fontSize: 20, marginBottom: 8 }}>Welcome to ROVA</h2>
               <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>

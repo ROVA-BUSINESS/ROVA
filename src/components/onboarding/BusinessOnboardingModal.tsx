@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, ShieldCheck, MapPin, CheckCircle2, 
   ArrowRight, ArrowLeft, Info, AlertCircle, 
-  Sparkles, FileText, Check, Edit2, ShieldAlert
+  FileText, Check, Edit2, ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -297,7 +297,7 @@ export default function BusinessOnboardingModal() {
             fontWeight: 700,
             marginBottom: 12
           }}>
-            <Sparkles size={14} /> ROVA Business Onboarding
+            <Building2 size={14} /> ROVA Business Onboarding
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
             Set up your business

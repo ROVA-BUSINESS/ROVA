@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   CreditCard, CheckCircle, Clock, AlertCircle,
   ChevronRight, FileText, Zap, Star, Check,
-  Sparkles, Receipt, X
+  Receipt, X
 } from 'lucide-react';
 import { supabase, type RovaSubscription, type RovaServicePayment } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -303,7 +303,7 @@ function TaxFilingModal({ open, onClose, onProceed }: TaxFilingModalProps) {
 // ─── Main BillingPage ────────────────────────────────────────
 export default function BillingPage() {
   const { user } = useAuth();
-  const { subscription, servicePayments, loading, isActive, isDeveloper, planKey, refresh } = useSubscription();
+  const { subscription, servicePayments, loading, isActive, planKey, refresh } = useSubscription();
   const isMobile = useMobile(1024);
 
   // Dropdown states for plan features
@@ -417,27 +417,8 @@ export default function BillingPage() {
         </p>
       </div>
 
-      {/* ── Developer Test Account Banner ───────── */}
-      {!loading && isDeveloper && (
-        <Card style={{ marginBottom: 24, padding: '16px 20px', border: '1px solid rgba(168,85,247,0.4)', background: 'linear-gradient(135deg, rgba(168,85,247,0.1), var(--bg-elevated))' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'rgba(168,85,247,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Sparkles size={20} color="#a855f7" />
-            </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#a855f7', display: 'flex', alignItems: 'center', gap: 8 }}>
-                Developer Test Account — Full Business Access (Free)
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                Whitelisted developer account or secret bypass code active. All ROVA Business features are unlocked for system testing.
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
       {/* ── Current Subscription Status Banner ──── */}
-      {!loading && isActive && subscription && !isDeveloper && (
+      {!loading && isActive && subscription && (
         <Card style={{ marginBottom: 24, padding: '20px 24px', border: '1px solid rgba(16,185,129,0.3)', background: 'linear-gradient(135deg, rgba(16,185,129,0.07), var(--bg-elevated))' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
