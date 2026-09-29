@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Brain, Download, Edit2, Receipt, AlertTriangle } from 'lucide-react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Brain, Download, Edit2, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,7 +25,6 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
-  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'description' | 'category' | null>(null);
@@ -171,38 +170,13 @@ export default function TransactionsPage() {
     });
   }
 
-  // Duplicate payment detection pass: group by type + amount within 3-day window
-  const duplicateIds = useMemo(() => {
-    const dups = new Set<string>();
-    for (let i = 0; i < transactions.length; i++) {
-      for (let j = i + 1; j < transactions.length; j++) {
-        const a = transactions[i];
-        const b = transactions[j];
-        if (a.type === b.type && Number(a.amount) === Number(b.amount)) {
-          const timeDiff = Math.abs(new Date(a.date).getTime() - new Date(b.date).getTime());
-          const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
-          if (daysDiff <= 3) {
-            const descA = (a.description || '').trim().toLowerCase();
-            const descB = (b.description || '').trim().toLowerCase();
-            if (!descA || !descB || descA === descB || descA.includes(descB) || descB.includes(descA)) {
-              dups.add(a.id);
-              dups.add(b.id);
-            }
-          }
-        }
-      }
-    }
-    return dups;
-  }, [transactions]);
-
   const filtered = useMemo(() => {
     return transactions.filter(tx => {
       const matchSearch = !search || tx.description?.toLowerCase().includes(search.toLowerCase()) || (tx.category as any)?.name?.toLowerCase().includes(search.toLowerCase());
       const matchFilter = filter === 'all' || tx.type === filter;
-      const matchDuplicate = !showDuplicatesOnly || duplicateIds.has(tx.id);
-      return matchSearch && matchFilter && matchDuplicate;
+      return matchSearch && matchFilter;
     });
-  }, [transactions, search, filter, showDuplicatesOnly, duplicateIds]);
+  }, [transactions, search, filter]);
 
   const incomeTotal = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expenseTotal = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
@@ -223,30 +197,6 @@ export default function TransactionsPage() {
           </Button>
         </div>
       </div>
-
-      {duplicateIds.size > 0 && (
-        <div style={{
-          marginBottom: 16, padding: '12px 16px', background: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 'var(--radius-md)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#f59e0b' }}>
-            <AlertTriangle size={16} />
-            <span><strong>{duplicateIds.size} potential duplicate transactions</strong> detected (matching amount within 3 days).</span>
-          </div>
-          <button
-            onClick={() => setShowDuplicatesOnly(prev => !prev)}
-            style={{
-              padding: '6px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6,
-              background: showDuplicatesOnly ? 'var(--warning)' : 'transparent',
-              color: showDuplicatesOnly ? '#000' : 'var(--warning)',
-              border: '1px solid var(--warning)', cursor: 'pointer'
-            }}
-          >
-            {showDuplicatesOnly ? 'Show All Transactions' : 'Review Duplicates'}
-          </button>
-        </div>
-      )}
 
       <div className="mobile-grid-1 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
@@ -331,12 +281,10 @@ export default function TransactionsPage() {
                   key={tx.id}
                   style={{
                     borderTop: i > 0 ? '1px solid var(--bg-border)' : 'none',
-                    borderLeft: duplicateIds.has(tx.id) ? '3px solid var(--warning)' : '3px solid transparent',
-                    background: duplicateIds.has(tx.id) ? 'rgba(245, 158, 11, 0.03)' : 'transparent',
                     transition: 'background 0.1s ease',
                   }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = duplicateIds.has(tx.id) ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-hover)'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = duplicateIds.has(tx.id) ? 'rgba(245, 158, 11, 0.03)' : 'transparent'}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                 >
                   <td className="mobile-tight-td" style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formatDate(tx.date)}</div>
@@ -381,15 +329,7 @@ export default function TransactionsPage() {
                           >
                             {cleanDescription(tx.description) || 'No description'}
                           </div>
-                          {duplicateIds.has(tx.id) && (
-                            <span style={{
-                              fontSize: 10, padding: '2px 6px', borderRadius: 4,
-                              background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)',
-                              fontWeight: 600, flexShrink: 0
-                            }}>
-                              Duplicate
-                            </span>
-                          )}
+
                           <button 
                             onClick={() => { setEditingId(tx.id); setEditingField('description'); setEditValue(tx.description || ''); }}
                             style={{ padding: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
