@@ -41,6 +41,289 @@ async function logAIAction(supabaseClient: any, params: {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MEMORY SYSTEM
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetches active memories for a user, ordered by importance (desc) then recency.
+ * Returns a formatted string ready to inject into the system prompt.
+ * Max 20 memories to stay within token budgets.
+ */
+async function fetchUserMemories(supabaseClient: any, userId: string): Promise<{
+  memories: any[];
+  formattedCtx: string;
+}> {
+  try {
+    const { data: memories, error } = await supabaseClient
+      .from("rova_memories")
+      .select("id, memory_type, content, importance, created_at")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .order("importance", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error || !memories || memories.length === 0) {
+      return { memories: [], formattedCtx: "" };
+    }
+
+    const grouped: Record<string, string[]> = {};
+    for (const m of memories) {
+      const type = m.memory_type || "general";
+      if (!grouped[type]) grouped[type] = [];
+      grouped[type].push(m.content);
+    }
+
+    const typeLabels: Record<string, string> = {
+      preference: "User Preferences",
+      business_detail: "Business Details",
+      instruction: "Standing Instructions",
+      recurring_contact: "Known Contacts / Suppliers",
+      decision: "Past Decisions",
+      general: "Other Context",
+    };
+
+    const sections = Object.entries(grouped)
+      .map(([type, items]) => {
+        const label = typeLabels[type] || type;
+        return `${label}:\n${items.map(i => `  - ${i}`).join("\n")}`;
+      })
+      .join("\n\n");
+
+    const formattedCtx = `
+─────────────────────────────────
+ROVA MEMORY — What I Know About This User/Business
+─────────────────────────────────
+${sections}
+
+Use this context to personalise responses naturally. Do NOT announce that you are using memory; just use it.
+`.trim();
+
+    return { memories, formattedCtx };
+  } catch (err) {
+    console.error("[ROVA Memory] Failed to fetch memories:", err);
+    return { memories: [], formattedCtx: "" };
+  }
+}
+
+/**
+ * Detects if the user message is a memory management command.
+ * Returns the command type or null.
+ */
+function detectMemoryCommand(text: string): "forget_last" | "forget_all" | "recall" | "force_remember" | null {
+  const q = text.toLowerCase().trim();
+
+  // "forget that" / "forget the last thing" / "don't remember that"
+  if (/\b(forget that|forget the last|don't remember that|delete that memory|remove that memory|erase that)\b/i.test(q)) {
+    return "forget_last";
+  }
+  // "clear all my memories" / "forget everything"
+  if (/\b(clear all memories|forget everything|reset my memory|delete all memories|wipe my memories)\b/i.test(q)) {
+    return "forget_all";
+  }
+  // "what do you remember about me?" / "show my memories" / "what do you know about me?"
+  if (/\b(what do you (remember|know) about me|show my memories?|list my memories?|what.*(remember|know|stored|saved).*about me)\b/i.test(q)) {
+    return "recall";
+  }
+  // "remember that I prefer..." / "remember that my business..."
+  if (/^remember (that |this )?/i.test(q)) {
+    return "force_remember";
+  }
+  return null;
+}
+
+/**
+ * Handles a memory management command. Returns a plain-text reply.
+ */
+async function handleMemoryCommand(
+  supabaseClient: any,
+  userId: string,
+  command: "forget_last" | "forget_all" | "recall" | "force_remember",
+  userMessage: string,
+  existingMemories: any[]
+): Promise<string> {
+  try {
+    if (command === "recall") {
+      if (existingMemories.length === 0) {
+        return "I don't have any stored memories about you yet. As we chat, I'll start remembering useful details about your business and preferences.";
+      }
+      const lines = existingMemories.map((m, i) => {
+        const label = m.memory_type.replace(/_/g, " ");
+        return `${i + 1}. [${label}] ${m.content}`;
+      });
+      return `Here's what I remember about you:\n\n${lines.join("\n")}\n\nYou can say "forget that" to remove specific memories, or "clear all memories" to start fresh.`;
+    }
+
+    if (command === "forget_last") {
+      if (existingMemories.length === 0) {
+        return "I don't have any memories stored yet — nothing to forget!";
+      }
+      // Soft-delete the most recently created active memory
+      const latest = [...existingMemories].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0];
+      await supabaseClient
+        .from("rova_memories")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", latest.id)
+        .eq("user_id", userId);
+      return `Done — I've forgotten: "${latest.content}". Is there anything else you'd like me to update?`;
+    }
+
+    if (command === "forget_all") {
+      await supabaseClient
+        .from("rova_memories")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("is_active", true);
+      return "Done — I've cleared all my stored memories about you. We're starting fresh. I'll learn from our conversations going forward.";
+    }
+
+    if (command === "force_remember") {
+      // Extract the thing to remember: strip the "remember that" prefix
+      const content = userMessage.replace(/^remember (that |this )?/i, "").trim();
+      if (!content) {
+        return "What would you like me to remember? Please say: \"Remember that [the thing you want me to know]\"";
+      }
+      await supabaseClient.from("rova_memories").insert({
+        user_id: userId,
+        memory_type: "instruction",
+        content,
+        source_summary: "Explicitly instructed by user",
+        importance: 8,
+        is_active: true,
+      });
+      return `Got it — I'll remember: "${content}"`;
+    }
+  } catch (err) {
+    console.error("[ROVA Memory] handleMemoryCommand error:", err);
+    return "Sorry, I ran into an issue managing your memory. Please try again.";
+  }
+  return "";
+}
+
+/**
+ * Calls the LLM to extract zero or more memories from the completed conversation turn.
+ * Runs fire-and-forget style — we don't await it in the main response path to keep
+ * latency low. Errors are caught and logged but never surface to the user.
+ */
+async function extractAndSaveMemories(
+  supabaseClient: any,
+  userId: string,
+  userMessage: string,
+  assistantReply: string,
+  apiKey: string,
+  apiEndpoint: string,
+  apiModel: string
+): Promise<void> {
+  const extractionPrompt = `You are a memory extraction assistant for ROVA, an AI accounting assistant for Nigerian businesses.
+
+Your job: read the user message and assistant reply below, then decide if there is any USEFUL information worth remembering for future conversations.
+
+EXTRACT memories ONLY if the information is:
+- A clear user or business preference (e.g. "User prefers bank transfer payments")
+- A business detail not stored in the database (e.g. "Business closes at 6pm daily")
+- An explicit standing instruction (e.g. "Always add 5% service charge to invoices")
+- A recurring contact or relationship (e.g. "Dangote Cement is their main supplier")
+- An important decision made in this conversation (e.g. "Agreed to move payroll to 25th of each month")
+- General context that will meaningfully improve future responses
+
+DO NOT extract:
+- Transaction amounts or routine financial data (already in the database)
+- Greetings, thank-yous, confirmations, or filler phrases
+- Questions asked by the user (not facts)
+- Information the user was uncertain about
+
+User message: "${userMessage}"
+Assistant reply: "${assistantReply}"
+
+Respond ONLY with a valid JSON object in this exact format:
+{
+  "memories": [
+    {
+      "memory_type": "preference" | "business_detail" | "instruction" | "recurring_contact" | "decision" | "general",
+      "content": "concise factual statement about the user/business (max 120 chars)",
+      "importance": 1-10
+    }
+  ]
+}
+
+If nothing is worth remembering, return: {"memories": []}
+Do not include any text outside the JSON.`;
+
+  try {
+    const response = await fetch(apiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: apiModel,
+        messages: [{ role: "user", content: extractionPrompt }],
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        max_tokens: 500,
+      }),
+    });
+
+    if (!response.ok) return;
+
+    const resData = await response.json();
+    const rawContent = resData.choices?.[0]?.message?.content ?? "{}";
+    let parsed: any;
+    try {
+      parsed = JSON.parse(rawContent);
+    } catch {
+      return;
+    }
+
+    const newMemories: any[] = parsed.memories ?? [];
+    if (!Array.isArray(newMemories) || newMemories.length === 0) return;
+
+    // Deduplicate against existing active memories — avoid storing near-duplicates
+    const { data: existingActive } = await supabaseClient
+      .from("rova_memories")
+      .select("content")
+      .eq("user_id", userId)
+      .eq("is_active", true);
+
+    const existingContents = new Set(
+      (existingActive ?? []).map((m: any) => m.content.toLowerCase().slice(0, 60))
+    );
+
+    const toInsert = newMemories
+      .filter((m: any) => {
+        if (!m.content || !m.memory_type) return false;
+        const fingerprint = m.content.toLowerCase().slice(0, 60);
+        return !existingContents.has(fingerprint);
+      })
+      .map((m: any) => ({
+        user_id: userId,
+        memory_type: m.memory_type,
+        content: m.content.slice(0, 500), // safety cap
+        source_summary: `Extracted from: "${userMessage.slice(0, 80)}"`,
+        importance: typeof m.importance === "number"
+          ? Math.min(10, Math.max(1, m.importance))
+          : 5,
+        is_active: true,
+      }));
+
+    if (toInsert.length > 0) {
+      await supabaseClient.from("rova_memories").insert(toInsert);
+      console.log(`[ROVA Memory] Saved ${toInsert.length} new memory/memories for user ${userId}`);
+    }
+  } catch (err) {
+    // Fire-and-forget — never crash the main flow
+    console.error("[ROVA Memory] extractAndSaveMemories error:", err);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN SERVE HANDLER
+// ─────────────────────────────────────────────────────────────────────────────
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -72,6 +355,28 @@ serve(async (req) => {
     }
 
     const lastUserMsg = conversationMessages.filter((m) => m.role === "user").pop()?.content || "";
+
+    // ── MEMORY: Check for memory management commands FIRST ────────────────────
+    const memoryCommand = detectMemoryCommand(lastUserMsg);
+
+    // Always pre-fetch memories (needed for recall command + context injection)
+    const { memories: existingMemories, formattedCtx: memoryCtx } =
+      await fetchUserMemories(supabaseClient, activeUserId);
+
+    if (memoryCommand) {
+      const memoryReply = await handleMemoryCommand(
+        supabaseClient,
+        activeUserId,
+        memoryCommand,
+        lastUserMsg,
+        existingMemories
+      );
+      // Memory commands are handled — return immediately, no DB writes or LLM needed
+      return new Response(
+        JSON.stringify({ reply: memoryReply, actions: [], toolExecuted: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
 
     // ── 1. REAL-TIME FINANCIAL CONTEXT FETCHING ─────────────────────────────────
     const [txRes, accRes, invRes, invcRes, empRes, payrollRes, teamRes] = await Promise.all([
@@ -167,6 +472,8 @@ ${staffRestriction}
 
 ${financialCtx}
 
+${memoryCtx}
+
 ─────────────────────────────────
 ROVA CORE TOOL DEFINITIONS
 ─────────────────────────────────
@@ -190,6 +497,13 @@ DATA CREATION TOOLS:
 
 HIGH-RISK TOOLS (NEVER execute from ambiguous instructions — require explicit typed confirmation):
 13. deleteTransaction(transactionId) — Permanently delete a transaction record
+
+─────────────────────────────────
+MEMORY SYSTEM AWARENESS
+─────────────────────────────────
+You have a persistent memory system. You already know what's in the ROVA MEMORY section above.
+- Use stored memories naturally to personalise responses — do NOT say "Based on my memory..." or "According to my records..."
+- If the user says "remember that...", "forget that", "what do you remember about me?", or "clear all memories", handle it gracefully — these are already intercepted before reaching you, so just respond naturally if they ask in a different way.
 
 ─────────────────────────────────
 CRITICAL BEHAVIOUR RULES
@@ -272,9 +586,6 @@ RESPONSE FORMAT (strict JSON)
     }
 
     // ── 4. CONFIRMATION GATE ─────────────────────────────────────────────────────
-    // For write operations, if LLM flagged requires_confirmation, return early with pending state.
-    // The client will display a confirm bubble. When the user confirms, client re-sends with
-    // body.confirmed = true.
     const WRITE_TOOLS = ["createInvoice", "createReceipt"];
     const HIGH_RISK_TOOLS = ["deleteTransaction"];
     const toolName = toolCall?.name || "";
@@ -448,6 +759,21 @@ RESPONSE FORMAT (strict JSON)
     // Clean all asterisks from final reply and summaries
     reply = cleanAsterisks(reply);
     confirmationSummary = cleanAsterisks(confirmationSummary);
+
+    // ── 6. MEMORY EXTRACTION (fire-and-forget — does not block the response) ─────
+    // Only extract if we have an API key and this wasn't a trivial/empty exchange
+    if (apiKey && lastUserMsg.trim().length > 10 && reply.trim().length > 10) {
+      // Deliberately NOT awaited — memory extraction runs after response is sent
+      extractAndSaveMemories(
+        supabaseClient,
+        activeUserId,
+        lastUserMsg,
+        reply,
+        apiKey,
+        apiEndpoint,
+        apiModel
+      ).catch((err) => console.error("[ROVA Memory] Background extraction failed:", err));
+    }
 
     return new Response(JSON.stringify({ reply, actions, toolExecuted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
