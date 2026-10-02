@@ -117,6 +117,56 @@ export class WebhookController {
     // Fallback: send plain text welcome
     await this.sendWelcomeText(recipientPhone);
   }
+  // ── Trigger ROVA Business Hub Mini-App Flow ──────────────────────────────────
+  async sendBusinessHubFlow(recipientPhone: string, ctaTitle = 'Open Dashboard'): Promise<void> {
+    const flowId = env.WHATSAPP_BUSINESS_HUB_FLOW_ID || '2497408190738308';
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: recipientPhone,
+            type: 'interactive',
+            interactive: {
+              type: 'flow',
+              header: { type: 'text', text: 'ROVA Business Hub 📊' },
+              body: {
+                text: 'Manage sales, log expenses, update inventory, and view business reports.',
+              },
+              footer: { text: 'ROVA Mini App' },
+              action: {
+                name: 'flow',
+                parameters: {
+                  flow_message_version: '3',
+                  flow_token: `rova_${recipientPhone}_${Date.now()}`,
+                  flow_id: flowId,
+                  flow_cta: ctaTitle,
+                  flow_action: 'navigate',
+                  flow_action_payload: {
+                    screen: 'DASHBOARD',
+                  },
+                },
+              },
+            },
+          }),
+        }
+      );
+      const result = await res.json() as any;
+      if (res.ok) {
+        console.log(`✅ ROVA Business Hub Flow sent to ${recipientPhone}`);
+      } else {
+        console.error(`❌ Failed to send Business Hub Flow:`, JSON.stringify(result));
+      }
+    } catch (err) {
+      console.error('Error triggering Business Hub flow:', err);
+    }
+  }
   // ───────────────────────────────────────────────────────────────────────────
 
   /**
@@ -221,11 +271,23 @@ export class WebhookController {
         return;
       }
 
-      // STEP 3: GREETING DETECTION — trigger onboarding flow
+      // STEP 3: SMART ROUTING — Mini App Hub vs Registration
+      const hubKeywords = ['menu', 'dashboard', 'hub', 'app', 'manage', 'sales', 'stock', 'inventory', 'balance'];
       const greetings = ['hi', 'hello', 'start', 'hey', 'register', 'join'];
-      if (greetings.includes(text.trim().toLowerCase())) {
-        await this.triggerOnboardingFlow(from);
-        return;
+      const cleanText = text.trim().toLowerCase();
+
+      const isHubCommand = hubKeywords.some(k => cleanText.includes(k));
+      const isGreeting = greetings.includes(cleanText);
+
+      if (isHubCommand || isGreeting) {
+        const user = await this.authService.getUserByPhone(from);
+        if (user || isHubCommand) {
+          await this.sendBusinessHubFlow(from);
+          return;
+        } else {
+          await this.triggerOnboardingFlow(from);
+          return;
+        }
       }
 
       // STEP 4: HEAVY TASK DETECTION

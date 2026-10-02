@@ -27,6 +27,12 @@ app.use(express.json({
 // Register routes
 app.use('/webhook', webhookRoutes);
 
+// Flow endpoints aliases
+import { FlowController } from './webhook/flow.controller';
+const flowController = new FlowController();
+app.post('/api/whatsapp/flow', flowController.handleFlow.bind(flowController));
+app.post('/flow', flowController.handleFlow.bind(flowController));
+
 // Start the BullMQ worker — isolated so crashes don't affect the HTTP server
 try {
   const worker = new TransactionWorker();
