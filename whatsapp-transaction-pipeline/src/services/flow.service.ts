@@ -5,16 +5,41 @@ import { supabase } from '../config/supabase';
 import { Logger } from '../utils/logger';
 
 export class FlowService {
-  private privateKey: string;
+  private privateKey: string = '';
 
   constructor() {
-    const keyPath = path.resolve(__dirname, '../../keys/flow_private_key.pem');
-    try {
-      this.privateKey = fs.readFileSync(keyPath, 'utf8');
-    } catch (e: any) {
-      Logger.error(`Could not read flow_private_key.pem from ${keyPath}: ${e.message}`);
-      this.privateKey = '';
+    this.initPrivateKey();
+  }
+
+  private initPrivateKey() {
+    // 1. Try reading from environment variable (ideal for Render/Cloud)
+    if (process.env.WHATSAPP_FLOW_PRIVATE_KEY) {
+      this.privateKey = process.env.WHATSAPP_FLOW_PRIVATE_KEY.replace(/\\n/g, '\n').trim();
+      Logger.info('🔑 Loaded Flow private key from WHATSAPP_FLOW_PRIVATE_KEY env');
+      return;
     }
+
+    // 2. Fallback to filesystem lookup
+    const possiblePaths = [
+      path.resolve(process.cwd(), 'keys/flow_private_key.pem'),
+      path.resolve(process.cwd(), 'whatsapp-transaction-pipeline/keys/flow_private_key.pem'),
+      path.resolve(__dirname, '../../keys/flow_private_key.pem'),
+      path.resolve(__dirname, '../keys/flow_private_key.pem'),
+    ];
+
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          this.privateKey = fs.readFileSync(p, 'utf8').trim();
+          Logger.info(`🔑 Loaded Flow private key from ${p}`);
+          return;
+        } catch (e: any) {
+          Logger.error(`Error reading key from ${p}: ${e.message}`);
+        }
+      }
+    }
+
+    Logger.error('❌ Flow private key not found in environment or filesystem');
   }
 
   /**

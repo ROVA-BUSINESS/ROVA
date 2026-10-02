@@ -15,6 +15,7 @@ const envSchema = z.object({
   WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
   WHATSAPP_FLOW_ID: z.string().optional(),
   WHATSAPP_BUSINESS_HUB_FLOW_ID: z.string().default('2497408190738308'),
+  WHATSAPP_FLOW_PRIVATE_KEY: z.string().optional(),
   
   // Supabase Config
   SUPABASE_URL: z.string().url(),
