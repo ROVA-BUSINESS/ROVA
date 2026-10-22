@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
-  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap
+  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap, Upload, AlertTriangle
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
@@ -17,7 +18,8 @@ import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 type Section = 'profile' | 'whatsapp' | 'accounts' | 'security' | 'appearance';
 
 export default function SettingsPage() {
-  const { user, profile, updateProfile } = useAuth();
+  const navigate = useNavigate();
+  const { user, profile, updateProfile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [section, setSection] = useState<Section>('profile');
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -26,11 +28,22 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isBankChoiceOpen, setIsBankChoiceOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     full_name: '',
     business_name: '',
     phone: '',
+    registration_type: 'registered' as 'registered' | 'unregistered',
+    rc_bn_number: '',
+    business_type: 'Retail & E-commerce',
+    state: 'Lagos',
+    city: 'Ikeja',
+    address: '',
+    country: 'Nigeria',
+    logo_url: '',
     mode: 'business' as 'personal' | 'business',
     currency: 'NGN',
     staff_visibility_limit: '500000'
@@ -60,6 +73,14 @@ export default function SettingsPage() {
         full_name: profile.full_name || '',
         business_name: profile.business_name || '',
         phone: profile.phone || '',
+        registration_type: profile.registration_type || 'registered',
+        rc_bn_number: profile.rc_bn_number || '',
+        business_type: profile.business_type || 'Retail & E-commerce',
+        state: profile.state || 'Lagos',
+        city: profile.city || 'Ikeja',
+        address: profile.address || '',
+        country: profile.country || 'Nigeria',
+        logo_url: profile.logo_url || '',
         mode: profile.mode || 'business',
         currency: profile.currency || 'NGN',
         staff_visibility_limit: String(profile.staff_visibility_limit || 500000)
@@ -109,6 +130,50 @@ export default function SettingsPage() {
     } else {
       console.error("Failed to save profile:", error);
       alert("Failed to save profile: " + (error.message || "Unknown error"));
+    }
+  }
+
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Logo image must be under 2MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setProfileForm(prev => ({ ...prev, logo_url: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleDeleteUserAccount() {
+    if (deleteConfirmText !== 'DELETE') return;
+    setIsDeletingAccount(true);
+    try {
+      if (user) {
+        await Promise.allSettled([
+          supabase.from('transactions').delete().eq('user_id', user.id),
+          supabase.from('invoices').delete().eq('user_id', user.id),
+          supabase.from('expenses').delete().eq('user_id', user.id),
+          supabase.from('accounts').delete().eq('user_id', user.id),
+          supabase.from('categories').delete().eq('user_id', user.id),
+          supabase.from('inventory_items').delete().eq('user_id', user.id),
+          supabase.from('notifications').delete().eq('user_id', user.id),
+          supabase.from('ai_pending_clarifications').delete().eq('user_id', user.id),
+          supabase.from('team_members').delete().eq('owner_id', user.id),
+          supabase.from('profiles').delete().eq('id', user.id),
+        ]);
+        await signOut();
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Account deletion error:', err);
+      alert('Failed to delete account. Please contact support.');
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteModal(false);
     }
   }
 
@@ -172,50 +237,201 @@ export default function SettingsPage() {
           {section === 'profile' && (
             <Card>
               <div style={{ marginBottom: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Business Details</h3>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>This information will be used for invoices and reports.</p>
+                <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Business Profile Settings</h3>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>View and update your ROVA business profile, registration info, and contact details.</p>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Owner Full Name"
-                      value={profileForm.full_name}
-                      onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })}
-                    />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                
+                {/* 1. Business Info */}
+                <div style={{ borderBottom: '1px solid var(--bg-border)', paddingBottom: 20 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>1. Business Information</h4>
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Owner Full Name"
+                        value={profileForm.full_name}
+                        onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Business Registered Name"
+                        value={profileForm.business_name}
+                        onChange={e => setProfileForm({ ...profileForm, business_name: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Business Registered Name"
-                      value={profileForm.business_name}
-                      onChange={e => setProfileForm({ ...profileForm, business_name: e.target.value })}
-                    />
+
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>Registration Type</label>
+                      <select
+                        value={profileForm.registration_type}
+                        onChange={e => setProfileForm({ ...profileForm, registration_type: e.target.value as any })}
+                        style={{
+                          width: '100%', padding: '12px', borderRadius: 10, border: '1px solid var(--bg-border)',
+                          background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 14
+                        }}
+                      >
+                        <option value="registered">Registered Business (CAC)</option>
+                        <option value="unregistered">Unregistered Business</option>
+                      </select>
+                    </div>
+
+                    {profileForm.registration_type === 'registered' && (
+                      <div style={{ flex: 1 }}>
+                        <Input
+                          label="RC / BN Registration Number"
+                          value={profileForm.rc_bn_number}
+                          onChange={e => setProfileForm({ ...profileForm, rc_bn_number: e.target.value })}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Business Logo Upload */}
+                  <div style={{ marginTop: 20 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>
+                      Business Logo
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                      {profileForm.logo_url ? (
+                        <div style={{ position: 'relative', width: 64, height: 64, borderRadius: 12, border: '1px solid var(--bg-border)', overflow: 'hidden', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <img src={profileForm.logo_url} alt="Logo preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        </div>
+                      ) : (
+                        <div style={{ width: 64, height: 64, borderRadius: 12, border: '1px dashed var(--bg-border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                          <Building size={24} />
+                        </div>
+                      )}
+                      <div>
+                        <input
+                          type="file"
+                          id="logo-upload-input"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          onChange={handleLogoUpload}
+                          style={{ display: 'none' }}
+                        />
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label
+                            htmlFor="logo-upload-input"
+                            style={{
+                              padding: '8px 14px', borderRadius: 8, background: 'var(--bg-elevated)',
+                              border: '1px solid var(--bg-border)', color: 'var(--text-primary)',
+                              fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6
+                            }}
+                          >
+                            <Upload size={13} />
+                            {profileForm.logo_url ? 'Change Logo' : 'Upload Logo'}
+                          </label>
+                          {profileForm.logo_url && (
+                            <button
+                              type="button"
+                              onClick={() => setProfileForm(prev => ({ ...prev, logo_url: '' }))}
+                              style={{
+                                padding: '8px 12px', borderRadius: 8, background: 'transparent',
+                                border: '1px solid rgba(239,68,68,0.3)', color: 'var(--error)',
+                                fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                              }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
+                          PNG, JPG, SVG or WEBP (max 2MB). Automatically appears on invoices & receipts.
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Business Phone"
-                      value={profileForm.phone}
-                      onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    />
+                {/* 2. Verification Status Card */}
+                <div style={{ borderBottom: '1px solid var(--bg-border)', paddingBottom: 20 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>2. Verification Status</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div style={{ background: 'var(--bg-elevated)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>CAC Business Verification</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: profile?.business_verification_status === 'verified' ? 'var(--success)' : 'var(--text-secondary)' }}>
+                        {profile?.registration_type === 'registered' ? (profile?.business_verification_status === 'verified' ? 'Verified ✓' : 'Unverified / Pending') : 'N/A (Unregistered)'}
+                      </span>
+                    </div>
+
+                    <div style={{ background: 'var(--bg-elevated)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Identity Verification</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)' }}>
+                        {profile?.nin_last_4 ? `NIN Connected (***${profile.nin_last_4})` : profile?.bvn_last_4 ? `BVN Connected (***${profile.bvn_last_4})` : 'Deferred (Test Mode Active)'}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>Currency</label>
-                    <select
-                      value={profileForm.currency}
-                      onChange={e => setProfileForm({ ...profileForm, currency: e.target.value })}
-                      style={{
-                        width: '100%', padding: '12px', borderRadius: 10, border: '1px solid var(--bg-border)',
-                        background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 14
-                      }}
-                    >
-                      <option value="NGN">NGN - Nigerian Naira</option>
-                      <option value="USD">USD - US Dollar</option>
-                      <option value="GBP">GBP - British Pound</option>
-                    </select>
+                </div>
+
+                {/* 3. Address & Contact */}
+                <div style={{ borderBottom: '1px solid var(--bg-border)', paddingBottom: 20 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>3. Contact & Address</h4>
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Business Phone"
+                        value={profileForm.phone}
+                        onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Business Address"
+                        value={profileForm.address}
+                        onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="City"
+                        value={profileForm.city}
+                        onChange={e => setProfileForm({ ...profileForm, city: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="State"
+                        value={profileForm.state}
+                        onChange={e => setProfileForm({ ...profileForm, state: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Branding & Currency */}
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 14 }}>4. Branding & Currency</h4>
+                  <div className="mobile-col" style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Logo Image URL"
+                        value={profileForm.logo_url}
+                        onChange={e => setProfileForm({ ...profileForm, logo_url: e.target.value })}
+                        placeholder="https://example.com/logo.png"
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 8 }}>Primary Currency</label>
+                      <select
+                        value={profileForm.currency}
+                        onChange={e => setProfileForm({ ...profileForm, currency: e.target.value })}
+                        style={{
+                          width: '100%', padding: '12px', borderRadius: 10, border: '1px solid var(--bg-border)',
+                          background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 14
+                        }}
+                      >
+                        <option value="NGN">NGN - Nigerian Naira</option>
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="GBP">GBP - British Pound</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -223,7 +439,7 @@ export default function SettingsPage() {
                   variant="primary"
                   onClick={handleSaveProfile}
                   loading={saving}
-                  style={{ alignSelf: 'flex-start', marginTop: 12 }}
+                  style={{ alignSelf: 'flex-start', marginTop: 8 }}
                 >
                   {saved ? <><Check size={18} /> Saved</> : 'Save Changes'}
                 </Button>
@@ -458,16 +674,69 @@ export default function SettingsPage() {
             <Card>
               <h3 style={{ fontSize: 15, marginBottom: 20 }}>Account Security</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                <div style={{ padding: '14px', background: 'var(--error-dim)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--error)', marginBottom: 4 }}>Danger Zone</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Permanently delete your account and all associated data.</div>
-                  <Button variant="danger" size="sm">Delete Account</Button>
+                <div style={{ padding: '16px', background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--error)', marginBottom: 6 }}>
+                    <AlertTriangle size={16} />
+                    <span>Danger Zone — Delete Account</span>
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>
+                    Permanently delete your ROVA account and all associated transactions, invoices, inventory, reports, and banking credentials. This action is irreversible.
+                  </p>
+                  <Button variant="danger" size="sm" onClick={() => { setDeleteConfirmText(''); setShowDeleteModal(true); }}>
+                    Delete Account
+                  </Button>
                 </div>
               </div>
             </Card>
           )}
         </div>
       </div>
+
+      {showDeleteModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: 'var(--radius-xl)', maxWidth: 440, width: '100%', padding: 24, boxShadow: 'var(--shadow-lg)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--error)', marginBottom: 12 }}>
+              <AlertTriangle size={22} />
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>Delete Account Permanently</h3>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>
+              This will permanently delete your ROVA account, business profile, all recorded transactions, invoices, inventory, connected bank accounts, and reports. <strong>This action cannot be undone.</strong>
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+              Please type <strong style={{ color: 'var(--text-primary)' }}>DELETE</strong> to confirm:
+            </p>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE"
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 8,
+                background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
+                color: 'var(--text-primary)', fontSize: 14, outline: 'none', marginBottom: 20
+              }}
+            />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }} disabled={isDeletingAccount}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                disabled={deleteConfirmText !== 'DELETE'}
+                loading={isDeletingAccount}
+                onClick={handleDeleteUserAccount}
+              >
+                Permanently Delete Account
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BankConnectChoiceModal
         open={isBankChoiceOpen}

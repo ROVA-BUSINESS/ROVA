@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Sparkles, CheckCircle } from 'lucide-react';
+import { Brain, CheckCircle } from 'lucide-react';
 import { supabase, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { autoClassify } from '../lib/categorise';
@@ -219,7 +219,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
               background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
             }}>
-              <Sparkles size={11} color="var(--accent-light)" style={{ animation: aiLoading ? 'spin 1s linear infinite' : 'none' }} />
+              <Brain size={12} color="var(--accent-light)" style={{ animation: aiLoading ? 'spin 1s linear infinite' : 'none' }} />
               {aiLoading ? (
                 <span style={{ color: 'var(--text-muted)' }}>AI is classifying…</span>
               ) : (

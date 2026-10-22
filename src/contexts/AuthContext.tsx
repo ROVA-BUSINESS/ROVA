@@ -12,7 +12,7 @@ type AuthContextType = {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
   refreshAuth: () => Promise<void>;
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   }
 
-  async function signUp(email: string, password: string, fullName: string) {
+  async function signUp(email: string, password: string, fullName: string, phone?: string) {
     const cleanEmail = email.trim().toLowerCase();
 
     // Check if email has been onboarded by an Admin as staff
@@ -111,10 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (!error && data.user) {
-      await supabase.from('profiles').insert({
+      await supabase.from('profiles').upsert({
         id: data.user.id,
         full_name: fullName,
+        phone: phone || '',
         mode: 'business',
+        business_profile_completed: false,
+        onboarding_step: 1,
       });
     }
     return { error, needsEmailConfirmation: !data.session };

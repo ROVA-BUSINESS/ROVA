@@ -5,18 +5,24 @@ export function formatCurrency(amount: number, currency = 'NGN'): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
 }
 
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return String(dateStr);
   return date.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export function formatTime(dateStr: string): string {
+export function formatTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-export function formatShortDate(dateStr: string): string {
+export function formatShortDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
   return date.toLocaleDateString('en-NG', { day: 'numeric', month: 'short' });
 }
 

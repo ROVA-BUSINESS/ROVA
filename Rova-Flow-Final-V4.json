@@ -1,0 +1,375 @@
+{
+  "version": "7.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "USER_INFO": [
+      "BUSINESS_INFO"
+    ],
+    "BUSINESS_INFO": [
+      "ACCOUNT_SETUP"
+    ]
+  },
+  "screens": [
+    {
+      "id": "USER_INFO",
+      "title": "Personal Details",
+      "data": {
+        "full_name": {
+          "type": "string",
+          "__example__": "Erimipo Omoniyi"
+        },
+        "email": {
+          "type": "string",
+          "__example__": "erimipo@rova.ng"
+        },
+        "phone_number": {
+          "type": "string",
+          "__example__": "08012345678"
+        },
+        "id_type": {
+          "type": "string",
+          "__example__": "NIN"
+        },
+        "id_number": {
+          "type": "string",
+          "__example__": "12345678901"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Tell us about yourself"
+          },
+          {
+            "type": "TextInput",
+            "label": "Full Name",
+            "name": "full_name",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Email Address",
+            "name": "email",
+            "input-type": "email",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Phone Number",
+            "name": "phone_number",
+            "input-type": "phone",
+            "required": true
+          },
+          {
+            "type": "Dropdown",
+            "label": "ID Type for Verification",
+            "name": "id_type",
+            "required": true,
+            "data-source": [
+              {
+                "id": "NIN",
+                "title": "NIN"
+              },
+              {
+                "id": "BVN",
+                "title": "BVN"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "NIN / BVN (11 digits)",
+            "name": "id_number",
+            "required": true,
+            "helper-text": "Encrypted & secure"
+          },
+          {
+            "type": "Footer",
+            "label": "Continue",
+            "on-click-action": {
+              "name": "navigate",
+              "next": {
+                "type": "screen",
+                "name": "BUSINESS_INFO"
+              },
+              "payload": {
+                "full_name": "${data.full_name}",
+                "email": "${data.email}",
+                "phone_number": "${data.phone_number}",
+                "id_type": "${data.id_type}",
+                "id_number": "${data.id_number}",
+                "business_name": "",
+                "business_email": "",
+                "business_phone": "",
+                "registration_type": "",
+                "registration_number": "",
+                "business_logo_link": ""
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "BUSINESS_INFO",
+      "title": "Business Details",
+      "data": {
+        "full_name": {
+          "type": "string",
+          "__example__": "Erimipo Omoniyi"
+        },
+        "email": {
+          "type": "string",
+          "__example__": "erimipo@rova.ng"
+        },
+        "phone_number": {
+          "type": "string",
+          "__example__": "08012345678"
+        },
+        "id_type": {
+          "type": "string",
+          "__example__": "NIN"
+        },
+        "id_number": {
+          "type": "string",
+          "__example__": "12345678901"
+        },
+        "business_name": {
+          "type": "string",
+          "__example__": "Rova Logistics"
+        },
+        "business_email": {
+          "type": "string",
+          "__example__": "hello@rova.ng"
+        },
+        "business_phone": {
+          "type": "string",
+          "__example__": "09132957881"
+        },
+        "registration_type": {
+          "type": "string",
+          "__example__": "BN"
+        },
+        "registration_number": {
+          "type": "string",
+          "__example__": "BN 1234567"
+        },
+        "business_logo_link": {
+          "type": "string",
+          "__example__": "https://drive.google.com/logo"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Business Information"
+          },
+          {
+            "type": "TextInput",
+            "label": "Business Name",
+            "name": "business_name",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Business Email",
+            "name": "business_email",
+            "input-type": "email",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Business Phone",
+            "name": "business_phone",
+            "input-type": "phone",
+            "required": true
+          },
+          {
+            "type": "Dropdown",
+            "label": "Registration Type",
+            "name": "registration_type",
+            "required": true,
+            "data-source": [
+              {
+                "id": "BN",
+                "title": "CAC Business Name"
+              },
+              {
+                "id": "RC",
+                "title": "Limited Company (LTD)"
+              },
+              {
+                "id": "IT",
+                "title": "Incorporated Trustee"
+              },
+              {
+                "id": "OTHER",
+                "title": "Other"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "RC / BN Number",
+            "name": "registration_number",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Business Logo Link (Optional)",
+            "name": "business_logo_link",
+            "required": false
+          },
+          {
+            "type": "Footer",
+            "label": "Continue",
+            "on-click-action": {
+              "name": "navigate",
+              "next": {
+                "type": "screen",
+                "name": "ACCOUNT_SETUP"
+              },
+              "payload": {
+                "full_name": "${data.full_name}",
+                "email": "${data.email}",
+                "phone_number": "${data.phone_number}",
+                "id_type": "${data.id_type}",
+                "id_number": "${data.id_number}",
+                "business_name": "${data.business_name}",
+                "business_email": "${data.business_email}",
+                "business_phone": "${data.business_phone}",
+                "registration_type": "${data.registration_type}",
+                "registration_number": "${data.registration_number}",
+                "business_logo_link": "${data.business_logo_link}",
+                "password": "",
+                "terms_accepted": []
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ACCOUNT_SETUP",
+      "title": "Create Account",
+      "terminal": true,
+      "data": {
+        "full_name": {
+          "type": "string",
+          "__example__": "Erimipo Omoniyi"
+        },
+        "email": {
+          "type": "string",
+          "__example__": "erimipo@rova.ng"
+        },
+        "phone_number": {
+          "type": "string",
+          "__example__": "08012345678"
+        },
+        "id_type": {
+          "type": "string",
+          "__example__": "NIN"
+        },
+        "id_number": {
+          "type": "string",
+          "__example__": "12345678901"
+        },
+        "business_name": {
+          "type": "string",
+          "__example__": "Rova Logistics"
+        },
+        "business_email": {
+          "type": "string",
+          "__example__": "hello@rova.ng"
+        },
+        "business_phone": {
+          "type": "string",
+          "__example__": "09132957881"
+        },
+        "registration_type": {
+          "type": "string",
+          "__example__": "BN"
+        },
+        "registration_number": {
+          "type": "string",
+          "__example__": "BN 1234567"
+        },
+        "business_logo_link": {
+          "type": "string",
+          "__example__": "https://"
+        },
+        "password": {
+          "type": "string",
+          "__example__": "Rova1234"
+        },
+        "terms_accepted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": [
+            "accepted"
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Secure Your Account"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Create a password. Google Sign-In available after."
+          },
+          {
+            "type": "TextInput",
+            "label": "Create Password",
+            "name": "password",
+            "input-type": "password",
+            "required": true
+          },
+          {
+            "type": "CheckboxGroup",
+            "label": "Agreement",
+            "name": "terms_accepted",
+            "required": true,
+            "data-source": [
+              {
+                "id": "accepted",
+                "title": "I accept Rova's Terms & Privacy Policy"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Create Rova Account",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "full_name": "${data.full_name}",
+                "email": "${data.email}",
+                "phone_number": "${data.phone_number}",
+                "id_type": "${data.id_type}",
+                "id_number": "${data.id_number}",
+                "business_name": "${data.business_name}",
+                "business_email": "${data.business_email}",
+                "business_phone": "${data.business_phone}",
+                "registration_type": "${data.registration_type}",
+                "registration_number": "${data.registration_number}",
+                "business_logo_link": "${data.business_logo_link}",
+                "password": "${data.password}",
+                "terms_accepted": "${data.terms_accepted}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,16 +1,19 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
-import { Mail, Lock, User } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Mail, Lock, Phone, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
 export default function SignupPage() {
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle, signIn } = useAuth();
   const { theme } = useTheme();
+  const navigate = useNavigate();
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,13 +29,27 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password, fullName);
-    setLoading(false);
+    const displayName = fullName.trim() || email.split('@')[0];
+    const { error: signUpError, needsEmailConfirmation } = await signUp(email, password, displayName, phone);
 
-    if (error) {
-      setError(error.message || 'Failed to create account. Please try again.');
-    } else {
+    if (signUpError) {
+      setLoading(false);
+      setError(signUpError.message || 'Failed to create account. Please try again.');
+      return;
+    }
+
+    if (needsEmailConfirmation) {
+      setLoading(false);
       setSuccessMsg('Account created successfully! Please check your email to confirm your account.');
+    } else {
+      // Automatically log user in and redirect to ROVA app/dashboard
+      const { error: loginErr } = await signIn(email, password);
+      setLoading(false);
+      if (!loginErr) {
+        navigate('/app/dashboard');
+      } else {
+        navigate('/login');
+      }
     }
   }
 
@@ -48,8 +65,8 @@ export default function SignupPage() {
         pointerEvents: 'none',
       }} />
 
-      <div style={{ width: '100%', maxWidth: 400, animation: 'fadeIn 0.4s ease' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+      <div style={{ width: '100%', maxWidth: 420, animation: 'fadeIn 0.4s ease' }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{
             width: 100, height: 'auto',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -61,9 +78,9 @@ export default function SignupPage() {
               style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
             />
           </div>
-          <h1 style={{ fontSize: 24, marginBottom: 6 }}>Create your business account</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6, color: 'var(--text-primary)' }}>Create your ROVA account</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-            Start managing your business finances with ROVA
+            Get started managing your business finances with ROVA
           </p>
         </div>
 
@@ -92,20 +109,30 @@ export default function SignupPage() {
             <Input
               label="Full Name"
               type="text"
-              placeholder="John Doe"
+              placeholder="e.g. John Doe"
               value={fullName}
               onChange={e => setFullName(e.target.value)}
               prefix={<User size={14} />}
               required
             />
             <Input
-              label="Email"
+              label="Business Email"
               type="email"
-              placeholder="you@example.com"
+              placeholder="you@company.com"
               value={email}
               onChange={e => setEmail(e.target.value)}
               prefix={<Mail size={14} />}
               required
+            />
+            <Input
+              label="Business Phone Number"
+              type="tel"
+              placeholder="e.g. 08012345678"
+              value={phone}
+              onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+              prefix={<Phone size={14} />}
+              inputMode="numeric"
+              pattern="[0-9]*"
             />
             <Input
               label="Password"

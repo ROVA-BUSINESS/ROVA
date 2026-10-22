@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Sparkles, Download, Edit2, Receipt } from 'lucide-react';
+import { useEffect, useState, useMemo, type FormEvent } from 'react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Brain, Download, Edit2, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,9 +58,21 @@ export default function TransactionsPage() {
       supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
       supabase.from('categories').select('*').or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
     ]);
+    const cats = catRes.data || [];
+    const hasSales = cats.some(c => c.name.toLowerCase() === 'sales' && c.type === 'income');
+    if (!hasSales && effectiveUserId) {
+      const { data: newCat } = await supabase.from('categories').insert({
+        user_id: effectiveUserId,
+        name: 'Sales',
+        type: 'income',
+        is_system: false,
+      }).select().maybeSingle();
+      if (newCat) cats.push(newCat);
+    }
+
     setTransactions(txRes.data || []);
     setAccounts(accRes.data || []);
-    setCategories(catRes.data || []);
+    setCategories(cats);
     setLoading(false);
   }
 
@@ -158,11 +170,13 @@ export default function TransactionsPage() {
     });
   }
 
-  const filtered = transactions.filter(tx => {
-    const matchSearch = !search || tx.description?.toLowerCase().includes(search.toLowerCase()) || (tx.category as any)?.name?.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'all' || tx.type === filter;
-    return matchSearch && matchFilter;
-  });
+  const filtered = useMemo(() => {
+    return transactions.filter(tx => {
+      const matchSearch = !search || tx.description?.toLowerCase().includes(search.toLowerCase()) || (tx.category as any)?.name?.toLowerCase().includes(search.toLowerCase());
+      const matchFilter = filter === 'all' || tx.type === filter;
+      return matchSearch && matchFilter;
+    });
+  }, [transactions, search, filter]);
 
   const incomeTotal = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expenseTotal = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
@@ -315,6 +329,7 @@ export default function TransactionsPage() {
                           >
                             {cleanDescription(tx.description) || 'No description'}
                           </div>
+
                           <button 
                             onClick={() => { setEditingId(tx.id); setEditingField('description'); setEditValue(tx.description || ''); }}
                             style={{ padding: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -446,7 +461,7 @@ export default function TransactionsPage() {
                 background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
               }}>
-                <Sparkles size={11} color="var(--accent-light)" />
+                <Brain size={12} color="var(--accent-light)" />
                 <span style={{ color: 'var(--text-muted)' }}>Auto-detected:</span>
                 <strong style={{ color: 'var(--accent-light)', textTransform: 'capitalize' }}>{form.type}</strong>
                 <span style={{ color: 'var(--text-muted)' }}>·</span>

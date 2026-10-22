@@ -15,21 +15,35 @@ type LedgerAccount = {
 };
 
 export default function GeneralLedgerPage() {
-  const { user } = useAuth();
+  const { user, isStaff, staffData } = useAuth();
+  const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (effectiveUserId) loadData();
+    else setLoading(false);
+  }, [effectiveUserId]);
 
   async function loadData() {
-    setLoading(true);
-    const { data } = await supabase.from('transactions').select('*, category:categories(*), account:accounts(*)').eq('user_id', user!.id).order('date', { ascending: true });
-    setTransactions(data || []);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*, category:categories(*), account:accounts(*)')
+        .eq('user_id', effectiveUserId!)
+        .order('date', { ascending: true });
+      if (error) {
+        console.error('Error loading ledger transactions:', error);
+      }
+      setTransactions(data || []);
+    } catch (err) {
+      console.error('Ledger load failed:', err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const ledger = buildLedger(transactions);
@@ -170,30 +184,32 @@ function buildLedger(transactions: Transaction[]): LedgerAccount[] {
 
     const cleanedDesc = cleanDescription(tx.description);
 
+    const amount = Number(tx.amount) || 0;
+
     if (tx.type === 'income') {
       const cashAcc = getOrCreate(accountName, 'asset');
       const incomeAcc = getOrCreate(catName, 'income');
 
-      cashAcc.totalDebit += tx.amount;
-      cashAcc.balance += tx.amount;
-      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: tx.amount, credit: 0, balance: cashAcc.balance });
+      cashAcc.totalDebit += amount;
+      cashAcc.balance += amount;
+      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: amount, credit: 0, balance: cashAcc.balance });
 
-      incomeAcc.totalCredit += tx.amount;
-      incomeAcc.balance += tx.amount;
-      incomeAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: 0, credit: tx.amount, balance: incomeAcc.balance });
+      incomeAcc.totalCredit += amount;
+      incomeAcc.balance += amount;
+      incomeAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: 0, credit: amount, balance: incomeAcc.balance });
     }
 
     if (tx.type === 'expense') {
       const expAcc = getOrCreate(catName, 'expense');
       const cashAcc = getOrCreate(accountName, 'asset');
 
-      expAcc.totalDebit += tx.amount;
-      expAcc.balance += tx.amount;
-      expAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: tx.amount, credit: 0, balance: expAcc.balance });
+      expAcc.totalDebit += amount;
+      expAcc.balance += amount;
+      expAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: amount, credit: 0, balance: expAcc.balance });
 
-      cashAcc.totalCredit += tx.amount;
-      cashAcc.balance -= tx.amount;
-      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: 0, credit: tx.amount, balance: cashAcc.balance });
+      cashAcc.totalCredit += amount;
+      cashAcc.balance -= amount;
+      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: 0, credit: amount, balance: cashAcc.balance });
     }
   });
 

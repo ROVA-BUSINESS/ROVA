@@ -80,7 +80,7 @@ function downloadInvoicePDF(inv: Invoice, businessName: string) {
   <div class="page">
     <div class="header">
       <div class="brand">
-        <div class="brand-name">ROVA</div>
+        <div class="brand-name">Rova</div>
         <div class="brand-sub">${businessName || 'Financial Operating System'}</div>
       </div>
       <div class="invoice-meta">
@@ -298,8 +298,38 @@ export default function InvoicesPage() {
   }
 
   async function updateStatus(id: string, status: InvoiceStatus) {
+    const inv = invoices.find(i => i.id === id);
     await supabase.from('invoices').update({ status }).eq('id', id);
-    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv));
+
+    // When marking an invoice as fully paid, record the remaining balance as income
+    if (status === 'paid' && inv) {
+      const alreadyPaid = inv.amount_paid || 0;
+      const remaining = inv.total - alreadyPaid;
+      if (remaining > 0) {
+        // Avoid duplicate: check if an income transaction for this invoice already covers the full amount
+        const { data: existing } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('user_id', effectiveUserId!)
+          .eq('reference', inv.invoice_number)
+          .eq('type', 'income')
+          .limit(1);
+        const alreadyHasFullTx = existing && existing.length > 0 && alreadyPaid === 0;
+        if (!alreadyHasFullTx) {
+          await supabase.from('transactions').insert({
+            user_id: effectiveUserId,
+            amount: remaining,
+            type: 'income',
+            description: `Invoice payment – ${inv.invoice_number} (${inv.client_name})`,
+            reference: inv.invoice_number,
+            date: new Date().toISOString().split('T')[0],
+            notes: `Balance settled. Invoice marked paid.`,
+          });
+        }
+      }
+    }
+
+    setInvoices(prev => prev.map(i => i.id === id ? { ...i, status } : i));
     if (viewInvoice?.id === id) setViewInvoice(prev => prev ? { ...prev, status } : null);
   }
 

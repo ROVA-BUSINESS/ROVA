@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, Info, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw, Sparkles, MessageCircle } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, Info, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw, MessageCircle } from 'lucide-react';
 import { supabase, type Notification, type Transaction, type InventoryItem, type Invoice } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate, formatCurrency } from '../../lib/format';
@@ -17,7 +17,7 @@ const TYPE_META: Record<Notification['type'], { icon: React.ElementType; color: 
   info: { icon: Info, color: 'var(--info)', label: 'Info' },
   success: { icon: CheckCircle, color: 'var(--success)', label: 'Success' },
   error: { icon: XCircle, color: 'var(--error)', label: 'Error' },
-  ai_clarification: { icon: Sparkles, color: 'var(--accent-light)', label: 'AI Clarification' },
+  ai_clarification: { icon: MessageCircle, color: 'var(--accent-light)', label: 'Clarification' },
 };
 
 const SEVERITY_BG: Record<Notification['severity'], string> = {

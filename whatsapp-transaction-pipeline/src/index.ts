@@ -17,10 +17,6 @@ const app = express();
 app.get('/', (_req, res) => {
   res.status(200).json({ service: 'ROVA WhatsApp Pipeline', status: 'ok' });
 });
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // Parse JSON bodies, attaching raw body for signature verification
 app.use(express.json({
   verify: (req: any, _res, buf) => {
@@ -30,6 +26,12 @@ app.use(express.json({
 
 // Register routes
 app.use('/webhook', webhookRoutes);
+
+// Flow endpoints aliases
+import { FlowController } from './webhook/flow.controller';
+const flowController = new FlowController();
+app.post('/api/whatsapp/flow', flowController.handleFlow.bind(flowController));
+app.post('/flow', flowController.handleFlow.bind(flowController));
 
 // Start the BullMQ worker — isolated so crashes don't affect the HTTP server
 try {
@@ -43,4 +45,11 @@ try {
 app.listen(Number(env.PORT), '0.0.0.0', () => {
   console.log(`🚀 ROVA WhatsApp Transaction Pipeline running on port ${env.PORT}`);
   console.log(`   Environment: ${env.NODE_ENV}`);
+  console.log(`   Phone Number ID: ${env.WHATSAPP_PHONE_NUMBER_ID}`);
+  console.log(`   Token suffix: ...${env.WHATSAPP_ACCESS_TOKEN.slice(-10)}`);
+  if (env.WHATSAPP_FLOW_ID) {
+    console.log(`   Flow ID configured: ${env.WHATSAPP_FLOW_ID}`);
+  } else {
+    console.log(`   Flow ID: Not configured (falling back to Welcome text)`);
+  }
 });

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateReceiptPDF, generateInvoicePDF } from "./documentGenerator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +42,289 @@ async function logAIAction(supabaseClient: any, params: {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MEMORY SYSTEM
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetches active memories for a user, ordered by importance (desc) then recency.
+ * Returns a formatted string ready to inject into the system prompt.
+ * Max 20 memories to stay within token budgets.
+ */
+async function fetchUserMemories(supabaseClient: any, userId: string): Promise<{
+  memories: any[];
+  formattedCtx: string;
+}> {
+  try {
+    const { data: memories, error } = await supabaseClient
+      .from("rova_memories")
+      .select("id, memory_type, content, importance, created_at")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .order("importance", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error || !memories || memories.length === 0) {
+      return { memories: [], formattedCtx: "" };
+    }
+
+    const grouped: Record<string, string[]> = {};
+    for (const m of memories) {
+      const type = m.memory_type || "general";
+      if (!grouped[type]) grouped[type] = [];
+      grouped[type].push(m.content);
+    }
+
+    const typeLabels: Record<string, string> = {
+      preference: "User Preferences",
+      business_detail: "Business Details",
+      instruction: "Standing Instructions",
+      recurring_contact: "Known Contacts / Suppliers",
+      decision: "Past Decisions",
+      general: "Other Context",
+    };
+
+    const sections = Object.entries(grouped)
+      .map(([type, items]) => {
+        const label = typeLabels[type] || type;
+        return `${label}:\n${items.map(i => `  - ${i}`).join("\n")}`;
+      })
+      .join("\n\n");
+
+    const formattedCtx = `
+─────────────────────────────────
+ROVA MEMORY — What I Know About This User/Business
+─────────────────────────────────
+${sections}
+
+Use this context to personalise responses naturally. Do NOT announce that you are using memory; just use it.
+`.trim();
+
+    return { memories, formattedCtx };
+  } catch (err) {
+    console.error("[ROVA Memory] Failed to fetch memories:", err);
+    return { memories: [], formattedCtx: "" };
+  }
+}
+
+/**
+ * Detects if the user message is a memory management command.
+ * Returns the command type or null.
+ */
+function detectMemoryCommand(text: string): "forget_last" | "forget_all" | "recall" | "force_remember" | null {
+  const q = text.toLowerCase().trim();
+
+  // "forget that" / "forget the last thing" / "don't remember that"
+  if (/\b(forget that|forget the last|don't remember that|delete that memory|remove that memory|erase that)\b/i.test(q)) {
+    return "forget_last";
+  }
+  // "clear all my memories" / "forget everything"
+  if (/\b(clear all memories|forget everything|reset my memory|delete all memories|wipe my memories)\b/i.test(q)) {
+    return "forget_all";
+  }
+  // "what do you remember about me?" / "show my memories" / "what do you know about me?"
+  if (/\b(what do you (remember|know) about me|show my memories?|list my memories?|what.*(remember|know|stored|saved).*about me)\b/i.test(q)) {
+    return "recall";
+  }
+  // "remember that I prefer..." / "remember that my business..."
+  if (/^remember (that |this )?/i.test(q)) {
+    return "force_remember";
+  }
+  return null;
+}
+
+/**
+ * Handles a memory management command. Returns a plain-text reply.
+ */
+async function handleMemoryCommand(
+  supabaseClient: any,
+  userId: string,
+  command: "forget_last" | "forget_all" | "recall" | "force_remember",
+  userMessage: string,
+  existingMemories: any[]
+): Promise<string> {
+  try {
+    if (command === "recall") {
+      if (existingMemories.length === 0) {
+        return "I don't have any stored memories about you yet. As we chat, I'll start remembering useful details about your business and preferences.";
+      }
+      const lines = existingMemories.map((m, i) => {
+        const label = m.memory_type.replace(/_/g, " ");
+        return `${i + 1}. [${label}] ${m.content}`;
+      });
+      return `Here's what I remember about you:\n\n${lines.join("\n")}\n\nYou can say "forget that" to remove specific memories, or "clear all memories" to start fresh.`;
+    }
+
+    if (command === "forget_last") {
+      if (existingMemories.length === 0) {
+        return "I don't have any memories stored yet — nothing to forget!";
+      }
+      // Soft-delete the most recently created active memory
+      const latest = [...existingMemories].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0];
+      await supabaseClient
+        .from("rova_memories")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", latest.id)
+        .eq("user_id", userId);
+      return `Done — I've forgotten: "${latest.content}". Is there anything else you'd like me to update?`;
+    }
+
+    if (command === "forget_all") {
+      await supabaseClient
+        .from("rova_memories")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("is_active", true);
+      return "Done — I've cleared all my stored memories about you. We're starting fresh. I'll learn from our conversations going forward.";
+    }
+
+    if (command === "force_remember") {
+      // Extract the thing to remember: strip the "remember that" prefix
+      const content = userMessage.replace(/^remember (that |this )?/i, "").trim();
+      if (!content) {
+        return "What would you like me to remember? Please say: \"Remember that [the thing you want me to know]\"";
+      }
+      await supabaseClient.from("rova_memories").insert({
+        user_id: userId,
+        memory_type: "instruction",
+        content,
+        source_summary: "Explicitly instructed by user",
+        importance: 8,
+        is_active: true,
+      });
+      return `Got it — I'll remember: "${content}"`;
+    }
+  } catch (err) {
+    console.error("[ROVA Memory] handleMemoryCommand error:", err);
+    return "Sorry, I ran into an issue managing your memory. Please try again.";
+  }
+  return "";
+}
+
+/**
+ * Calls the LLM to extract zero or more memories from the completed conversation turn.
+ * Runs fire-and-forget style — we don't await it in the main response path to keep
+ * latency low. Errors are caught and logged but never surface to the user.
+ */
+async function extractAndSaveMemories(
+  supabaseClient: any,
+  userId: string,
+  userMessage: string,
+  assistantReply: string,
+  apiKey: string,
+  apiEndpoint: string,
+  apiModel: string
+): Promise<void> {
+  const extractionPrompt = `You are a memory extraction assistant for ROVA, an AI accounting assistant for Nigerian businesses.
+
+Your job: read the user message and assistant reply below, then decide if there is any USEFUL information worth remembering for future conversations.
+
+EXTRACT memories ONLY if the information is:
+- A clear user or business preference (e.g. "User prefers bank transfer payments")
+- A business detail not stored in the database (e.g. "Business closes at 6pm daily")
+- An explicit standing instruction (e.g. "Always add 5% service charge to invoices")
+- A recurring contact or relationship (e.g. "Dangote Cement is their main supplier")
+- An important decision made in this conversation (e.g. "Agreed to move payroll to 25th of each month")
+- General context that will meaningfully improve future responses
+
+DO NOT extract:
+- Transaction amounts or routine financial data (already in the database)
+- Greetings, thank-yous, confirmations, or filler phrases
+- Questions asked by the user (not facts)
+- Information the user was uncertain about
+
+User message: "${userMessage}"
+Assistant reply: "${assistantReply}"
+
+Respond ONLY with a valid JSON object in this exact format:
+{
+  "memories": [
+    {
+      "memory_type": "preference" | "business_detail" | "instruction" | "recurring_contact" | "decision" | "general",
+      "content": "concise factual statement about the user/business (max 120 chars)",
+      "importance": 1-10
+    }
+  ]
+}
+
+If nothing is worth remembering, return: {"memories": []}
+Do not include any text outside the JSON.`;
+
+  try {
+    const response = await fetch(apiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: apiModel,
+        messages: [{ role: "user", content: extractionPrompt }],
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        max_tokens: 500,
+      }),
+    });
+
+    if (!response.ok) return;
+
+    const resData = await response.json();
+    const rawContent = resData.choices?.[0]?.message?.content ?? "{}";
+    let parsed: any;
+    try {
+      parsed = JSON.parse(rawContent);
+    } catch {
+      return;
+    }
+
+    const newMemories: any[] = parsed.memories ?? [];
+    if (!Array.isArray(newMemories) || newMemories.length === 0) return;
+
+    // Deduplicate against existing active memories — avoid storing near-duplicates
+    const { data: existingActive } = await supabaseClient
+      .from("rova_memories")
+      .select("content")
+      .eq("user_id", userId)
+      .eq("is_active", true);
+
+    const existingContents = new Set(
+      (existingActive ?? []).map((m: any) => m.content.toLowerCase().slice(0, 60))
+    );
+
+    const toInsert = newMemories
+      .filter((m: any) => {
+        if (!m.content || !m.memory_type) return false;
+        const fingerprint = m.content.toLowerCase().slice(0, 60);
+        return !existingContents.has(fingerprint);
+      })
+      .map((m: any) => ({
+        user_id: userId,
+        memory_type: m.memory_type,
+        content: m.content.slice(0, 500), // safety cap
+        source_summary: `Extracted from: "${userMessage.slice(0, 80)}"`,
+        importance: typeof m.importance === "number"
+          ? Math.min(10, Math.max(1, m.importance))
+          : 5,
+        is_active: true,
+      }));
+
+    if (toInsert.length > 0) {
+      await supabaseClient.from("rova_memories").insert(toInsert);
+      console.log(`[ROVA Memory] Saved ${toInsert.length} new memory/memories for user ${userId}`);
+    }
+  } catch (err) {
+    // Fire-and-forget — never crash the main flow
+    console.error("[ROVA Memory] extractAndSaveMemories error:", err);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN SERVE HANDLER
+// ─────────────────────────────────────────────────────────────────────────────
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -55,6 +339,8 @@ serve(async (req) => {
     const body = await req.json();
     const { messages, message, context } = body;
     const { transactions, accounts, userId, isStaff } = context ?? {};
+    const documentUrl = context?.documentUrl || body.documentUrl || "";
+    const documentFileName = context?.documentFileName || body.documentFileName || "";
 
     // source tells us if the request came from whatsapp or web
     const source: "web" | "whatsapp" = body.source || context?.source || "web";
@@ -72,6 +358,28 @@ serve(async (req) => {
     }
 
     const lastUserMsg = conversationMessages.filter((m) => m.role === "user").pop()?.content || "";
+
+    // ── MEMORY: Check for memory management commands FIRST ────────────────────
+    const memoryCommand = detectMemoryCommand(lastUserMsg);
+
+    // Always pre-fetch memories (needed for recall command + context injection)
+    const { memories: existingMemories, formattedCtx: memoryCtx } =
+      await fetchUserMemories(supabaseClient, activeUserId);
+
+    if (memoryCommand) {
+      const memoryReply = await handleMemoryCommand(
+        supabaseClient,
+        activeUserId,
+        memoryCommand,
+        lastUserMsg,
+        existingMemories
+      );
+      // Memory commands are handled — return immediately, no DB writes or LLM needed
+      return new Response(
+        JSON.stringify({ reply: memoryReply, actions: [], toolExecuted: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
 
     // ── 1. REAL-TIME FINANCIAL CONTEXT FETCHING ─────────────────────────────────
     const [txRes, accRes, invRes, invcRes, empRes, payrollRes, teamRes] = await Promise.all([
@@ -167,6 +475,8 @@ ${staffRestriction}
 
 ${financialCtx}
 
+${memoryCtx}
+
 ─────────────────────────────────
 ROVA CORE TOOL DEFINITIONS
 ─────────────────────────────────
@@ -182,25 +492,37 @@ READ-ONLY TOOLS (execute immediately, no confirmation needed):
 7. getCustomers() — Query all clients who have ever been invoiced
 8. getTransactions(date?, period?, type?) — Query specific transactions by date or period
 
-DATA CREATION TOOLS:
+DATA CREATION & DOCUMENT GENERATION TOOLS:
 9. recordSale(amount, description, clientName?) — Record a sales revenue transaction (MUST NOT ask for confirmation)
 10. recordExpense(amount, description, categoryName?, merchant?) — Record a business expense (MUST NOT ask for confirmation)
-11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. NEVER use default "Client". If clientName is missing, STOP and ask: "Who should I address this invoice to?" If items are missing, ask: "What items or services should I include?". MUST ask for confirmation before executing.
-12. createReceipt(customerName, amount?, paymentMethod?, description?) — Create a payment receipt. If customerName is missing, STOP and ask: "Who should I address this receipt to?". MUST ask for confirmation before executing.
+11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. Automatically generates the official ROVA PDF invoice. If clientName and items or amount are present, execute immediately without asking for confirmation.
+12. createReceipt(customerName, amount?, paymentMethod?, description?) — Create an official payment receipt. Automatically generates the official ROVA PDF receipt and sends the document. If customerName and amount are present, execute immediately without asking for confirmation.
+
+DOCUMENT & FILE AUTOMATION TOOLS (execute immediately, no confirmation needed):
+13. processBusinessDocument(documentType, vendorOrCustomer, documentNumber, date, dueDate, totalAmount, paymentStatus, items, notes) — Automatically read and process uploaded business documents (supplier invoices, bills, purchase receipts, customer invoices). Checks for duplicate records first to avoid double entries, records the purchase/bill/expense, updates inventory stock quantities, records the supplier, links the document attachment, and updates financial ledgers.
+14. sendDocument(documentType, customerName?, documentNumber?) — Find and retrieve an existing invoice or receipt from the ROVA database, generate its official ROVA PDF document if not yet generated, and send it directly through WhatsApp or link on web. (e.g. "Send me Chinedu's last invoice", "Send receipt #RCPT-000001", "Get last invoice for XYZ").
 
 HIGH-RISK TOOLS (NEVER execute from ambiguous instructions — require explicit typed confirmation):
-13. deleteTransaction(transactionId) — Permanently delete a transaction record
+15. deleteTransaction(transactionId) — Permanently delete a transaction record
+
+─────────────────────────────────
+MEMORY SYSTEM AWARENESS
+─────────────────────────────────
+You have a persistent memory system. You already know what's in the ROVA MEMORY section above.
+- Use stored memories naturally to personalise responses — do NOT say "Based on my memory..." or "According to my records..."
+- If the user says "remember that...", "forget that", "what do you remember about me?", or "clear all memories", handle it gracefully — these are already intercepted before reaching you, so just respond naturally if they ask in a different way.
 
 ─────────────────────────────────
 CRITICAL BEHAVIOUR RULES
 ─────────────────────────────────
 1. NEVER fabricate data. If you don't know a value, use the appropriate tool to fetch it.
 2. READ-ONLY tools: respond immediately with data from the database.
-3. CREATE TOOLS: Normal transactions (recordSale, recordExpense) MUST be automatically recorded immediately without asking for confirmation. Only createInvoice requires asking if client or items are missing.
-4. INVOICE CREATION: If client name OR line items are missing, ask for them before doing anything. Do not fill in defaults.
-5. DISAMBIGUATION: If getInventory returns multiple matches, list them as numbered options and ask "Which one did you mean?"
-6. SOURCE AWARENESS: You are operating via ${source === "whatsapp" ? "WhatsApp" : "the ROVA web app"}. For WhatsApp responses (${source === "whatsapp" ? "ACTIVE" : "inactive"}), structure reply text using rich, clear domain icons and emojis (e.g. 💰 for sales/revenue, 💸 for expenses, 📄 for invoices, 🧾 for receipts, 📦 for inventory, 📊 for financial reports, 📋 for lists, 🏦 for banks, 👥 for staff/payroll, 🏛️ for tax, 📲 for app links, ✅ for success, ⚠️ for alerts) to make WhatsApp messages visual and easy to scan.
-7. CRITICAL FORMATTING RULE: Do NOT use asterisks (*) or double asterisks (**) anywhere in your reply text. Write all text in clean plain text with zero asterisks.
+3. CREATE & DOCUMENT TOOLS: When asked to create an invoice, receipt, or record a sale/expense with details (e.g. "Create a receipt for Chinedu for ₦50,000"), execute immediately, generate the document, and return it.
+4. RETRIEVE DOCUMENTS: When a user asks for an existing document (e.g. "Send me Chinedu's last invoice" or "Get receipt for John"), call sendDocument immediately to retrieve and deliver it.
+5. DOCUMENT PROCESSING: When a business document is uploaded or provided (e.g. supplier invoice for 10 bags of rice), call processBusinessDocument to record the bill/expense, update inventory stock, record the supplier, and link the attachment.
+6. DISAMBIGUATION: If getInventory returns multiple matches, list them as numbered options and ask "Which one did you mean?"
+7. SOURCE AWARENESS: You are operating via ${source === "whatsapp" ? "WhatsApp" : "the ROVA web app"}. For WhatsApp responses (${source === "whatsapp" ? "ACTIVE" : "inactive"}), structure reply text using rich, clear domain icons and emojis (e.g. 💰 for sales/revenue, 💸 for expenses, 📄 for invoices, 🧾 for receipts, 📦 for inventory, 📊 for financial reports, 📋 for lists, 🏦 for banks, 👥 for staff/payroll, 🏛️ for tax, 📲 for app links, ✅ for success, ⚠️ for alerts) to make WhatsApp messages visual and easy to scan.
+8. CRITICAL FORMATTING RULE: Do NOT use asterisks (*) or double asterisks (**) anywhere in your reply text. Write all text in clean plain text with zero asterisks.
 
 ─────────────────────────────────
 RESPONSE FORMAT (strict JSON)
@@ -208,7 +530,7 @@ RESPONSE FORMAT (strict JSON)
 {
   "reply": "your response text",
   "tool_call": {
-    "name": "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "createReceipt" | "deleteTransaction",
+    "name": "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "createReceipt" | "deleteTransaction" | "processBusinessDocument" | "sendDocument",
     "parameters": {}
   } | null,
   "requires_confirmation": false,
@@ -241,10 +563,17 @@ RESPONSE FORMAT (strict JSON)
             model: apiModel,
             messages: [
               { role: "system", content: systemPrompt },
-              ...conversationMessages.map((m) => ({
-                role: m.role === "assistant" ? "assistant" : "user",
-                content: m.content,
-              })),
+              ...conversationMessages
+                .filter((m) => {
+                  // Skip system role (already handled above) and messages with empty content
+                  if (m.role === "system") return false;
+                  const content = typeof m.content === "string" ? m.content.trim() : String(m.content ?? "").trim();
+                  return content.length > 0;
+                })
+                .map((m) => ({
+                  role: m.role === "assistant" ? "assistant" : "user",
+                  content: typeof m.content === "string" ? m.content : String(m.content ?? ""),
+                })),
             ],
             temperature: 0.1,
             response_format: { type: "json_object" },
@@ -254,12 +583,19 @@ RESPONSE FORMAT (strict JSON)
         if (response.ok) {
           const resData = await response.json();
           const rawContent = resData.choices?.[0]?.message?.content ?? "{}";
-          const parsed = JSON.parse(rawContent);
-          reply = parsed.reply || "";
-          actions = parsed.actions || [];
-          toolCall = parsed.tool_call || null;
-          requiresConfirmation = parsed.requires_confirmation === true;
-          confirmationSummary = parsed.confirmation_summary || "";
+          try {
+            const parsed = JSON.parse(rawContent);
+            reply = parsed.reply || "";
+            actions = parsed.actions || [];
+            toolCall = parsed.tool_call || null;
+            requiresConfirmation = parsed.requires_confirmation === true;
+            confirmationSummary = parsed.confirmation_summary || "";
+          } catch (parseErr) {
+            console.error("[ROVA] Failed to parse LLM JSON response:", rawContent, parseErr);
+          }
+        } else {
+          const errBody = await response.text().catch(() => "");
+          console.error(`[ROVA] LLM API returned ${response.status}:`, errBody);
         }
       } catch (err) {
         console.error("AI API call failed, using rule-based fallback:", err);
@@ -272,9 +608,6 @@ RESPONSE FORMAT (strict JSON)
     }
 
     // ── 4. CONFIRMATION GATE ─────────────────────────────────────────────────────
-    // For write operations, if LLM flagged requires_confirmation, return early with pending state.
-    // The client will display a confirm bubble. When the user confirms, client re-sends with
-    // body.confirmed = true.
     const WRITE_TOOLS = ["createInvoice", "createReceipt"];
     const HIGH_RISK_TOOLS = ["deleteTransaction"];
     const toolName = toolCall?.name || "";
@@ -370,6 +703,7 @@ RESPONSE FORMAT (strict JSON)
 
     // ── 5. EXECUTE TOOL ──────────────────────────────────────────────────────────
     let toolExecuted = false;
+    let documentToSend: any = null;
     if (toolCall && toolCall.name) {
       const params = toolCall.parameters || {};
       const confirmStatus = userConfirmed ? "confirmed" : "auto";
@@ -406,11 +740,16 @@ RESPONSE FORMAT (strict JSON)
           execResult = await executeGetTransactions(supabaseClient, activeUserId, params);
         } else if (toolName === "deleteTransaction") {
           execResult = await executeDeleteTransaction(supabaseClient, activeUserId, params);
+        } else if (toolName === "processBusinessDocument") {
+          execResult = await executeProcessBusinessDocument(supabaseClient, activeUserId, params, lastUserMsg, { documentUrl, documentFileName });
+        } else if (toolName === "sendDocument") {
+          execResult = await executeSendDocument(supabaseClient, activeUserId, params);
         }
 
         if (execResult && execResult.formattedSummary) {
           reply = execResult.formattedSummary;
           if (execResult.actions) actions = [...actions, ...execResult.actions];
+          if (execResult.documentToSend) documentToSend = execResult.documentToSend;
           toolExecuted = true;
 
           await logAIAction(supabaseClient, {
@@ -449,7 +788,22 @@ RESPONSE FORMAT (strict JSON)
     reply = cleanAsterisks(reply);
     confirmationSummary = cleanAsterisks(confirmationSummary);
 
-    return new Response(JSON.stringify({ reply, actions, toolExecuted }), {
+    // ── 6. MEMORY EXTRACTION (fire-and-forget — does not block the response) ─────
+    // Only extract if we have an API key and this wasn't a trivial/empty exchange
+    if (apiKey && lastUserMsg.trim().length > 10 && reply.trim().length > 10) {
+      // Deliberately NOT awaited — memory extraction runs after response is sent
+      extractAndSaveMemories(
+        supabaseClient,
+        activeUserId,
+        lastUserMsg,
+        reply,
+        apiKey,
+        apiEndpoint,
+        apiModel
+      ).catch((err) => console.error("[ROVA Memory] Background extraction failed:", err));
+    }
+
+    return new Response(JSON.stringify({ reply, actions, toolExecuted, documentToSend }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
@@ -466,17 +820,55 @@ RESPONSE FORMAT (strict JSON)
 function detectRuleBasedToolCall(text: string) {
   const q = text.toLowerCase();
 
+  // 1. Send existing document (invoice / receipt)
+  if (
+    /\b(send me|give me|get me|show me|find|download)\b.*\b(last|recent|latest)?\s*(invoice|receipt)\b/i.test(q) ||
+    /\b(send|get|show)\s+(?:me\s+)?([a-zA-Z\s]+?)'?s?\s+(?:last\s+|latest\s+)?(invoice|receipt)\b/i.test(q)
+  ) {
+    const isInvoice = q.includes("invoice");
+    const docType = isInvoice ? "invoice" : "receipt";
+    const nameMatch =
+      q.match(/(?:for|to|of)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|\?|$)/i) ||
+      q.match(/(?:send|get|show)\s+(?:me\s+)?([a-zA-Z]+)(?:'s|\s+last|\s+invoice|\s+receipt)/i);
+    const customerName = nameMatch ? nameMatch[1].replace(/last|latest|recent|invoice|receipt/gi, "").trim() : "";
+    const numMatch = q.match(/(?:#|no\.?|number\s+)?([a-zA-Z0-9_-]{3,20})/i);
+    return {
+      name: "sendDocument",
+      parameters: {
+        documentType: docType,
+        customerName,
+        documentNumber: q.includes("#") ? numMatch?.[1] : undefined,
+      },
+    };
+  }
+
+  // 2. Document upload / OCR processing
+  if (
+    q.includes("[business document uploaded") ||
+    q.includes("[document uploaded") ||
+    q.includes("document url:") ||
+    (/\b(supplier invoice|vendor invoice|purchase receipt)\b/i.test(q))
+  ) {
+    return {
+      name: "processBusinessDocument",
+      parameters: {
+        documentType: q.includes("receipt") ? "purchase_receipt" : "supplier_invoice",
+        rawText: text,
+      },
+    };
+  }
+
   if (/\b(sold|sale|recorded sale|i made a sale)\b/.test(q)) {
     const amt = extractAmount(q);
     return { name: "recordSale", parameters: { amount: amt, description: text } };
   }
-  if (/\b(create invoice|new invoice|invoice for|invoice client|send invoice)\b/.test(q)) {
+  if (/\b(create invoice|new invoice|invoice for|invoice client)\b/.test(q)) {
     const clientMatch = q.match(/(?:for|to)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|$)/i);
     const clientName = clientMatch ? clientMatch[1].trim() : "";
     const amount = extractAmount(q);
     return { name: "createInvoice", parameters: { clientName, amount, description: text } };
   }
-  if (/\b(create receipt|new receipt|receipt for|send receipt|generate receipt)\b/.test(q)) {
+  if (/\b(create receipt|new receipt|receipt for|generate receipt)\b/.test(q)) {
     const customerMatch = q.match(/(?:for|to)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|$)/i);
     const customerName = customerMatch ? customerMatch[1].trim() : "";
     const amount = extractAmount(q);
@@ -629,10 +1021,40 @@ async function executeCreateInvoice(supabaseClient: any, userId: string, params:
     });
   }
 
+  // Fetch profile for document branding
+  const { data: profile } = await supabaseClient.from("profiles").select("*").eq("id", userId).maybeSingle();
+  const invoiceWithItems = {
+    ...invoice,
+    items: items.map((item: any) => ({
+      description: item.description || description,
+      quantity: item.quantity || 1,
+      unit_price: item.unit_price || subtotal,
+      amount: (item.quantity || 1) * (item.unit_price || subtotal),
+    })),
+  };
+
+  let pdfUrl = "";
+  let pdfFileName = `Invoice_${invoiceNumber}.pdf`;
+  try {
+    const gen = await generateInvoicePDF(supabaseClient, userId, invoiceWithItems, profile);
+    pdfUrl = gen.pdfUrl;
+    pdfFileName = gen.fileName;
+  } catch (pdfErr) {
+    console.error("Failed to generate PDF for invoice:", pdfErr);
+  }
+
   return {
-    formattedSummary: `📄 Invoice #${invoiceNumber} Created for ${clientName}!\n• Subtotal: ${formatCurrency(subtotal)}\n• Tax (${taxRate}%): ${formatCurrency(taxAmount)}\n• Total: ${formatCurrency(total)}\n• Due: ${dueDate}`,
+    formattedSummary: `📄 Invoice #${invoiceNumber} Created for ${clientName}!\n• Subtotal: ${formatCurrency(subtotal)}\n• Tax (${taxRate}%): ${formatCurrency(taxAmount)}\n• Total: ${formatCurrency(total)}\n• Due: ${dueDate}\n\nThe official invoice document has been generated and attached below.`,
     actions: [{ type: "view_invoice", label: "View Invoice", payload: { invoice_id: invoice.id } }],
     recordId: invoice.id,
+    documentToSend: pdfUrl
+      ? {
+          url: pdfUrl,
+          fileName: pdfFileName,
+          caption: `Invoice #${invoiceNumber} for ${clientName}`,
+          mimeType: "application/pdf",
+        }
+      : undefined,
   };
 }
 
@@ -690,11 +1112,373 @@ async function executeCreateReceipt(supabaseClient: any, userId: string, params:
     amount: amount,
   });
 
+  // Fetch profile for document branding
+  const { data: profile } = await supabaseClient.from("profiles").select("*").eq("id", userId).maybeSingle();
+  const receiptWithItems = {
+    ...receipt,
+    items: [{ description, quantity: 1, unit_price: amount, total: amount }],
+  };
+
+  let pdfUrl = "";
+  let pdfFileName = `Receipt_${receipt.receipt_number}.pdf`;
+  try {
+    const gen = await generateReceiptPDF(supabaseClient, userId, receiptWithItems, profile);
+    pdfUrl = gen.pdfUrl;
+    pdfFileName = gen.fileName;
+  } catch (pdfErr) {
+    console.error("Failed to generate PDF for receipt:", pdfErr);
+  }
+
   return {
-    formattedSummary: `🧾 Receipt #${receipt.receipt_number} Generated for ${customerName}!\n• Amount: ${formatCurrency(amount)}\n• Method: ${paymentMethod}\n\nYou can view and share this receipt from the Receipts tab.`,
+    formattedSummary: `🧾 Receipt #${receipt.receipt_number} Generated for ${customerName}!\n• Amount: ${formatCurrency(amount)}\n• Method: ${paymentMethod}\n\nThe official receipt document has been generated and attached below.`,
     actions: [{ type: "view_receipt", label: "View Receipt", payload: { receipt_id: receipt.id } }],
     recordId: receipt.id,
+    documentToSend: pdfUrl
+      ? {
+          url: pdfUrl,
+          fileName: pdfFileName,
+          caption: `Receipt #${receipt.receipt_number} for ${customerName}`,
+          mimeType: "application/pdf",
+        }
+      : undefined,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOCUMENT AUTOMATION & RETRIEVAL TOOLS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function executeProcessBusinessDocument(
+  supabaseClient: any,
+  userId: string,
+  params: any,
+  rawMsg: string,
+  context?: any
+) {
+  const documentType = (params.documentType || "supplier_invoice").toLowerCase();
+  const vendorOrCustomer = (
+    params.vendorOrCustomer ||
+    params.supplierName ||
+    params.clientName ||
+    params.merchant ||
+    params.vendor ||
+    "Vendor"
+  ).trim();
+  const documentNumber = (params.documentNumber || params.invoiceNumber || params.receiptNumber || "").trim();
+  const totalAmount = Number(params.totalAmount || params.amount || extractAmount(rawMsg) || 0);
+  const paymentStatus = (
+    params.paymentStatus || (rawMsg.toLowerCase().includes("paid") ? "paid" : "unpaid")
+  ).toLowerCase();
+  const docDate = params.date || new Date().toISOString().split("T")[0];
+  const dueDate = params.dueDate || new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
+  const documentUrl = params.documentUrl || context?.documentUrl || "";
+  const notes = params.notes || "";
+
+  const items = Array.isArray(params.items) && params.items.length > 0
+    ? params.items
+    : [{ description: notes || "Items on document", quantity: 1, unit_price: totalAmount, total: totalAmount }];
+
+  // 1. DUPLICATE CHECK: Prevent double-recording of invoices/bills
+  if (documentNumber) {
+    const { data: existingBill } = await supabaseClient
+      .from("bills")
+      .select("id, bill_number, vendor, amount, bill_date")
+      .eq("user_id", userId)
+      .eq("bill_number", documentNumber)
+      .maybeSingle();
+
+    if (existingBill) {
+      return {
+        formattedSummary: `⚠️ Duplicate Document: Bill #${documentNumber} from "${existingBill.vendor}" for ${formatCurrency(existingBill.amount)} has already been recorded on ${existingBill.bill_date}. No duplicate was created.`,
+        recordId: existingBill.id,
+        actions: [{ type: "view_bills", label: "View Existing Bill", payload: { bill_id: existingBill.id } }],
+      };
+    }
+
+    const { data: existingExpense } = await supabaseClient
+      .from("expenses")
+      .select("id, expense_number, vendor, amount, date")
+      .eq("user_id", userId)
+      .eq("expense_number", documentNumber)
+      .maybeSingle();
+
+    if (existingExpense) {
+      return {
+        formattedSummary: `⚠️ Duplicate Document: Expense #${documentNumber} from "${existingExpense.vendor}" for ${formatCurrency(existingExpense.amount)} has already been recorded on ${existingExpense.date}. No duplicate was created.`,
+        recordId: existingExpense.id,
+      };
+    }
+  }
+
+  // 2. SUPPLIER DIRECTORY
+  let supplierId: string | null = null;
+  const isSupplierDoc =
+    documentType.includes("supplier") || documentType.includes("bill") || documentType.includes("purchase");
+
+  if (isSupplierDoc && vendorOrCustomer && vendorOrCustomer.toLowerCase() !== "vendor") {
+    const { data: existingSupp } = await supabaseClient
+      .from("suppliers")
+      .select("id")
+      .eq("user_id", userId)
+      .ilike("name", vendorOrCustomer)
+      .maybeSingle();
+
+    if (existingSupp) {
+      supplierId = existingSupp.id;
+    } else {
+      const { data: newSupp } = await supabaseClient
+        .from("suppliers")
+        .insert({
+          user_id: userId,
+          name: vendorOrCustomer,
+          is_active: true,
+          notes: `Added from document #${documentNumber || ""}`.trim(),
+        })
+        .select()
+        .maybeSingle();
+      if (newSupp) supplierId = newSupp.id;
+    }
+  }
+
+  // 3. RECORD FINANCIAL ENTRY (Bill or Expense)
+  let recordId = "";
+  if (paymentStatus === "unpaid" || documentType.includes("bill")) {
+    const billNumber = documentNumber || `BILL-${Date.now().toString().slice(-6)}`;
+    const { data: bill, error: billErr } = await supabaseClient
+      .from("bills")
+      .insert({
+        user_id: userId,
+        bill_number: billNumber,
+        vendor: vendorOrCustomer,
+        amount: totalAmount,
+        bill_date: docDate,
+        due_date: dueDate,
+        status: "unpaid",
+        attachment_url: documentUrl,
+        description: `Purchase from ${vendorOrCustomer}: ${items.map((i: any) => `${i.quantity || 1}x ${i.description}`).join(", ")}`,
+      })
+      .select()
+      .single();
+
+    if (billErr) throw billErr;
+    recordId = bill.id;
+  } else {
+    const expenseNum = documentNumber || `EXP-${Date.now().toString().slice(-6)}`;
+    const { data: exp, error: expErr } = await supabaseClient
+      .from("expenses")
+      .insert({
+        user_id: userId,
+        expense_number: expenseNum,
+        vendor: vendorOrCustomer,
+        amount: totalAmount,
+        date: docDate,
+        attachment_url: documentUrl,
+        description: `Purchase from ${vendorOrCustomer}: ${items.map((i: any) => `${i.quantity || 1}x ${i.description}`).join(", ")}`,
+      })
+      .select()
+      .single();
+
+    if (expErr) throw expErr;
+    recordId = exp.id;
+
+    await supabaseClient.from("transactions").insert({
+      user_id: userId,
+      amount: totalAmount,
+      type: "expense",
+      description: `Purchase from ${vendorOrCustomer} (${expenseNum})`,
+      date: docDate,
+      reference: expenseNum,
+      is_verified: true,
+    });
+  }
+
+  // 4. INVENTORY UPDATES (Record purchased goods into inventory)
+  const inventoryUpdates: string[] = [];
+
+  for (const item of items) {
+    const rawDesc = item.description || "";
+    const cleanDesc = rawDesc
+      .replace(/^\d+\s*(?:bags?|units?|packs?|cartons?|pcs?|kg|litres?)\s*(?:of\s+)?/i, "")
+      .trim();
+    const qty = Number(item.quantity || 1);
+    const unitP = Number(item.unit_price || (qty > 0 ? totalAmount / qty : 0));
+
+    if (qty > 0 && cleanDesc.length > 1) {
+      const { data: invItems } = await supabaseClient
+        .from("inventory_items")
+        .select("*")
+        .eq("user_id", userId)
+        .ilike("name", `%${cleanDesc}%`)
+        .limit(1);
+
+      const existingItem = invItems && invItems[0];
+      if (existingItem) {
+        const newStock = (existingItem.current_stock || 0) + qty;
+        await supabaseClient
+          .from("inventory_items")
+          .update({
+            current_stock: newStock,
+            cost_price: unitP > 0 ? unitP : existingItem.cost_price,
+            supplier_id: supplierId || existingItem.supplier_id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingItem.id);
+
+        await supabaseClient.from("inventory_transactions").insert({
+          user_id: userId,
+          item_id: existingItem.id,
+          type: "purchase",
+          quantity: qty,
+          unit_cost: unitP,
+          notes: `Stock in via ${documentType} #${documentNumber || ""}`.trim(),
+        });
+
+        inventoryUpdates.push(`${existingItem.name}: +${qty} units (New stock: ${newStock})`);
+      } else {
+        const { data: newItem } = await supabaseClient
+          .from("inventory_items")
+          .insert({
+            user_id: userId,
+            name: cleanDesc,
+            supplier_id: supplierId,
+            current_stock: qty,
+            cost_price: unitP,
+            selling_price: unitP > 0 ? Math.round(unitP * 1.25) : 0,
+            unit: "units",
+            reorder_level: 5,
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (newItem?.id) {
+          await supabaseClient.from("inventory_transactions").insert({
+            user_id: userId,
+            item_id: newItem.id,
+            type: "purchase",
+            quantity: qty,
+            unit_cost: unitP,
+            notes: `Initial stock in via ${documentType} #${documentNumber || ""}`.trim(),
+          });
+          inventoryUpdates.push(`${cleanDesc}: +${qty} units added to stock`);
+        }
+      }
+    }
+  }
+
+  const itemsSummary = items
+    .map((i: any) => `• ${i.quantity || 1}x ${i.description} @ ${formatCurrency(i.unit_price || 0)}`)
+    .join("\n");
+
+  const inventorySection =
+    inventoryUpdates.length > 0 ? `\n\n📦 Inventory Updated:\n${inventoryUpdates.map((u) => `• ${u}`).join("\n")}` : "";
+
+  return {
+    formattedSummary: `✅ Document Processed & Recorded!\n• Document: ${documentType.replace(/_/g, " ").toUpperCase()} #${documentNumber || "N/A"}\n• Partner: ${vendorOrCustomer}\n• Total Amount: ${formatCurrency(totalAmount)}\n• Payment Status: ${paymentStatus.toUpperCase()}${dueDate ? ` (Due: ${dueDate})` : ""}\n\n📋 Items:\n${itemsSummary}${inventorySection}\n\n📎 Attached document successfully linked to record.`,
+    recordId,
+    actions: [{ type: "view_expenses", label: "View in Expenses & Bills", payload: {} }],
+  };
+}
+
+async function executeSendDocument(supabaseClient: any, userId: string, params: any) {
+  const docType = (params.documentType || "invoice").toLowerCase();
+  const customerName = (params.customerName || "").trim();
+  const documentNumber = (params.documentNumber || "").trim();
+
+  const { data: profile } = await supabaseClient
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (docType === "invoice") {
+    let query = supabaseClient.from("invoices").select("*, items:invoice_items(*)").eq("user_id", userId);
+    if (documentNumber) {
+      query = query.eq("invoice_number", documentNumber);
+    } else if (customerName) {
+      query = query.ilike("client_name", `%${customerName}%`).order("created_at", { ascending: false }).limit(1);
+    } else {
+      query = query.order("created_at", { ascending: false }).limit(1);
+    }
+
+    const { data: invoices } = await query;
+    const inv = invoices && invoices[0];
+    if (!inv) {
+      return {
+        formattedSummary: `I could not find an invoice ${customerName ? `for "${customerName}"` : documentNumber ? `#${documentNumber}` : "in your records"}. Would you like me to create one?`,
+      };
+    }
+
+    let pdfUrl = inv.pdf_url;
+    let fileName = `Invoice_${inv.invoice_number}.pdf`;
+    if (!pdfUrl) {
+      try {
+        const genResult = await generateInvoicePDF(supabaseClient, userId, inv, profile);
+        pdfUrl = genResult.pdfUrl;
+        fileName = genResult.fileName;
+      } catch (err) {
+        console.error("Failed to generate PDF for invoice:", err);
+      }
+    }
+
+    return {
+      formattedSummary: `📄 Here is Invoice #${inv.invoice_number} for ${inv.client_name}:\n• Total: ${formatCurrency(inv.total)}\n• Status: ${(inv.status || "unpaid").toUpperCase()}\n• Due Date: ${inv.due_date || "N/A"}\n\nThe official invoice document is attached below.`,
+      documentToSend: pdfUrl
+        ? {
+            url: pdfUrl,
+            fileName,
+            caption: `Invoice #${inv.invoice_number} for ${inv.client_name}`,
+            mimeType: "application/pdf",
+          }
+        : undefined,
+      recordId: inv.id,
+      actions: [{ type: "view_invoice", label: "View Invoice", payload: { invoice_id: inv.id } }],
+    };
+  } else {
+    // Receipt
+    let query = supabaseClient.from("receipts").select("*, items:receipt_items(*)").eq("user_id", userId);
+    if (documentNumber) {
+      query = query.eq("receipt_number", documentNumber);
+    } else if (customerName) {
+      query = query.ilike("customer_name", `%${customerName}%`).order("created_at", { ascending: false }).limit(1);
+    } else {
+      query = query.order("created_at", { ascending: false }).limit(1);
+    }
+
+    const { data: receipts } = await query;
+    const rcpt = receipts && receipts[0];
+    if (!rcpt) {
+      return {
+        formattedSummary: `I could not find a receipt ${customerName ? `for "${customerName}"` : documentNumber ? `#${documentNumber}` : "in your records"}. Would you like me to generate one?`,
+      };
+    }
+
+    let pdfUrl = rcpt.pdf_url;
+    let fileName = `Receipt_${rcpt.receipt_number}.pdf`;
+    if (!pdfUrl) {
+      try {
+        const genResult = await generateReceiptPDF(supabaseClient, userId, rcpt, profile);
+        pdfUrl = genResult.pdfUrl;
+        fileName = genResult.fileName;
+      } catch (err) {
+        console.error("Failed to generate PDF for receipt:", err);
+      }
+    }
+
+    return {
+      formattedSummary: `🧾 Here is Receipt #${rcpt.receipt_number} for ${rcpt.customer_name}:\n• Amount: ${formatCurrency(rcpt.total || rcpt.amount)}\n• Payment Method: ${rcpt.payment_method || "Bank Transfer"}\n• Date: ${rcpt.receipt_date}\n\nThe official receipt document is attached below.`,
+      documentToSend: pdfUrl
+        ? {
+            url: pdfUrl,
+            fileName,
+            caption: `Receipt #${rcpt.receipt_number} for ${rcpt.customer_name}`,
+            mimeType: "application/pdf",
+          }
+        : undefined,
+      recordId: rcpt.id,
+      actions: [{ type: "view_receipt", label: "View Receipt", payload: { receipt_id: rcpt.id } }],
+    };
+  }
 }
 
 async function executeRecordExpense(supabaseClient: any, userId: string, params: any, rawMsg: string) {

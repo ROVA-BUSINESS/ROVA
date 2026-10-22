@@ -43,10 +43,35 @@ serve(async (req) => {
       });
     }
 
+    const wamid = message.id;
     const fromNumber = message.from || ""; // User's WhatsApp Phone Number
     const messageType = message.type; // 'text' | 'image' | 'audio' | 'voice'
 
     console.log(`[WhatsApp Webhook Received] From: ${fromNumber} | Type: ${messageType}`);
+
+    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") || Deno.env.get("PHONE_NUMBER_ID");
+    const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") || Deno.env.get("WHATSAPP_TOKEN");
+
+    // STEP 1: SHOW 3 DOTS IMMEDIATELY (must be first thing)
+    if (PHONE_NUMBER_ID && WHATSAPP_ACCESS_TOKEN && wamid) {
+      try {
+        await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            status: "read",
+            message_id: wamid,
+            typing_indicator: { type: "text" }
+          }),
+        });
+      } catch (err) {
+        console.error("Failed sending initial typing indicator:", err);
+      }
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey =
@@ -309,6 +334,37 @@ serve(async (req) => {
       return new Response(JSON.stringify({ status: "tax_handled" }), { headers: corsHeaders, status: 200 });
     }
 
+    // ── STEP 3: HEAVY TASK THINKING INDICATOR (JUMIA / PAYOUT / REPORT) ───────
+    const lowerText = (extractedText || "").toLowerCase();
+    if (lowerText.includes("jumia") || lowerText.includes("payout") || lowerText.includes("report")) {
+      await sendWhatsAppMessage(
+        fromNumber,
+        "🤔 Rova is thinking... analyzing your Jumia orders, one sec...",
+        WHATSAPP_ACCESS_TOKEN
+      );
+
+      // Show dots again after thinking text
+      if (PHONE_NUMBER_ID && WHATSAPP_ACCESS_TOKEN && wamid) {
+        try {
+          await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              status: "read",
+              message_id: wamid,
+              typing_indicator: { type: "text" },
+            }),
+          });
+        } catch (err) {
+          console.error("Failed sending typing indicator after thinking message:", err);
+        }
+      }
+    }
+
     // ── STEP B: ROUTE TO UNIFIED CENTRAL ROVA AI AGENT BRAIN VIA SUPABASE SDK ─
     console.log(`[WhatsApp Webhook -> Central ROVA AI Agent] Processing query for User ${userId}: "${extractedText}"`);
 
@@ -387,3 +443,81 @@ async function sendWhatsAppMessage(to: string, text: string, accessToken?: strin
     console.error("Failed to send WhatsApp message fetch error:", err);
   }
 }
+// ── HANDLE WHATSAPP FLOW COMPLETION ─────────────────────────────────────────
+if (messageType === "interactive") {
+  const interactive = message.interactive;
+
+  if (interactive?.type === "nfm_reply") {
+    // This is a WhatsApp Flow completion payload
+    const flowResponse = interactive.nfm_reply;
+    const responseJson = JSON.parse(flowResponse.response_json);
+
+    console.log("[Rova Flow Completed]", responseJson);
+
+    // Extract all fields from the 3-screen flow
+    const {
+      full_name,
+      email,
+      phone_number,
+      id_type,
+      id_number,
+      business_name,
+      business_email,
+      business_phone,
+      registration_type,
+      registration_number,
+      business_logo_link,
+      password,
+      terms_accepted,
+    } = responseJson;
+
+    // 1. Create user account in Supabase Auth
+    const { data: newUser, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      phone: phone_number,
+      email_confirm: true,
+    });
+
+    if (authError) {
+      console.error("[Rova Flow] Auth error:", authError.message);
+      await sendWhatsAppMessage(
+        fromNumber,
+        `❌ Registration failed: ${authError.message}. Please try again or visit rovabusiness.com`,
+        WHATSAPP_ACCESS_TOKEN
+      );
+      return new Response("ok", { status: 200 });
+    }
+
+    // 2. Save business profile
+    await supabase.from("business_profiles").insert({
+      user_id: newUser.user.id,
+      full_name,
+      phone_number,
+      id_type,
+      id_number,
+      business_name,
+      business_email,
+      business_phone,
+      registration_type,
+      registration_number,
+      business_logo_link,
+      terms_accepted: true,
+      source: "whatsapp_flow",
+    });
+
+    // 3. Send welcome message back to the user
+    await sendWhatsAppMessage(
+      fromNumber,
+      `🎉 Welcome to Rova, ${full_name}!\n\n` +
+      `Your account has been created successfully.\n` +
+      `Business: ${business_name}\n\n` +
+      `📲 Log in at https://www.rovabusiness.com to access your dashboard.\n\n` +
+      `You can also use this WhatsApp chat to record expenses, send invoices, and more!`,
+      WHATSAPP_ACCESS_TOKEN
+    );
+
+    return new Response("ok", { status: 200 });
+  }
+}
+
