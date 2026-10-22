@@ -1,0 +1,369 @@
+{
+  "version": "7.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "DASHBOARD": [
+      "SALES_MODULE",
+      "EXPENSES_MODULE",
+      "REPORTS_MODULE",
+      "SETTINGS_MODULE"
+    ],
+    "SALES_MODULE": [],
+    "EXPENSES_MODULE": [],
+    "REPORTS_MODULE": [],
+    "SETTINGS_MODULE": []
+  },
+  "screens": [
+    {
+      "id": "DASHBOARD",
+      "title": "ROVA Business",
+      "terminal": false,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "ROVA Business"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Financial Summary"
+          },
+          {
+            "type": "TextBody",
+            "text": "💰 Sales Today: ₦${data.sales_today}"
+          },
+          {
+            "type": "TextBody",
+            "text": "💸 Expenses Today: ₦${data.expenses_today}"
+          },
+          {
+            "type": "TextBody",
+            "text": "📈 Net Profit: ₦${data.net_profit}"
+          },
+          {
+            "type": "TextBody",
+            "text": "🏦 Cash Balance: ₦${data.cash_balance}"
+          },
+          {
+            "type": "TextBody",
+            "text": "📥 Total In: ₦${data.total_in} | 📤 Total Out: ₦${data.total_out}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Select Module"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "target_module",
+            "label": "Choose a section to manage",
+            "required": true,
+            "data-source": [
+              {
+                "id": "SALES_MODULE",
+                "title": "🛒 Sales & Customers",
+                "description": "Record sales, AI invoice & reduce stock"
+              },
+              {
+                "id": "EXPENSES_MODULE",
+                "title": "📦 Expenses & Inventory",
+                "description": "Log expenses and update stock quantities"
+              },
+              {
+                "id": "REPORTS_MODULE",
+                "title": "📄 Documents & Reports",
+                "description": "Generate P&L statements & OCR receipts"
+              },
+              {
+                "id": "SETTINGS_MODULE",
+                "title": "⚙️ Alerts & Settings",
+                "description": "Low stock alerts, 8pm summary & payroll"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Open Selected Module",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action": "open_section",
+                "target_section": "${form.target_module}"
+              }
+            }
+          }
+        ]
+      },
+      "data": {
+        "sales_today": {
+          "type": "string",
+          "__example__": "0"
+        },
+        "expenses_today": {
+          "type": "string",
+          "__example__": "0"
+        },
+        "net_profit": {
+          "type": "string",
+          "__example__": "0"
+        },
+        "cash_balance": {
+          "type": "string",
+          "__example__": "0"
+        },
+        "total_in": {
+          "type": "string",
+          "__example__": "0"
+        },
+        "total_out": {
+          "type": "string",
+          "__example__": "0"
+        }
+      }
+    },
+    {
+      "id": "SALES_MODULE",
+      "title": "Sales & Customers",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Sales & Customers"
+          },
+          {
+            "type": "TextInput",
+            "name": "customer",
+            "label": "Customer Name",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "amount",
+            "label": "Amount ₦",
+            "input-type": "number",
+            "required": true
+          },
+          {
+            "type": "Dropdown",
+            "name": "payment_type",
+            "label": "Payment Type",
+            "required": true,
+            "data-source": [
+              {
+                "id": "cash",
+                "title": "Cash"
+              },
+              {
+                "id": "transfer",
+                "title": "Transfer"
+              },
+              {
+                "id": "owe",
+                "title": "Owe Me (Credit)"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "name": "items",
+            "label": "Items Sold (e.g. Rice 2 bags)",
+            "required": true
+          },
+          {
+            "type": "Footer",
+            "label": "Save Sale",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "action": "record_sale",
+                "customer": "${form.customer}",
+                "amount": "${form.amount}",
+                "payment_type": "${form.payment_type}",
+                "items": "${form.items}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "EXPENSES_MODULE",
+      "title": "Expenses & Inventory",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Expenses & Inventory"
+          },
+          {
+            "type": "TextInput",
+            "name": "expense_title",
+            "label": "Expense / Item Title",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "expense_amount",
+            "label": "Amount ₦",
+            "input-type": "number",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "stock_item",
+            "label": "Stock Item to Add (Optional)"
+          },
+          {
+            "type": "TextInput",
+            "name": "stock_quantity",
+            "label": "Stock Quantity to Add (Optional)",
+            "input-type": "number"
+          },
+          {
+            "type": "Footer",
+            "label": "Save Expense",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "action": "record_expense",
+                "expense_title": "${form.expense_title}",
+                "expense_amount": "${form.expense_amount}",
+                "stock_item": "${form.stock_item}",
+                "stock_quantity": "${form.stock_quantity}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "REPORTS_MODULE",
+      "title": "Documents & Reports",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Documents & Reports"
+          },
+          {
+            "type": "TextBody",
+            "text": "Generate instant business reports powered by ROVA AI."
+          },
+          {
+            "type": "Dropdown",
+            "name": "report_type",
+            "label": "Select Report Type",
+            "required": true,
+            "data-source": [
+              {
+                "id": "pnl_pdf",
+                "title": "📈 Profit & Loss Statement (PDF)"
+              },
+              {
+                "id": "sales_summary",
+                "title": "💰 Sales & Debtors Ledger"
+              },
+              {
+                "id": "inventory_valuation",
+                "title": "📦 Inventory Valuation Summary"
+              },
+              {
+                "id": "ocr_instruction",
+                "title": "📷 Upload/Scan Receipt (OCR Guide)"
+              }
+            ]
+          },
+          {
+            "type": "Dropdown",
+            "name": "report_period",
+            "label": "Period",
+            "required": true,
+            "data-source": [
+              {
+                "id": "today",
+                "title": "Today"
+              },
+              {
+                "id": "this_week",
+                "title": "This Week"
+              },
+              {
+                "id": "this_month",
+                "title": "This Month"
+              },
+              {
+                "id": "all_time",
+                "title": "All Time"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Generate & Send",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "action": "get_report",
+                "report_type": "${form.report_type}",
+                "report_period": "${form.report_period}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SETTINGS_MODULE",
+      "title": "Settings",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Notifications & Settings"
+          },
+          {
+            "type": "CheckboxGroup",
+            "name": "alert_preferences",
+            "label": "Automated WhatsApp Alerts",
+            "data-source": [
+              {
+                "id": "low_stock_alert",
+                "title": "⚠️ Low Stock Alert"
+              },
+              {
+                "id": "daily_report",
+                "title": "🌙 Daily Report (8:00 PM)"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "name": "staff_payroll",
+            "label": "Monthly Staff Payroll Budget (₦)",
+            "input-type": "number"
+          },
+          {
+            "type": "Footer",
+            "label": "Save Settings",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "action": "save_settings",
+                "alert_preferences": "${form.alert_preferences}",
+                "staff_payroll": "${form.staff_payroll}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

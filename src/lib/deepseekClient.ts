@@ -79,6 +79,8 @@ export type ChatPayload = {
     bills?: any[];
     externalWorkers?: any[];
     serviceAgreements?: any[];
+    documentUrl?: string;
+    documentFileName?: string;
   };
   confirmed?: boolean;
   cancelled?: boolean;

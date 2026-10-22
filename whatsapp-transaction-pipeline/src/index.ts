@@ -27,10 +27,21 @@ app.use(express.json({
 // Register routes
 app.use('/webhook', webhookRoutes);
 
+// Register Paystack billing & webhook routes
+import paystackRoutes from './paystack/paystack.routes';
+app.use('/api/paystack', paystackRoutes);
+app.use('/paystack', paystackRoutes);
+
+// Register Shared AI Voice & OCR Routes
+import aiRoutes from './routes/ai.routes';
+app.use('/api/ai', aiRoutes);
+app.use('/ai', aiRoutes);
+
 // Flow endpoints aliases
 import { FlowController } from './webhook/flow.controller';
 const flowController = new FlowController();
 app.post('/api/whatsapp/flow', flowController.handleFlow.bind(flowController));
+app.post('/whatsapp/flow', flowController.handleFlow.bind(flowController));
 app.post('/flow', flowController.handleFlow.bind(flowController));
 
 // Start the BullMQ worker — isolated so crashes don't affect the HTTP server

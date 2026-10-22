@@ -1,0 +1,584 @@
+{
+  "version": "7.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "DASHBOARD": [
+      "SALES",
+      "EXPENSES",
+      "DOCUMENTS",
+      "SETTINGS",
+      "SUCCESS"
+    ],
+    "SALES": [
+      "SUCCESS"
+    ],
+    "EXPENSES": [
+      "SUCCESS"
+    ],
+    "DOCUMENTS": [
+      "SUCCESS"
+    ],
+    "SETTINGS": [
+      "SUCCESS"
+    ],
+    "SUCCESS": []
+  },
+  "screens": [
+    {
+      "id": "DASHBOARD",
+      "title": "ROVA Dashboard",
+      "terminal": false,
+      "data": {
+        "business_name": {
+          "type": "string",
+          "__example__": "Tunde Stores"
+        },
+        "kpi_summary": {
+          "type": "string",
+          "__example__": "💰 Sales Today: ₦150,000\n💸 Expenses Today: ₦80,000\n📈 Net Profit: ₦70,000\n🏦 Cash Balance: ₦30,000"
+        },
+        "payments_summary": {
+          "type": "string",
+          "__example__": "📥 Payments In: ₦50,000\n📤 Payments Out: ₦20,000"
+        },
+        "inventory_summary": {
+          "type": "string",
+          "__example__": "• Rice: 25 bags\n• Beans: 10 bags\n• Groundnut Oil: 14 bottles\n• Cement: 40 bags"
+        },
+        "recent_activity": {
+          "type": "string",
+          "__example__": "• 2:30pm — Sale ₦5,000 (Rice x2 - John)\n• 1:10pm — Expense ₦3,000 (Fuel)\n• 11:45am — Payment in ₦15,000 (Bola)"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "${data.business_name}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Financial Summary"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.kpi_summary}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.payments_summary}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Inventory Overview"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.inventory_summary}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Recent Activity"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.recent_activity}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Open Module"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "target_section",
+            "label": "Select Module",
+            "required": true,
+            "data-source": [
+              {
+                "id": "SALES",
+                "title": "Sales & Customers",
+                "description": "Record sales, view customers & balances"
+              },
+              {
+                "id": "EXPENSES",
+                "title": "Expenses & Inventory",
+                "description": "Record expenses & adjust stock levels"
+              },
+              {
+                "id": "DOCUMENTS",
+                "title": "Documents & Reports",
+                "description": "View P&L, sales reports & scan instructions"
+              },
+              {
+                "id": "SETTINGS",
+                "title": "Alerts & Settings",
+                "description": "Notifications, payroll & business settings"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Open Module",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action": "open_section",
+                "target_section": "${form.target_section}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SALES",
+      "title": "Sales & Customers",
+      "terminal": false,
+      "data": {
+        "customer_balances_summary": {
+          "type": "string",
+          "__example__": "• John Okafor: Owes ₦15,000\n• Amaka B.: Owes ₦7,500\n• Musa Bello: Owes ₦22,000"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Sales & Customers"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Record New Sale"
+          },
+          {
+            "type": "TextInput",
+            "name": "product_name",
+            "label": "Product / Service Name",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "quantity",
+            "label": "Quantity",
+            "input-type": "number",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "price_per_unit",
+            "label": "Price Per Unit (₦)",
+            "input-type": "number",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "name": "customer_name",
+            "label": "Customer Name (Optional)",
+            "required": false
+          },
+          {
+            "type": "Dropdown",
+            "name": "payment_status",
+            "label": "Payment Status",
+            "required": true,
+            "data-source": [
+              {
+                "id": "PAID_CASH",
+                "title": "Paid — Cash / Transfer"
+              },
+              {
+                "id": "CREDIT",
+                "title": "Credit (Customer Owes)"
+              },
+              {
+                "id": "PARTIAL",
+                "title": "Partial Deposit"
+              }
+            ]
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Outstanding Customer Balances"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.customer_balances_summary}"
+          },
+          {
+            "type": "Footer",
+            "label": "Save Sale",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action": "record_sale",
+                "product_name": "${form.product_name}",
+                "quantity": "${form.quantity}",
+                "price_per_unit": "${form.price_per_unit}",
+                "customer_name": "${form.customer_name}",
+                "payment_status": "${form.payment_status}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "EXPENSES",
+      "title": "Expenses & Inventory",
+      "terminal": false,
+      "data": {
+        "products_list": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "prod_1",
+              "title": "Rice (50kg)",
+              "description": "Current stock: 25 bags"
+            },
+            {
+              "id": "prod_2",
+              "title": "Beans (Oloyin)",
+              "description": "Current stock: 10 bags"
+            },
+            {
+              "id": "prod_3",
+              "title": "Groundnut Oil (25L)",
+              "description": "Current stock: 14 bottles"
+            }
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Expenses & Inventory"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "1. Quick Stock Adjustment"
+          },
+          {
+            "type": "Dropdown",
+            "name": "stock_product_id",
+            "label": "Select Product",
+            "data-source": "${data.products_list}"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "stock_action",
+            "label": "Adjustment Action",
+            "data-source": [
+              {
+                "id": "ADD_1",
+                "title": "+1 Add Unit"
+              },
+              {
+                "id": "SUB_1",
+                "title": "−1 Deduct Unit"
+              },
+              {
+                "id": "CUSTOM",
+                "title": "Add Custom Quantity"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "name": "custom_qty",
+            "label": "Custom Quantity (if custom selected)",
+            "input-type": "number",
+            "required": false
+          },
+          {
+            "type": "TextSubheading",
+            "text": "2. Record New Expense"
+          },
+          {
+            "type": "TextInput",
+            "name": "expense_title",
+            "label": "Expense Description / Item",
+            "required": false
+          },
+          {
+            "type": "TextInput",
+            "name": "expense_amount",
+            "label": "Amount (₦)",
+            "input-type": "number",
+            "required": false
+          },
+          {
+            "type": "Dropdown",
+            "name": "expense_category",
+            "label": "Category",
+            "required": false,
+            "data-source": [
+              {
+                "id": "stock_purchase",
+                "title": "Stock / Restock Purchase"
+              },
+              {
+                "id": "fuel_logistics",
+                "title": "Fuel & Transport"
+              },
+              {
+                "id": "rent_utilities",
+                "title": "Rent & Electricity"
+              },
+              {
+                "id": "wages",
+                "title": "Staff & Wages"
+              },
+              {
+                "id": "other",
+                "title": "Other Expense"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Submit Entry",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action": "record_expense_or_stock",
+                "stock_product_id": "${form.stock_product_id}",
+                "stock_action": "${form.stock_action}",
+                "custom_qty": "${form.custom_qty}",
+                "expense_title": "${form.expense_title}",
+                "expense_amount": "${form.expense_amount}",
+                "expense_category": "${form.expense_category}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "DOCUMENTS",
+      "title": "Documents & Reports",
+      "terminal": false,
+      "data": {
+        "report_info": {
+          "type": "string",
+          "__example__": "Select a report type and period to generate your financial statement."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Documents & Reports"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Instant Business Reports"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.report_info}"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "report_type",
+            "label": "Select Report Type",
+            "required": true,
+            "data-source": [
+              {
+                "id": "PNL",
+                "title": "Profit & Loss (P&L) Statement",
+                "description": "Revenue, direct costs & net profit"
+              },
+              {
+                "id": "SALES_SUMMARY",
+                "title": "Sales Performance Report",
+                "description": "Top items sold and turnover"
+              },
+              {
+                "id": "INVENTORY_VALUATION",
+                "title": "Stock Valuation Report",
+                "description": "Units in stock and inventory value"
+              }
+            ]
+          },
+          {
+            "type": "Dropdown",
+            "name": "report_period",
+            "label": "Report Timeframe",
+            "required": true,
+            "data-source": [
+              {
+                "id": "TODAY",
+                "title": "Today"
+              },
+              {
+                "id": "THIS_WEEK",
+                "title": "This Week"
+              },
+              {
+                "id": "THIS_MONTH",
+                "title": "This Month"
+              },
+              {
+                "id": "ALL_TIME",
+                "title": "All Time"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Generate Report to Chat",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action": "generate_report",
+                "report_type": "${form.report_type}",
+                "report_period": "${form.report_period}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SETTINGS",
+      "title": "Alerts & Settings",
+      "terminal": false,
+      "data": {
+        "active_alerts": {
+          "type": "string",
+          "__example__": "⚠️ Low Stock: Rice (only 2 bags left)\n⚠️ Overdue: John owes ₦15,000 (3 days overdue)"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Notifications & Settings"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Active Business Alerts"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.active_alerts}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Quick Staff Payroll"
+          },
+          {
+            "type": "TextInput",
+            "name": "staff_name",
+            "label": "Staff Member Name",
+            "required": false
+          },
+          {
+            "type": "TextInput",
+            "name": "salary_amount",
+            "label": "Salary Amount (₦)",
+            "input-type": "number",
+            "required": false
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Payment Integration"
+          },
+          {
+            "type": "Dropdown",
+            "name": "payment_gateway",
+            "label": "Connected Payment Provider",
+            "required": false,
+            "data-source": [
+              {
+                "id": "MONO",
+                "title": "Mono Direct Bank Sync (Active)"
+              },
+              {
+                "id": "PAYSTACK",
+                "title": "Paystack Payments"
+              },
+              {
+                "id": "FLUTTERWAVE",
+                "title": "Flutterwave"
+              }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Save Settings",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action": "save_settings",
+                "staff_name": "${form.staff_name}",
+                "salary_amount": "${form.salary_amount}",
+                "payment_gateway": "${form.payment_gateway}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SUCCESS",
+      "title": "Completed",
+      "terminal": true,
+      "data": {
+        "success_title": {
+          "type": "string",
+          "__example__": "Action Completed"
+        },
+        "success_message": {
+          "type": "string",
+          "__example__": "Your transaction has been recorded and synced to ROVA."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "${data.success_title}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.success_message}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Your ROVA web dashboard and accounting ledger have been updated automatically."
+          },
+          {
+            "type": "Footer",
+            "label": "Done",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

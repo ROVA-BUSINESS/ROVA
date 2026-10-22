@@ -1,33 +1,43 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { supabase, type RovaSubscription, type RovaServicePayment } from '../lib/supabase';
+import { supabase, type RovaSubscription, type RovaServicePayment, type RovaPaymentHistory } from '../lib/supabase';
 import { useAuth } from './AuthContext';
-import { getNextPaymentDate, type PlanKey } from '../lib/paystack';
+import {
+  type PlanKey,
+  verifyPaymentOnServer,
+  cancelSubscriptionOnServer
+} from '../lib/paystack';
 import { isDeveloperEmail, isDeveloperBypassCode } from '../config/developers';
 
 interface SubscriptionContextValue {
   subscription: RovaSubscription | null;
   servicePayments: RovaServicePayment[];
+  paymentHistory: RovaPaymentHistory[];
   loading: boolean;
   isActive: boolean;
+  isExpired: boolean;
   isBasic: boolean;
   isBusiness: boolean;
   isDeveloper: boolean;
   planKey: PlanKey | null;
   refresh: () => Promise<void>;
   activateByReference: (reference: string, planKey?: PlanKey) => Promise<{ success: boolean; error?: string }>;
+  cancelCurrentSubscription: () => Promise<{ success: boolean; error?: string; message?: string }>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({
   subscription: null,
   servicePayments: [],
+  paymentHistory: [],
   loading: true,
   isActive: false,
+  isExpired: false,
   isBasic: false,
   isBusiness: false,
   isDeveloper: false,
   planKey: null,
   refresh: async () => {},
   activateByReference: async () => ({ success: false, error: 'Not initialized' }),
+  cancelCurrentSubscription: async () => ({ success: false, error: 'Not initialized' }),
 });
 
 export function useSubscription() {
@@ -38,17 +48,20 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<RovaSubscription | null>(null);
   const [servicePayments, setServicePayments] = useState<RovaServicePayment[]>([]);
+  const [paymentHistory, setPaymentHistory] = useState<RovaPaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     if (!user) {
       setSubscription(null);
       setServicePayments([]);
+      setPaymentHistory([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const [subRes, svcRes] = await Promise.all([
+
+    const [subRes, svcRes, histRes] = await Promise.all([
       supabase
         .from('rova_subscriptions')
         .select('*')
@@ -58,6 +71,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         .limit(1),
       supabase
         .from('rova_service_payments')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('rova_payment_history')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
@@ -72,11 +90,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
           user_id: user.id,
           plan: 'business_monthly',
           amount: 0,
+          payment_type: 'one_time',
+          billing_interval: 'monthly',
           status: 'active',
           payment_reference: 'DEV_AUTO_BYPASS',
           paystack_transaction_id: 'DEV_AUTO_BYPASS',
           payment_date: new Date().toISOString(),
           start_date: new Date().toISOString().split('T')[0],
+          access_expires_at: '2099-12-31T23:59:59.000Z',
           next_payment_date: '2099-12-31',
         }).select().single();
 
@@ -86,33 +107,20 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Auto-recover pending payment from localStorage (e.g. if user did bank transfer and closed popup)
+    // Auto-recover pending payment from localStorage via server verification
     if (!activeSub) {
       try {
         const rawPending = localStorage.getItem('rova_pending_payment');
         if (rawPending) {
           const pending = JSON.parse(rawPending);
-          if (pending && pending.userId === user.id && pending.type === 'subscription' && pending.planKey) {
-            await supabase
-              .from('rova_subscriptions')
-              .update({ status: 'cancelled' })
-              .eq('user_id', user.id)
-              .eq('status', 'active');
+          if (pending && pending.userId === user.id && pending.type === 'subscription' && pending.reference) {
+            const verRes = await verifyPaymentOnServer({
+              reference: pending.reference,
+              planKey: pending.planKey,
+            });
 
-            const { data: newSub } = await supabase.from('rova_subscriptions').insert({
-              user_id: user.id,
-              plan: pending.planKey,
-              amount: pending.amount || 100,
-              status: 'active',
-              payment_reference: pending.reference,
-              paystack_transaction_id: pending.reference,
-              payment_date: new Date().toISOString(),
-              start_date: new Date().toISOString().split('T')[0],
-              next_payment_date: getNextPaymentDate(pending.planKey as PlanKey),
-            }).select().single();
-
-            if (newSub) {
-              activeSub = newSub;
+            if (verRes.success && verRes.subscription) {
+              activeSub = verRes.subscription;
               localStorage.removeItem('rova_pending_payment');
             }
           }
@@ -124,6 +132,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
     setSubscription(activeSub);
     setServicePayments(svcRes.data ?? []);
+    setPaymentHistory(histRes.data ?? []);
     setLoading(false);
   }
 
@@ -133,36 +142,60 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     if (!cleanRef) return { success: false, error: 'Please enter a valid Paystack payment reference' };
 
     try {
-      await supabase
-        .from('rova_subscriptions')
-        .update({ status: 'cancelled' })
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-
       const isDevBypass = isDeveloperBypassCode(cleanRef);
-      const isBusiness = isDevBypass || cleanRef.toLowerCase().includes('business') || targetPlanKey.includes('business');
-      const selectedPlan: PlanKey = isDevBypass ? 'business_monthly' : (targetPlanKey || (isBusiness ? 'business_daily' : 'basic_daily'));
-      const amount = isDevBypass ? 0 : (selectedPlan === 'business_monthly' ? 15000 : selectedPlan === 'business_daily' ? 500 : selectedPlan === 'basic_monthly' ? 3000 : 100);
+      if (isDevBypass) {
+        await supabase
+          .from('rova_subscriptions')
+          .update({ status: 'cancelled' })
+          .eq('user_id', user.id)
+          .eq('status', 'active');
 
-      const { data: newSub, error } = await supabase.from('rova_subscriptions').insert({
-        user_id: user.id,
-        plan: selectedPlan,
-        amount,
-        status: 'active',
-        payment_reference: cleanRef,
-        paystack_transaction_id: cleanRef,
-        payment_date: new Date().toISOString(),
-        start_date: new Date().toISOString().split('T')[0],
-        next_payment_date: isDevBypass ? '2099-12-31' : getNextPaymentDate(selectedPlan),
-      }).select().single();
+        const { data: newSub, error } = await supabase.from('rova_subscriptions').insert({
+          user_id: user.id,
+          plan: 'business_monthly',
+          amount: 0,
+          payment_type: 'one_time',
+          billing_interval: 'monthly',
+          status: 'active',
+          payment_reference: cleanRef,
+          paystack_transaction_id: cleanRef,
+          payment_date: new Date().toISOString(),
+          start_date: new Date().toISOString().split('T')[0],
+          access_expires_at: '2099-12-31T23:59:59.000Z',
+          next_payment_date: '2099-12-31',
+        }).select().single();
 
-      if (error) throw error;
+        if (error) throw error;
+        setSubscription(newSub);
+        return { success: true };
+      }
 
-      setSubscription(newSub);
+      // Perform server-side payment verification
+      const verifyRes = await verifyPaymentOnServer({
+        reference: cleanRef,
+        planKey: targetPlanKey,
+      });
+
+      if (!verifyRes.success) {
+        return { success: false, error: verifyRes.error || 'Failed to verify payment reference on server.' };
+      }
+
+      await load();
       localStorage.removeItem('rova_pending_payment');
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'Failed to activate reference' };
+    }
+  }
+
+  async function cancelCurrentSubscription() {
+    if (!subscription) return { success: false, error: 'No active subscription' };
+    try {
+      const res = await cancelSubscriptionOnServer(subscription.id);
+      await load();
+      return res;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Cancellation failed' };
     }
   }
 
@@ -171,17 +204,45 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   const isDeveloper = isDeveloperEmail(user?.email) || isDeveloperBypassCode(subscription?.payment_reference);
-  const isActive = isDeveloper || subscription?.status === 'active';
+
+  // Expiration check: Has current access expired?
+  let isExpired = false;
+  if (!isDeveloper && subscription) {
+    if (subscription.access_expires_at) {
+      isExpired = new Date(subscription.access_expires_at).getTime() < Date.now();
+    } else if (subscription.next_payment_date) {
+      // Fallback: if next_payment_date has passed by more than 24h
+      const expDate = new Date(subscription.next_payment_date);
+      expDate.setHours(23, 59, 59, 999);
+      isExpired = expDate.getTime() < Date.now();
+    }
+  }
+
+  // Active status strictly requires valid non-expired access
+  const isActive = isDeveloper || (subscription?.status === 'active' && !isExpired);
   const planKey = (isDeveloper && !subscription?.plan ? 'business_monthly' : subscription?.plan ?? null) as PlanKey | null;
   const isBasic = isActive && (planKey === 'basic_daily' || planKey === 'basic_monthly');
   const isBusiness = isDeveloper || (isActive && (planKey === 'business_daily' || planKey === 'business_monthly'));
 
   return (
     <SubscriptionContext.Provider
-      value={{ subscription, servicePayments, loading, isActive, isBasic, isBusiness, isDeveloper, planKey, refresh: load, activateByReference }}
+      value={{
+        subscription,
+        servicePayments,
+        paymentHistory,
+        loading,
+        isActive,
+        isExpired,
+        isBasic,
+        isBusiness,
+        isDeveloper,
+        planKey,
+        refresh: load,
+        activateByReference,
+        cancelCurrentSubscription,
+      }}
     >
       {children}
     </SubscriptionContext.Provider>
   );
 }
-

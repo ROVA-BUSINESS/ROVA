@@ -72,13 +72,13 @@ export default function NoSubscriptionPage() {
         }}>
           <div style={{ padding: '12px 20px', borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', border: '1px solid var(--bg-border)', textAlign: 'left' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Basic</div>
-            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>₦100<span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>/day</span></div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>or ₦3,000/month</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>₦100<span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>/day (recurring)</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>or ₦3,000/month (one-time)</div>
           </div>
           <div style={{ padding: '12px 20px', borderRadius: 'var(--radius-lg)', background: 'var(--accent-dim)', border: '2px solid var(--accent-border)', textAlign: 'left' }}>
             <div style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Business ★</div>
-            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>₦500<span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>/day</span></div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>or ₦15,000/month</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>₦500<span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>/day (recurring)</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>or ₦15,000/month (one-time)</div>
           </div>
         </div>
 

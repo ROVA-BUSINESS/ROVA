@@ -1,10 +1,21 @@
 import express from 'express';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
+import { sendDashboardFlow } from './send-dashboard-flow.js';
+import flowApp from './rova-flow-api.js';
+import paystackApp from './paystack-api.js';
+
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+
+// Mount the WhatsApp Flow Data API
+app.use(flowApp);
+
+// Mount Paystack Billing & Webhook API
+app.use('/api/paystack', paystackApp);
+app.use('/paystack', paystackApp);
 
 // Helper function to send WhatsApp message
 async function sendMessage(to, text) {
@@ -182,11 +193,46 @@ app.post("/webhook", async (req, res) => {
   // STEP 2: TELL WHATSAPP WE RECEIVED IT (to avoid duplicate)
   res.sendStatus(200);
 
+  // ── OPEN ROVA MINI-APP (FLOW) TRIGGER ─────────────────────────────────────
+  // When user sends "Open ROVA", "dashboard", or taps Ice Breaker
+  const flowTriggers = ["open rova", "rova", "dashboard", "open app", "menu", "business"];
+  const lowerMsg = text.trim().toLowerCase();
+  if (flowTriggers.includes(lowerMsg) || (msg.type === "interactive" && msg.interactive?.button_reply?.id === "open_rova")) {
+    console.log(`📱 Triggering ROVA Business Flow for ${from}...`);
+    await sendDashboardFlow(from);
+    return;
+  }
+
+  // ── FLOW COMPLETION HANDLER (nfm_reply) ────────────────────────────────────
+  if (msg.type === "interactive" && msg.interactive?.type === "nfm_reply") {
+    try {
+      const responseData = JSON.parse(msg.interactive.nfm_reply.response_json || "{}");
+      console.log(`📥 Received Flow response from ${from}:`, responseData);
+
+      if (responseData.action === "record_sale" || responseData.customer) {
+        await sendMessage(
+          from,
+          `✅ *Sale Recorded by ROVA AI*\n` +
+          `• *Customer*: ${responseData.customer || 'Walk-in'}\n` +
+          `• *Items*: ${responseData.items || 'Goods'}\n` +
+          `• *Amount*: ₦${Number(responseData.amount || 0).toLocaleString()}\n` +
+          `• *Payment*: ${responseData.payment_type || 'cash'}\n\n` +
+          `🧾 Invoice generated. Inventory updated in real time.`
+        );
+        // Automatically send refreshed dashboard
+        await sendDashboardFlow(from);
+        return;
+      }
+    } catch (e) {
+      console.error("Error processing nfm_reply:", e.message);
+    }
+  }
+
   // ── NEW USER DETECTION: send onboarding flow instead of text reply ──────
   // A simple heuristic: if the message is exactly "hi", "hello", "start", or
   // the very first message (you can replace this with a Supabase lookup later).
   const greetings = ["hi", "hello", "start", "hey", "register", "join"];
-  if (greetings.includes(text.trim().toLowerCase())) {
+  if (greetings.includes(lowerMsg)) {
     await triggerRovaOnboardingFlow(from);
     return; // Don't send the normal ROVA reply for this message
   }
