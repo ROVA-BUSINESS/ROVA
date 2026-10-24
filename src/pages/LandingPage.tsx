@@ -137,7 +137,7 @@ export default function LandingPage() {
               <h1>
                 Know your numbers.
                 <br />
-                <span>Grow your business.</span>
+                <span className="purple-gradient-text">Grow your business.</span>
               </h1>
               <p>
                 Your business, made clearer. Meet rova the AI financial assistant and operating
@@ -311,7 +311,7 @@ export default function LandingPage() {
 
                 <div className="living-stat-box" style={{ background: 'var(--lp-bg-card)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ color: 'var(--lp-accent-green)' }}>CIT PROVISION</span>
+                    <span style={{ color: 'var(--lp-accent-purple, #863bff)', fontWeight: 700 }}>CIT PROVISION</span>
                     <span style={{ color: 'var(--lp-text-faint)', fontSize: '11px' }}>AUTOMATED</span>
                   </div>
                   <strong style={{ fontSize: '17px', lineHeight: 1.4, color: 'var(--lp-text-main)', fontWeight: 600 }}>
@@ -684,7 +684,7 @@ export default function LandingPage() {
             <h2>
               Make room
               <br />
-              for better business.
+              <span className="purple-gradient-light">for better business.</span>
             </h2>
             <div>
               <p>

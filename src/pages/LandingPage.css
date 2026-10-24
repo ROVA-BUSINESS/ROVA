@@ -55,6 +55,26 @@
   font-weight: 500;
 }
 
+.purple-gradient-text {
+  background: linear-gradient(135deg, #662D91 0%, #863BFF 50%, #B87CFC 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+[data-theme="dark"] .purple-gradient-text {
+  background: linear-gradient(135deg, #A855F7 0%, #C084FC 50%, #E9D5FF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.purple-gradient-light {
+  background: linear-gradient(135deg, #FFFFFF 20%, #D8B4FE 65%, #A855F7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
@@ -114,6 +134,14 @@
   letter-spacing: -0.03em;
 }
 
+.brand span {
+  transition: color 0.15s ease;
+}
+
+.brand:hover span {
+  color: var(--lp-accent-purple, #863bff);
+}
+
 .brand-logo {
   width: 32px;
   height: 32px;
@@ -153,7 +181,7 @@
 }
 
 .desktop-nav a:hover {
-  color: var(--lp-text-main);
+  color: var(--lp-accent-purple, #863bff);
 }
 
 .header-actions {
@@ -165,14 +193,14 @@
 .header-link {
   text-decoration: none;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lp-text-muted);
   transition: color 0.15s ease;
   padding: 8px 12px;
 }
 
 .header-link:hover {
-  color: var(--lp-text-main);
+  color: var(--lp-accent-purple, #863bff);
 }
 
 .button {
@@ -187,28 +215,34 @@
   text-decoration: none;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  border: none;
+  border: 1px solid transparent;
 }
 
 .button.dark {
-  background: var(--lp-pill-dark);
+  background: linear-gradient(180deg, #181224 0%, #0A0711 100%);
   color: #FFFFFF;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(134, 59, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(102, 45, 145, 0.25);
 }
 
 [data-theme="dark"] .button.dark {
-  color: #121314;
-  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, #241a38 0%, #120d1c 100%);
+  color: #FFFFFF;
+  border-color: rgba(134, 59, 255, 0.5);
+  box-shadow: 0 4px 18px rgba(134, 59, 255, 0.25);
 }
 
 .button.dark:hover {
-  background: var(--lp-pill-dark-hover);
+  background: linear-gradient(180deg, #221834 0%, #0E0A18 100%);
   transform: translateY(-1.5px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.32);
+  border-color: rgba(134, 59, 255, 0.7);
+  box-shadow: 0 6px 24px rgba(134, 59, 255, 0.45);
 }
 
 [data-theme="dark"] .button.dark:hover {
-  color: #121314;
+  background: linear-gradient(180deg, #2e2048 0%, #171126 100%);
+  border-color: rgba(134, 59, 255, 0.8);
+  box-shadow: 0 6px 26px rgba(134, 59, 255, 0.5);
 }
 
 .button.light {
@@ -280,6 +314,22 @@
   gap: 24px;
 }
 
+.hero-copy .eyebrow {
+  background: rgba(134, 59, 255, 0.08);
+  border: 1px solid rgba(134, 59, 255, 0.22);
+  border-radius: var(--lp-radius-pill);
+  padding: 6px 14px;
+  color: #7C3AED;
+  width: fit-content;
+  box-shadow: 0 2px 10px rgba(134, 59, 255, 0.08);
+}
+
+[data-theme="dark"] .hero-copy .eyebrow {
+  background: rgba(134, 59, 255, 0.16);
+  border-color: rgba(134, 59, 255, 0.38);
+  color: #C084FC;
+}
+
 .hero-copy h1 {
   font-size: clamp(48px, 5.5vw, 76px);
   font-weight: 400;
@@ -316,11 +366,11 @@
   text-decoration: none;
   font-size: 14.5px;
   font-weight: 500;
-  transition: opacity 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .text-link:hover {
-  opacity: 0.7;
+  color: var(--lp-accent-purple, #863bff);
 }
 
 /* Hero Visual Showcase */
@@ -448,10 +498,11 @@
 
 .hero-bottom span i {
   display: inline-block;
-  width: 3px;
-  height: 3px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: var(--lp-text-faint);
+  background: var(--lp-accent-purple, #863bff);
+  opacity: 0.7;
   margin: 0 10px;
   vertical-align: middle;
 }
@@ -493,27 +544,49 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.measurement::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--lp-accent-purple, #863bff), transparent);
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
 .measurement:hover {
-  border-color: var(--lp-border-strong);
-  transform: translateY(-2px);
+  border-color: rgba(134, 59, 255, 0.35);
+  box-shadow: 0 16px 36px -10px rgba(102, 45, 145, 0.12);
+  transform: translateY(-3px);
+}
+
+.measurement:hover::after {
+  opacity: 1;
 }
 
 .measurement-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: var(--lp-text-muted);
+  color: var(--lp-accent-purple, #863bff);
   margin-bottom: 28px;
 }
 
 .measurement-top span {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--lp-text-faint);
+  color: #7C3AED;
+  background: rgba(134, 59, 255, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
 }
 
 .measurement h3 {
@@ -526,8 +599,8 @@
 
 .measurement h4 {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--lp-accent-gold);
+  font-weight: 600;
+  color: var(--lp-accent-purple, #863bff);
   margin-bottom: 12px;
 }
 
@@ -566,8 +639,8 @@
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  font-weight: 500;
-  color: var(--lp-text-muted);
+  font-weight: 600;
+  color: var(--lp-accent-purple, #863bff);
 }
 
 .fine-print {
@@ -603,7 +676,7 @@
   flex-direction: column;
   justify-content: center;
   gap: 20px;
-  background: radial-gradient(circle at 70% 30%, rgba(180, 138, 60, 0.06), transparent 70%);
+  background: radial-gradient(circle at 70% 30%, rgba(134, 59, 255, 0.14) 0%, rgba(102, 45, 145, 0.04) 45%, transparent 70%);
 }
 
 .living-stat-box {
@@ -611,6 +684,11 @@
   border: 1px solid var(--lp-border-line);
   border-radius: 12px;
   padding: 20px;
+  transition: border-color 0.2s ease;
+}
+
+.living-stat-box:hover {
+  border-color: rgba(134, 59, 255, 0.3);
 }
 
 .living-stat-box span {
@@ -673,11 +751,13 @@
 }
 
 .living-points div span {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
-  color: var(--lp-text-faint);
-  letter-spacing: 0.1em;
-  padding-top: 2px;
+  color: #7C3AED;
+  background: rgba(134, 59, 255, 0.08);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.08em;
 }
 
 .living-points div p {
@@ -741,8 +821,11 @@
 .app-copy ul li span {
   font-size: 11px;
   font-weight: 700;
-  color: var(--lp-text-faint);
-  letter-spacing: 0.1em;
+  color: #7C3AED;
+  background: rgba(134, 59, 255, 0.08);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.08em;
 }
 
 .platforms {
@@ -753,6 +836,11 @@
   font-weight: 600;
   color: var(--lp-text-main);
   cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.platforms:hover {
+  color: var(--lp-accent-purple, #863bff);
 }
 
 .app-demo {
@@ -762,13 +850,26 @@
   position: relative;
 }
 
+.app-demo::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 360px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(134, 59, 255, 0.18) 0%, rgba(102, 45, 145, 0.05) 55%, transparent 75%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Pixel-perfect Smartphone Mockup (ROVA Mobile App) */
 .phone {
   width: 310px;
   background: #0E0F11;
-  border: 10px solid #1E2024;
+  border: 10px solid #1a1626;
   border-radius: 44px;
-  box-shadow: 0 32px 72px -16px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 32px 72px -16px rgba(0, 0, 0, 0.55), 0 0 50px -10px rgba(134, 59, 255, 0.32);
   color: #FFFFFF;
   padding: 14px 16px 12px;
   display: flex;
@@ -776,6 +877,7 @@
   gap: 12px;
   position: relative;
   overflow: hidden;
+  z-index: 1;
 }
 
 .phone-status {
@@ -1071,6 +1173,11 @@
   padding: 18px 0;
   border-bottom: 1px solid var(--lp-border-line);
   font-size: 14.5px;
+  transition: border-color 0.2s ease;
+}
+
+.specs-section dl div:hover {
+  border-bottom-color: rgba(134, 59, 255, 0.4);
 }
 
 .specs-section dl div:first-child {
@@ -1080,6 +1187,11 @@
 .specs-section dt {
   color: var(--lp-text-muted);
   font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.specs-section dl div:hover dt {
+  color: var(--lp-accent-purple, #863bff);
 }
 
 .specs-section dd {
@@ -1193,7 +1305,7 @@
 /* ── SECTION 07: PRE-ORDER / FINAL CTA ── */
 .preorder-section {
   margin: 64px 0 96px;
-  background: radial-gradient(ellipse 100% 120% at 50% -10%, rgba(134, 59, 255, 0.28) 0%, rgba(28, 14, 48, 0.8) 40%, #0A0A0C 85%);
+  background: radial-gradient(ellipse 100% 120% at 50% -10%, rgba(134, 59, 255, 0.35) 0%, rgba(28, 14, 48, 0.88) 45%, #0A0A0C 90%);
   color: #FFFFFF;
   border-radius: var(--lp-radius-lg);
   padding: 80px 64px;
@@ -1202,14 +1314,41 @@
   gap: 24px;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(134, 59, 255, 0.28);
-  box-shadow: 0 30px 70px -15px rgba(102, 45, 145, 0.25);
+  border: 1px solid rgba(134, 59, 255, 0.35);
+  box-shadow: 0 30px 80px -15px rgba(102, 45, 145, 0.35);
+}
+
+.preorder-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent 0%, rgba(192, 132, 252, 0.95) 50%, transparent 100%);
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.9);
 }
 
 [data-theme="dark"] .preorder-section {
-  background: radial-gradient(ellipse 100% 120% at 50% -10%, rgba(134, 59, 255, 0.32) 0%, rgba(20, 10, 36, 0.9) 45%, #08080A 85%);
-  border: 1px solid rgba(134, 59, 255, 0.35);
-  box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.7);
+  background: radial-gradient(ellipse 100% 120% at 50% -10%, rgba(134, 59, 255, 0.4) 0%, rgba(20, 10, 36, 0.95) 45%, #08080A 85%);
+  border: 1px solid rgba(134, 59, 255, 0.45);
+  box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.7);
+}
+
+.preorder-section .button.light {
+  background: #FFFFFF;
+  color: #0A0A0C;
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  border: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.preorder-section .button.light:hover {
+  background: #F5F3FF;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(134, 59, 255, 0.45);
+  color: #5B21B6;
 }
 
 .preorder-section .eyebrow {
