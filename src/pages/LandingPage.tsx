@@ -25,11 +25,7 @@ export default function LandingPage() {
       {/* ── Site Header ── */}
       <header className="site-header">
         <Link to="/" className="brand" aria-label="ROVA Home">
-          <span className="brand-mark" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
+          <img src="/rova-mark.jpg" alt="ROVA Logo" className="brand-logo" />
           <span>rova</span>
         </Link>
 
@@ -697,12 +693,12 @@ export default function LandingPage() {
                 One thoughtfully designed platform. Complete peace of mind.
               </p>
               <Link to="/signup" className="button light">
-                Get started free <span className="button-price">Instant setup</span>
+                Get started
                 <ArrowUpRight size={18} />
               </Link>
             </div>
             <span className="preorder-note">
-              FREE TIER AVAILABLE · CANCEL OR UPGRADE ANYTIME
+              INSTANT SETUP · NO CREDIT CARD REQUIRED · CANCEL ANYTIME
             </span>
           </section>
         </main>
@@ -713,7 +709,8 @@ export default function LandingPage() {
         <div className="footer-top">
           <div>
             <Link to="/" className="footer-brand">
-              rova
+              <img src="/rova-mark.jpg" alt="ROVA Logo" className="brand-logo" />
+              <span>rova</span>
             </Link>
             <p style={{ marginTop: '8px' }}>
               A little more aware.
