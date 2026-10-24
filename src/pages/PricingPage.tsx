@@ -48,7 +48,7 @@ export default function PricingPage() {
     },
     {
       q: 'Can I switch between daily and monthly billing?',
-      a: 'Yes. Both plans are available on daily or monthly billing. Switch anytime from your Billing page inside the app.'
+      a: 'Yes. Monthly plans are paid once for 30 days of full access with no automatic renewal. Daily plans renew automatically every day via Paystack until cancelled. You can change plans or cancel anytime from your Billing page.'
     },
     {
       q: 'What is Tax Filing and why is it separate?',
@@ -190,12 +190,12 @@ export default function PricingPage() {
                 <div style={{ display: 'flex', gap: 16, margin: '24px 0', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div>
                     <div style={{ fontSize: 36, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1 }}>₦100</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per day</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per day (recurring)</div>
                   </div>
                   <div style={{ paddingBottom: 4, color: 'var(--text-disabled)' }}>or</div>
                   <div>
                     <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)', lineHeight: 1 }}>₦3,000</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per month</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per month (one-time)</div>
                   </div>
                 </div>
                 <Link to="/signup" style={{ textDecoration: 'none' }}>
@@ -256,12 +256,12 @@ export default function PricingPage() {
                 <div style={{ display: 'flex', gap: 16, margin: '24px 0', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div>
                     <div style={{ fontSize: 36, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1, background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>₦500</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per day</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per day (recurring)</div>
                   </div>
                   <div style={{ paddingBottom: 4, color: 'var(--text-disabled)' }}>or</div>
                   <div>
                     <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-light)', lineHeight: 1 }}>₦15,000</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per month</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>per month (one-time)</div>
                   </div>
                 </div>
                 <Link to="/signup" style={{ textDecoration: 'none' }}>

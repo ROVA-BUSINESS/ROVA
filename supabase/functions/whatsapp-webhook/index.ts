@@ -117,6 +117,8 @@ serve(async (req) => {
 
     let extractedText = "";
     let mediaTypeSource = "Text message";
+    let uploadedDocUrl = "";
+    let uploadedDocFileName = "";
 
     // Safe ArrayBuffer to Base64 (prevents RangeError stack overflow on large images/audio)
     function safeArrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -150,6 +152,24 @@ serve(async (req) => {
           const imgBlob = await fetch(mediaUrl, {
             headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
           }).then((res) => res.arrayBuffer());
+
+          // Upload image to Supabase Storage receipts bucket
+          try {
+            const filePath = `${userId}/inbound_${Date.now()}.jpg`;
+            await supabaseClient.storage.from("receipts").upload(filePath, imgBlob, {
+              contentType: "image/jpeg",
+              upsert: true,
+            });
+            const { data: signedData } = await supabaseClient.storage.from("receipts").createSignedUrl(filePath, 315360000);
+            uploadedDocUrl = signedData?.signedUrl || "";
+            uploadedDocFileName = "receipt_image.jpg";
+          } catch (storageErr) {
+            console.error("Failed to save image to receipts bucket:", storageErr);
+          }
+
+          if (message.image?.caption) {
+            extractedText = message.image.caption;
+          }
 
           // 1. Try PaddleOCR URL if configured
           if (PADDLE_OCR_URL) {
@@ -215,7 +235,71 @@ serve(async (req) => {
               }),
             });
             const visionData = await visionRes.json();
-            extractedText = visionData.choices?.[0]?.message?.content || "";
+            extractedText = visionData.choices?.[0]?.message?.content || extractedText;
+          }
+        }
+      }
+    } else if (messageType === "document") {
+      mediaTypeSource = "Business Document / PDF";
+      const docId = message.document?.id;
+      const docFileName = message.document?.filename || "document.pdf";
+      const docMimeType = message.document?.mime_type || "application/pdf";
+      const docCaption = message.document?.caption || "";
+
+      if (docId && WHATSAPP_ACCESS_TOKEN) {
+        const mediaRes = await fetch(`https://graph.facebook.com/v20.0/${docId}`, {
+          headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
+        });
+        const mediaData = await mediaRes.json();
+        const mediaUrl = mediaData.url;
+
+        if (mediaUrl) {
+          const docBuffer = await fetch(mediaUrl, {
+            headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
+          }).then((res) => res.arrayBuffer());
+
+          const ext = docFileName.includes(".") ? docFileName.split(".").pop() : "pdf";
+          const filePath = `${userId}/inbound_${Date.now()}_${docFileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+
+          try {
+            await supabaseClient.storage.from("receipts").upload(filePath, docBuffer, {
+              contentType: docMimeType,
+              upsert: true,
+            });
+            const { data: signedData } = await supabaseClient.storage.from("receipts").createSignedUrl(filePath, 315360000);
+            uploadedDocUrl = signedData?.signedUrl || "";
+            uploadedDocFileName = docFileName;
+          } catch (storageErr) {
+            console.error("Failed to upload document to storage:", storageErr);
+          }
+
+          // OCR Extraction for Document / PDF via OCR.space
+          try {
+            const base64Doc = safeArrayBufferToBase64(docBuffer);
+            const formData = new URLSearchParams();
+            formData.append("apikey", OCR_SPACE_API_KEY);
+            formData.append("base64Image", `data:${docMimeType};base64,${base64Doc}`);
+            formData.append("language", "eng");
+            formData.append("isTable", "true");
+            formData.append("scale", "true");
+            formData.append("OCREngine", "2");
+            formData.append("filetype", (ext || "PDF").toUpperCase());
+
+            const ocrSpaceRes = await fetch("https://api.ocr.space/parse/image", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: formData.toString(),
+            });
+            const ocrSpaceData = await ocrSpaceRes.json();
+            if (ocrSpaceData.ParsedResults?.length) {
+              extractedText = ocrSpaceData.ParsedResults.map((r: any) => r.ParsedText || "").join("\n").trim();
+            }
+          } catch (err) {
+            console.error("OCR extraction failed for document:", err);
+          }
+
+          if (docCaption) {
+            extractedText = extractedText ? `${extractedText}\n\nNote: ${docCaption}` : docCaption;
           }
         }
       }
@@ -368,10 +452,19 @@ serve(async (req) => {
     // ── STEP B: ROUTE TO UNIFIED CENTRAL ROVA AI AGENT BRAIN VIA SUPABASE SDK ─
     console.log(`[WhatsApp Webhook -> Central ROVA AI Agent] Processing query for User ${userId}: "${extractedText}"`);
 
+    const userPrompt = uploadedDocUrl
+      ? `[BUSINESS DOCUMENT UPLOADED]\nFilename: ${uploadedDocFileName}\nDocument URL: ${uploadedDocUrl}\n\nDocument Content:\n${extractedText || "(See attached document file)"}`
+      : extractedText;
+
     const { data: agentData, error: agentError } = await supabaseClient.functions.invoke("ai-chat", {
       body: {
-        messages: [{ role: "user", content: extractedText }],
-        context: { userId: userId, source: "whatsapp" },
+        messages: [{ role: "user", content: userPrompt }],
+        context: {
+          userId: userId,
+          source: "whatsapp",
+          documentUrl: uploadedDocUrl,
+          documentFileName: uploadedDocFileName,
+        },
         source: "whatsapp",
       },
     });
@@ -386,6 +479,17 @@ serve(async (req) => {
     }
 
     // ── STEP C: SEND RESPONSE BACK VIA WHATSAPP API ────────────────────────────
+    // If a document was generated or retrieved, send the file directly to WhatsApp!
+    if (agentData?.documentToSend?.url) {
+      await sendWhatsAppDocument(
+        fromNumber,
+        agentData.documentToSend.url,
+        agentData.documentToSend.fileName || "ROVA_Document.pdf",
+        agentData.documentToSend.caption || "",
+        WHATSAPP_ACCESS_TOKEN
+      );
+    }
+
     const formattedWhatsAppReply = `${replyText}\n\n📲 View full dashboard: https://www.rovabusiness.com`;
     await sendWhatsAppMessage(fromNumber, formattedWhatsAppReply, WHATSAPP_ACCESS_TOKEN);
 
@@ -441,6 +545,57 @@ async function sendWhatsAppMessage(to: string, text: string, accessToken?: strin
     }
   } catch (err) {
     console.error("Failed to send WhatsApp message fetch error:", err);
+  }
+}
+
+// Helper: Send Document (PDF, Image, etc.) via Meta Cloud API
+async function sendWhatsAppDocument(
+  to: string,
+  url: string,
+  filename: string,
+  caption?: string,
+  accessToken?: string
+) {
+  if (!accessToken) {
+    console.warn("[WhatsApp Document Skipped] No WHATSAPP_ACCESS_TOKEN set.");
+    return;
+  }
+  const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+  if (!PHONE_NUMBER_ID) {
+    console.warn("[WhatsApp Document Skipped] No WHATSAPP_PHONE_NUMBER_ID set.");
+    return;
+  }
+
+  const recipient = to.replace(/\D/g, "");
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: recipient,
+    type: "document",
+    document: {
+      link: url,
+      filename: filename || "ROVA_Document.pdf",
+      caption: (caption || "").replace(/\*/g, ""),
+    },
+  };
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const resData = await response.json();
+    if (!response.ok) {
+      console.error(`[WhatsApp Document Error ${response.status}]`, JSON.stringify(resData));
+    } else {
+      console.log(`[WhatsApp Document Sent Successfully] To: ${recipient} | File: ${filename}`);
+    }
+  } catch (err) {
+    console.error("sendWhatsAppDocument failed:", err);
   }
 }
 // ── HANDLE WHATSAPP FLOW COMPLETION ─────────────────────────────────────────

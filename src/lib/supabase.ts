@@ -487,14 +487,44 @@ export type RovaSubscription = {
   business_name: string | null;
   plan: 'basic_daily' | 'basic_monthly' | 'business_daily' | 'business_monthly';
   amount: number;
+  payment_type: 'one_time' | 'recurring';
+  billing_interval: 'daily' | 'monthly';
   status: 'active' | 'paused' | 'cancelled' | 'expired';
   payment_reference: string | null;
   paystack_transaction_id: string | null;
+  paystack_customer_code?: string | null;
+  paystack_subscription_code?: string | null;
+  paystack_email_token?: string | null;
+  paystack_plan_code?: string | null;
+  access_expires_at?: string | null;
+  last_payment_date?: string | null;
+  cancelled_at?: string | null;
   payment_date: string | null;
   start_date: string;
   next_payment_date: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type RovaPaymentHistory = {
+  id: string;
+  user_id: string;
+  subscription_id: string | null;
+  payment_type: 'one_time' | 'recurring';
+  billing_interval: 'daily' | 'monthly';
+  plan: 'basic_daily' | 'basic_monthly' | 'business_daily' | 'business_monthly';
+  amount: number;
+  currency: string;
+  status: 'success' | 'failed' | 'refunded';
+  payment_reference: string;
+  paystack_transaction_id: string | null;
+  paystack_customer_code?: string | null;
+  paystack_subscription_code?: string | null;
+  paystack_plan_code?: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
 };
 
 export type RovaServicePayment = {
