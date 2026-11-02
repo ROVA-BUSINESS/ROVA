@@ -252,12 +252,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: isLight ? '#374151' : '#d4d4d8', fontSize: 15, fontWeight: 700, flexShrink: 0,
               }}>
-                {(profile?.business_name || displayName).charAt(0).toUpperCase()}
+                {displayName.charAt(0).toUpperCase()}
               </div>
               {!isDesktopCollapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#111827' : '#fafafa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140, lineHeight: '1.2' }}>
-                    {profile?.business_name || displayName}
+                    {displayName}
                   </span>
                   {profile?.rc_bn_number && (
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, lineHeight: '1.2' }}>
