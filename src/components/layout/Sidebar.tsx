@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Home, ArrowLeftRight, ChartBar as BarChart2, FileText, Receipt,
@@ -10,7 +10,6 @@ import {
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getInitials } from '../../lib/format';
 import QuickAddModal from '../QuickAddModal';
 
 // Custom SVG Icons for sidebar panel toggle to ensure compatibility
@@ -113,8 +112,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   }
 
   const displayName = profile?.full_name || profile?.business_name || user?.email?.split('@')[0] || 'User';
-  const initials = getInitials(displayName);
-
   // Filter navigation items based on user role (isStaff logic)
   const visibleNavItems = mainNavItems.filter(item => {
     if (isStaff) {
@@ -172,40 +169,15 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           width: '100%',
           height: '100%'
         }}>
-          {/* Top Header - Brand Logo */}
+          {/* Top Header - Collapse/Close button */}
           <div style={{
-          padding: !isDesktopCollapsed ? '24px 20px 16px' : '12px 0 8px',
+          padding: '8px 12px',
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: isDesktopCollapsed ? 'center' : 'flex-end',
           flexShrink: 0,
-          position: 'relative',
-          gap: !isDesktopCollapsed ? 0 : 8
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            height: !isDesktopCollapsed ? 88 : 40,
-            width: '100%'
-          }}>
-            {!isDesktopCollapsed ? (
-              <img 
-                src={isLight ? "/rova-light.png" : "/rova.png"} 
-                alt="ROVA Logo" 
-                style={{ height: 84, width: 'auto', objectFit: 'contain' }} 
-              />
-            ) : (
-              <img 
-                src={isLight ? "/rova-light.png" : "/rova.png"} 
-                alt="ROVA Icon" 
-                style={{ height: 36, width: 'auto', objectFit: 'contain' }} 
-              />
-            )}
-          </div>
-
-          {/* Collapse Button inside Header */}
           {!isMobile && (
             <button
               onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
@@ -221,9 +193,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 cursor: 'pointer',
                 border: 'none',
                 background: 'transparent',
-                position: !isDesktopCollapsed ? 'absolute' : 'relative',
-                right: !isDesktopCollapsed ? 12 : undefined,
-                top: !isDesktopCollapsed ? 12 : undefined,
               }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLElement).style.background = hoverBg;
@@ -247,9 +216,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 alignItems: 'center', 
                 border: 'none', 
                 background: 'transparent',
-                position: 'absolute',
-                right: 16,
-                top: 16
               }}
             >
               <X size={18} />
@@ -266,33 +232,39 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               alignItems: 'center',
               justifyContent: isDesktopCollapsed ? 'center' : 'space-between',
               gap: isDesktopCollapsed ? 0 : 8,
-              padding: '8px 10px',
+              padding: '10px 12px',
               borderRadius: '10px',
               background: isLight ? '#ffffff' : '#141416',
               border: `1px solid ${sidebarBorder}`,
               cursor: 'pointer',
               userSelect: 'none',
-              boxShadow: isLight ? '0 1px 2px rgba(0,0,0,0.02)' : 'none',
+              boxShadow: isLight ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
               transition: 'background 0.2s',
             }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = hoverBg}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = isLight ? '#ffffff' : '#141416'}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {/* circular brand logo representation */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Square avatar */}
               <div style={{
-                width: 20, height: 20, borderRadius: '50%',
-                background: 'var(--accent-primary)',
+                width: 34, height: 34, borderRadius: 8,
+                background: isLight ? '#e5e7eb' : '#3f3f46',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontSize: 10, fontWeight: 700, flexShrink: 0,
-                lineHeight: '20px'
+                color: isLight ? '#374151' : '#d4d4d8', fontSize: 15, fontWeight: 700, flexShrink: 0,
               }}>
-                {initials}
+                R
               </div>
               {!isDesktopCollapsed && (
-                <span style={{ fontSize: 13, fontWeight: 600, color: isLight ? '#1f2937' : '#fafafa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 125 }}>
-                  {displayName}
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#111827' : '#fafafa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140, lineHeight: '1.2' }}>
+                    {profile?.business_name || displayName}
+                  </span>
+                  {profile?.rc_bn_number && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, lineHeight: '1.2' }}>
+                      {profile.rc_bn_number}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             {!isDesktopCollapsed && (
@@ -538,7 +510,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           flexDirection: 'column',
           gap: 1
         }}>
-          {/* Billing Link — admin only */}
+          {/* Billing Link â€” admin only */}
           {!isStaff && (
             <NavLink
               to="/app/billing"
