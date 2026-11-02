@@ -208,7 +208,7 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* â”€â”€ Billing Status Widget â”€â”€ */}
+          {/* -- Billing Status Widget -- */}
           {!isStaff && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -250,13 +250,13 @@ export default function DashboardPage() {
                 {isActive && isBusiness ? (
                   <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: 18 }}>ðŸ“‹</span>
+                      <span style={{ fontSize: 18 }}>📋</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Tax Filing</div>
                       {servicePayments.length > 0 ? (
                         <>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{servicePayments[0].tax_year} Filing â€” {servicePayments[0].filing_status}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{servicePayments[0].tax_year} Filing — {servicePayments[0].filing_status}</div>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{servicePayments.length} filing{servicePayments.length > 1 ? 's' : ''} total</div>
                         </>
                       ) : (
@@ -268,7 +268,7 @@ export default function DashboardPage() {
                 ) : isActive && !isBusiness ? (
                   <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent-border)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: 20 }}>â­</span>
+                      <span style={{ fontSize: 20 }}>⭐</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Upgrade Available</div>
@@ -298,7 +298,7 @@ export default function DashboardPage() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--bg-border)" />
                       <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} tickFormatter={(v) => `â‚¦${v/1000}k`} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} tickFormatter={(v) => `₦${v/1000}k`} />
                       <Tooltip />
                       <Area type="monotone" dataKey="income" stroke="var(--accent-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
                     </AreaChart>

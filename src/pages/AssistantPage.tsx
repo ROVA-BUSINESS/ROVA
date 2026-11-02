@@ -197,30 +197,31 @@ function ActionButton({ action, onAction }: { action: ChatAction; onAction: (act
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        padding: '7px 14px',
+        padding: isWhatsApp ? '8px 16px' : '7px 14px',
         borderRadius: 'var(--radius-full)',
-        background: `${color}20`,
-        border: `1px solid ${color}40`,
+        background: isWhatsApp ? '#25D366' : `${color}20`,
+        border: isWhatsApp ? '1px solid #1fa851' : `1px solid ${color}40`,
         color: '#ffffff',
         fontSize: 12.5,
-        fontWeight: 600,
+        fontWeight: isWhatsApp ? 700 : 600,
+        boxShadow: isWhatsApp ? '0 3px 12px rgba(37, 211, 102, 0.45)' : undefined,
         cursor: 'pointer',
         transition: 'all 0.15s ease',
         marginTop: 4,
         fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = `${color}35`;
+        (e.currentTarget as HTMLElement).style.background = isWhatsApp ? '#20bd5a' : `${color}35`;
         (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.background = `${color}20`;
+        (e.currentTarget as HTMLElement).style.background = isWhatsApp ? '#25D366' : `${color}20`;
         (e.currentTarget as HTMLElement).style.transform = 'none';
       }}
     >
-      <Icon size={13} color={color} />
-      <span>{action.label}</span>
-      {isWhatsApp && <ExternalLink size={12} style={{ opacity: 0.8 }} />}
+      <Icon size={isWhatsApp ? 15 : 13} color={isWhatsApp ? '#ffffff' : color} />
+      <span style={{ color: '#ffffff' }}>{action.label}</span>
+      {isWhatsApp && <ExternalLink size={12} style={{ opacity: 0.95, color: '#ffffff' }} />}
     </button>
   );
 }
@@ -543,14 +544,7 @@ export default function AssistantPage() {
         parsedData: ocrResult.parsedData,
       });
 
-      // If text input is empty, pre-fill with a helpful inquiry about the document
-      if (!input.trim()) {
-        const typeLabel = ocrResult.documentType.toUpperCase();
-        const amtStr = ocrResult.parsedData.totalAmount
-          ? ` for ₦${ocrResult.parsedData.totalAmount.toLocaleString()}`
-          : '';
-        setInput(`Please process this ${typeLabel}${amtStr} and record it in my accounts.`);
-      }
+      
     } catch (err: any) {
       console.error('OCR process error:', err);
       setOcrError(err.message || 'Failed to process document OCR.');
