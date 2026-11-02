@@ -367,6 +367,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  onClick={() => { if (isMobile && onClose) onClose(); }}
                   style={({ isActive }) => ({
                     display: 'flex',
                     alignItems: 'center',
@@ -454,6 +455,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         <NavLink
                           key={to}
                           to={to}
+                          onClick={() => { if (isMobile && onClose) onClose(); }}
                           style={({ isActive }) => ({
                             display: 'flex',
                             alignItems: 'center',
@@ -514,6 +516,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           {!isStaff && (
             <NavLink
               to="/app/billing"
+              onClick={() => { if (isMobile && onClose) onClose(); }}
               style={({ isActive }) => ({
                 display: 'flex',
                 alignItems: 'center',
@@ -552,6 +555,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           {/* Settings Link */}
           <NavLink
             to="/app/settings"
+            onClick={() => { if (isMobile && onClose) onClose(); }}
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',

@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Bell, Menu, Search, ArrowLeft, Sun, Moon } from 'lucide-react';
+import { Bell, Search, ArrowLeft, Sun, Moon, Home, ArrowLeftRight, Receipt, Package, LayoutGrid } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useMobile } from '../../hooks/useMobile';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -24,6 +24,14 @@ export default function AppLayout() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const showBackButton = location.pathname !== '/app/dashboard' && location.pathname !== '/app';
+
+  const mobileNavTabs = [
+    { label: 'Home', path: '/app/dashboard', icon: Home, match: (p: string) => p === '/app/dashboard' || p === '/app' },
+    { label: 'Transactions', path: '/app/transactions', icon: ArrowLeftRight, match: (p: string) => p.startsWith('/app/transactions') },
+    { label: 'Invoices', path: '/app/invoices', icon: Receipt, match: (p: string) => p.startsWith('/app/invoices') },
+    { label: 'Inventory', path: '/app/inventory', icon: Package, match: (p: string) => p.startsWith('/app/inventory') },
+    { label: 'More', isAction: true, icon: LayoutGrid, onClick: () => setIsSidebarOpen(true), match: () => isSidebarOpen },
+  ];
 
   const displayName = profile?.full_name || profile?.business_name || user?.email?.split('@')[0] || 'User';
   const getInitials = (name: string) => {
@@ -210,23 +218,35 @@ export default function AppLayout() {
                   >
                     <ArrowLeft size={20} />
                   </button>
-                ) : (
-                  <button 
-                    onClick={() => setIsSidebarOpen(true)}
-                    style={{ 
-                      color: 'var(--text-primary)', 
-                      padding: 4, 
-                      display: 'flex', 
-                      alignItems: 'center',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Menu size={20} />
-                  </button>
-                )}
-                <img src={theme === 'light' ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ height: 30, objectFit: 'contain' }} />
+                ) : null}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: theme === 'light' ? '#e5e7eb' : '#27272a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}>
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <span style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: 160,
+                  }}>
+                    {displayName}
+                  </span>
+                </div>
               </>
             ) : (
               showBackButton && (
@@ -329,6 +349,7 @@ export default function AppLayout() {
             </button>
 
             {/* Settings / Profile Avatar Button */}
+            {!isMobile && (
             <button
               onClick={() => navigate('/app/settings')}
               style={{
@@ -371,12 +392,86 @@ export default function AppLayout() {
                 initials
               )}
             </button>
+            )}
           </div>
         </div>
-        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingBottom: isMobile ? 'calc(65px + env(safe-area-inset-bottom, 0px))' : 0,
+        }}>
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      {isMobile && (
+        <nav style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 'calc(58px + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          background: theme === 'light' ? '#ffffff' : '#141416',
+          borderTop: '1px solid var(--bg-border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          zIndex: 35,
+          userSelect: 'none',
+        }}>
+          {mobileNavTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = tab.isAction ? tab.match() : tab.match(location.pathname);
+            return (
+              <button
+                key={tab.label}
+                onClick={() => {
+                  if (tab.isAction) {
+                    tab.onClick?.();
+                  } else {
+                    navigate(tab.path!);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 3,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '6px 0 4px',
+                  position: 'relative',
+                  color: active ? '#10b981' : (theme === 'light' ? '#71717a' : '#9ca3af'),
+                  transition: 'color 0.15s ease',
+                }}
+              >
+                {active && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '22%',
+                    right: '22%',
+                    height: 2.5,
+                    background: '#10b981',
+                    borderRadius: '0 0 2px 2px',
+                  }} />
+                )}
+                <Icon size={20} strokeWidth={active ? 2.3 : 1.8} />
+                <span style={{ fontSize: 11, fontWeight: active ? 600 : 500, letterSpacing: '-0.01em' }}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {/* Trigger Business Onboarding modal for first-time authenticated users */}
       {!isStaff && profile && profile.business_profile_completed === false && (
