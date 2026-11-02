@@ -167,8 +167,8 @@ export default function DashboardPage() {
                 {formatCurrency(income)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
-                <div style={{ fontSize: 12, color: isDark ? 'var(--text-primary)' : '#000000', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {incomeChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {incomeChange > 0 ? '+' : ''}{incomeChange.toFixed(1)}% from last month
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: isDark ? 'var(--text-primary)' : '#000000', letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {incomeChange >= 0 ? <ArrowUpRight size={14} strokeWidth={2.5} /> : <ArrowDownRight size={14} strokeWidth={2.5} />} {incomeChange > 0 ? '+' : ''}{incomeChange.toFixed(1)}% from last month
                 </div>
               </div>
             </Card>
@@ -184,8 +184,8 @@ export default function DashboardPage() {
                 {formatCurrency(expenses)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
-                <div style={{ fontSize: 12, color: isDark ? 'var(--text-primary)' : '#000000', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {expenseChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {expenseChange > 0 ? '+' : ''}{expenseChange.toFixed(1)}% from last month
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: isDark ? 'var(--text-primary)' : '#000000', letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {expenseChange >= 0 ? <ArrowUpRight size={14} strokeWidth={2.5} /> : <ArrowDownRight size={14} strokeWidth={2.5} />} {expenseChange > 0 ? '+' : ''}{expenseChange.toFixed(1)}% from last month
                 </div>
               </div>
             </Card>
@@ -201,7 +201,7 @@ export default function DashboardPage() {
                 {formatCurrency(netFlow)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
-                <div style={{ fontSize: 12, color: isDark ? 'var(--text-primary)' : '#000000' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: isDark ? 'var(--text-primary)' : '#000000', letterSpacing: '-0.01em' }}>
                   Current period profitability
                 </div>
               </div>
