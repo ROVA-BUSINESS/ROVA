@@ -252,7 +252,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: isLight ? '#374151' : '#d4d4d8', fontSize: 15, fontWeight: 700, flexShrink: 0,
               }}>
-                R
+                {(profile?.business_name || displayName).charAt(0).toUpperCase()}
               </div>
               {!isDesktopCollapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
