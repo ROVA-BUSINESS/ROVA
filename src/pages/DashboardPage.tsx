@@ -403,10 +403,10 @@ export default function DashboardPage() {
               {accounts.length > 0 && (
                 <div style={{
                   marginTop: 16, padding: '12px', background: 'var(--bg-elevated)',
-                  borderRadius: 'var(--radius-md)', border: '1px solid rgba(147,51,234,0.3)',
+                  borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)',
                 }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Total Balance</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--accent-primary)' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: isDark ? 'var(--text-primary)' : '#000000' }}>
                     {formatCurrency(totalBalance)}
                   </div>
                 </div>
@@ -483,10 +483,10 @@ function TransactionRow({ tx }: { tx: Transaction }) {
     }}>
       <div style={{
         width: 32, height: 32, borderRadius: 'var(--radius-md)', flexShrink: 0,
-        background: isIncome ? 'var(--success-dim)' : 'var(--error-dim)',
+        background: 'var(--bg-elevated)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {isIncome ? <ArrowUpRight size={14} color="var(--success)" /> : <ArrowDownRight size={14} color="var(--error)" />}
+        {isIncome ? <ArrowUpRight size={14} color="var(--text-primary)" /> : <ArrowDownRight size={14} color="var(--text-primary)" />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -497,7 +497,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
           <div style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{formatTime(tx.created_at)}</div>
         </div>
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: isIncome ? 'var(--success)' : 'var(--error)', flexShrink: 0, fontFamily: 'Space Grotesk, sans-serif' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0, fontFamily: 'Space Grotesk, sans-serif' }}>
         {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
       </div>
     </div>
