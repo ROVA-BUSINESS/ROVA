@@ -333,6 +333,39 @@ function ClarificationCard({
 
 // ── Main ChatGPT-Style Assistant Page ────────────────────────────────────────
 
+function renderFormattedContent(text: string) {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, lineIdx) => {
+    const trimmed = line.trim();
+    const isBullet = trimmed.startsWith('•') || trimmed.startsWith('* ') || trimmed.startsWith('- ');
+    const rawContent = isBullet ? trimmed.replace(/^([•*-]\s*)/, '') : line;
+
+    const parts = rawContent.split(/(\*\*.*?\*\*)/g);
+    const elements = parts.map((part, pIdx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={pIdx} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+
+    if (isBullet) {
+      return (
+        <div key={lineIdx} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', margin: '3px 0' }}>
+          <span style={{ color: 'var(--accent-light)', fontSize: 13, lineHeight: '20px' }}>•</span>
+          <span style={{ flex: 1 }}>{elements}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div key={lineIdx} style={{ minHeight: trimmed ? undefined : 6 }}>
+        {elements}
+      </div>
+    );
+  });
+}
+
 export default function AssistantPage() {
   const isMobile = useMobile(900);
 
@@ -938,22 +971,25 @@ export default function AssistantPage() {
                   boxShadow: '0 0 8px var(--success)',
                 }}
               />
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: isMobile ? 180 : 350 }}>
                 {conversations.find((c) => c.id === currentConversationId)?.title || 'ROVA AI Assistant'}
               </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  padding: '2px 7px',
-                  borderRadius: 10,
-                  background: 'rgba(99, 102, 241, 0.15)',
-                  border: '1px solid rgba(99, 102, 241, 0.3)',
-                  color: 'var(--accent-light)',
-                  fontWeight: 600,
-                }}
-              >
-                ERP Intelligence
-              </span>
+              {!isMobile && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 7px',
+                    borderRadius: 10,
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: 'var(--accent-light)',
+                    fontWeight: 600,
+                    flexShrink: 0,
+                  }}
+                >
+                  ERP Intelligence
+                </span>
+              )}
             </div>
           </div>
 
@@ -1158,6 +1194,7 @@ export default function AssistantPage() {
                         overflow: 'hidden',
                         border: '1px solid var(--bg-border)',
                         maxWidth: 240,
+                        alignSelf: isUser ? 'flex-end' : 'flex-start',
                       }}
                     >
                       <img
@@ -1186,7 +1223,7 @@ export default function AssistantPage() {
                         : isUser
                         ? 'none'
                         : '1px solid var(--bg-border)',
-                      color: isError ? '#fca5a5' : 'var(--text-primary)',
+                      color: isError ? '#fca5a5' : (isUser ? '#ffffff' : 'var(--text-primary)'),
                       fontSize: 13.5,
                       lineHeight: 1.6,
                       whiteSpace: 'pre-line',
@@ -1194,7 +1231,7 @@ export default function AssistantPage() {
                       position: 'relative',
                     }}
                   >
-                    {msg.content}
+                    {renderFormattedContent(msg.content)}
 
                     {/* Interactive Financial Confirmation Card */}
                     {msg.requiresConfirmation && (
@@ -1362,10 +1399,10 @@ export default function AssistantPage() {
             onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
             style={{
               position: 'absolute',
-              bottom: 90,
-              right: 24,
-              width: 36,
-              height: 36,
+              bottom: isMobile ? 75 : 85,
+              right: isMobile ? 16 : 24,
+              width: 32,
+              height: 32,
               borderRadius: '50%',
               background: 'var(--bg-card)',
               border: '1px solid var(--bg-border)',
