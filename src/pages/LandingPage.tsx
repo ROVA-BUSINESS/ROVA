@@ -137,7 +137,7 @@ export default function LandingPage() {
               <h1>
                 Know your numbers.
                 <br />
-                <span className="purple-gradient-text">Grow your business.</span>
+                <span>Grow your business.</span>
               </h1>
               <p>
                 Your business, made clearer. Meet rova the AI financial assistant and operating
@@ -311,7 +311,7 @@ export default function LandingPage() {
 
                 <div className="living-stat-box" style={{ background: 'var(--lp-bg-card)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ color: 'var(--lp-accent-purple, #863bff)', fontWeight: 700 }}>CIT PROVISION</span>
+                    <span style={{ color: 'var(--lp-accent-green)' }}>CIT PROVISION</span>
                     <span style={{ color: 'var(--lp-text-faint)', fontSize: '11px' }}>AUTOMATED</span>
                   </div>
                   <strong style={{ fontSize: '17px', lineHeight: 1.4, color: 'var(--lp-text-main)', fontWeight: 600 }}>
@@ -418,7 +418,7 @@ export default function LandingPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Menu size={18} color="#D1D5DB" />
                     <div className="phone-app-logo">
-                      <span>R</span>
+                      <img src="/rova-mark.jpg" alt="ROVA" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '5px' }} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -684,7 +684,7 @@ export default function LandingPage() {
             <h2>
               Make room
               <br />
-              <span className="purple-gradient-light">for better business.</span>
+              for better business.
             </h2>
             <div>
               <p>
@@ -693,12 +693,12 @@ export default function LandingPage() {
                 One thoughtfully designed platform. Complete peace of mind.
               </p>
               <Link to="/signup" className="button light">
-                Get started
+                Get started free <span className="button-price">Instant setup</span>
                 <ArrowUpRight size={18} />
               </Link>
             </div>
             <span className="preorder-note">
-              INSTANT SETUP · NO CREDIT CARD REQUIRED · CANCEL ANYTIME
+              FREE TIER AVAILABLE · CANCEL OR UPGRADE ANYTIME
             </span>
           </section>
         </main>

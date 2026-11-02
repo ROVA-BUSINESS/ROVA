@@ -167,7 +167,7 @@ export default function DashboardPage() {
                 {formatCurrency(income)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
-                <div style={{ fontSize: 12, color: incomeChange >= 0 ? 'var(--success)' : 'var(--error)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ fontSize: 12, color: isDark ? 'var(--text-primary)' : '#000000', display: 'flex', alignItems: 'center', gap: 4 }}>
                   {incomeChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {incomeChange > 0 ? '+' : ''}{incomeChange.toFixed(1)}% from last month
                 </div>
               </div>
@@ -184,7 +184,7 @@ export default function DashboardPage() {
                 {formatCurrency(expenses)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
-                <div style={{ fontSize: 12, color: expenseChange <= 0 ? 'var(--success)' : 'var(--error)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ fontSize: 12, color: isDark ? 'var(--text-primary)' : '#000000', display: 'flex', alignItems: 'center', gap: 4 }}>
                   {expenseChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {expenseChange > 0 ? '+' : ''}{expenseChange.toFixed(1)}% from last month
                 </div>
               </div>
@@ -201,7 +201,7 @@ export default function DashboardPage() {
                 {formatCurrency(netFlow)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 12, color: isDark ? 'var(--text-primary)' : '#000000' }}>
                   Current period profitability
                 </div>
               </div>
