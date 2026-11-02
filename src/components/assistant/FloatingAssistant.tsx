@@ -730,7 +730,7 @@ export default function FloatingAssistant() {
         style={{
           position: 'fixed',
           right: isMobile ? 18 : 24,
-          bottom: isMobile ? 18 : 24,
+          bottom: isMobile ? 'calc(78px + env(safe-area-inset-bottom, 0px))' : 36,
           zIndex: 999,
           display: 'flex',
           alignItems: 'center',

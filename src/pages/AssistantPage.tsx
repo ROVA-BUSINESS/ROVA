@@ -1564,7 +1564,7 @@ export default function AssistantPage() {
                 onSubmit={handleSubmit}
                 style={{
                   display: 'flex',
-                  alignItems: 'flex-end',
+                  alignItems: 'center',
                   gap: 8,
                   padding: '8px 12px',
                   borderRadius: 'var(--radius-lg)',
@@ -1689,14 +1689,7 @@ export default function AssistantPage() {
               </form>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                Press <kbd style={{ padding: '2px 4px', borderRadius: 3, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', fontSize: 10 }}>Enter</kbd> to send, <kbd style={{ padding: '2px 4px', borderRadius: 3, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', fontSize: 10 }}>Shift + Enter</kbd> for newline
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                🔒 Bank-grade security & audit logging
-              </span>
-            </div>
+
           </div>
         </div>
       </main>

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Bell, Search, ArrowLeft, Sun, Moon, Home, ArrowLeftRight, Receipt, Package, LayoutGrid } from 'lucide-react';
 import Sidebar from './Sidebar';
@@ -289,8 +289,8 @@ export default function AppLayout() {
               href="https://wa.me/2349132957881?text=Hi%20ROVA"
               target="_blank"
               rel="noreferrer"
-              style={{ position: 'relative', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-md)', color: '#25D366', transition: 'all 0.15s', background: 'transparent', textDecoration: 'none' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(37, 211, 102, 0.1)'; }}
+              style={{ position: 'relative', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', transition: 'all 0.15s', background: 'transparent', textDecoration: 'none' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               title="Open WhatsApp"
             >

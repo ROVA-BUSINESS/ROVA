@@ -122,8 +122,8 @@ export default function DashboardPage() {
             rel="noreferrer"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-              borderRadius: 'var(--radius-md)', background: 'rgba(37, 211, 102, 0.1)',
-              border: '1px solid rgba(37, 211, 102, 0.3)', color: '#25D366', fontSize: 13,
+              borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)',
+              border: '1px solid var(--bg-border)', color: isDark ? '#ffffff' : '#000000', fontSize: 13,
               fontWeight: 600, textDecoration: 'none', transition: 'all 0.15s',
               flex: isMobile ? 1 : 'none', minWidth: 'fit-content'
             }}
@@ -208,13 +208,13 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* ── Billing Status Widget ── */}
+          {/* â”€â”€ Billing Status Widget â”€â”€ */}
           {!isStaff && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <CreditCard size={16} color="var(--text-muted)" />
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>Subscription & Services</h3>
-                <button onClick={() => navigate('/app/billing')} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent-light)', fontSize: 12, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <button onClick={() => navigate('/app/billing')} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: isDark ? '#ffffff' : '#000000', fontSize: 12, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer' }}>
                   Manage Billing <ChevronRight size={12} />
                 </button>
               </div>
@@ -250,13 +250,13 @@ export default function DashboardPage() {
                 {isActive && isBusiness ? (
                   <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: 18 }}>📋</span>
+                      <span style={{ fontSize: 18 }}>ðŸ“‹</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Tax Filing</div>
                       {servicePayments.length > 0 ? (
                         <>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{servicePayments[0].tax_year} Filing — {servicePayments[0].filing_status}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{servicePayments[0].tax_year} Filing â€” {servicePayments[0].filing_status}</div>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{servicePayments.length} filing{servicePayments.length > 1 ? 's' : ''} total</div>
                         </>
                       ) : (
@@ -268,7 +268,7 @@ export default function DashboardPage() {
                 ) : isActive && !isBusiness ? (
                   <div style={{ padding: '16px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent-border)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: 20 }}>⭐</span>
+                      <span style={{ fontSize: 20 }}>â­</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Upgrade Available</div>
@@ -298,7 +298,7 @@ export default function DashboardPage() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--bg-border)" />
                       <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} tickFormatter={(v) => `₦${v/1000}k`} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} tickFormatter={(v) => `â‚¦${v/1000}k`} />
                       <Tooltip />
                       <Area type="monotone" dataKey="income" stroke="var(--accent-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
                     </AreaChart>
@@ -311,7 +311,7 @@ export default function DashboardPage() {
                   <h3 style={{ fontSize: 14 }}>Recent Transactions</h3>
                   <button 
                     onClick={() => navigate('/app/transactions')}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent-light)', fontSize: 12, fontWeight: 500 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, color: isDark ? '#ffffff' : '#000000', fontSize: 12, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     View all <ChevronRight size={12} />
                   </button>
@@ -336,13 +336,13 @@ export default function DashboardPage() {
                   <button 
                     onClick={handleSyncBanks}
                     disabled={isSyncing}
-                    style={{ color: 'var(--accent-primary)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ color: isDark ? '#ffffff' : '#000000', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} /> {isSyncing ? 'Syncing...' : 'Sync Now'}
                   </button>
                   <button 
                     onClick={() => navigate('/app/settings')}
-                    style={{ color: 'var(--accent-primary)', fontSize: 12, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ color: isDark ? '#ffffff' : '#000000', fontSize: 12, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Manage
                   </button>
