@@ -1,8 +1,8 @@
 ﻿import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  Home, ArrowLeftRight, ChartBar as BarChart2, FileText, Receipt,
-  Settings, LogOut, Plus, BookOpen,
+  Home, ChartBar as BarChart2, FileText, Receipt,
+  Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
   Users, Package, Shield, X, Brain,
   TrendingDown, CreditCard
@@ -46,9 +46,7 @@ type NavGroupItem = {
 
 const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/dashboard', icon: Home, label: 'Home' },
-  { type: 'link', to: '/app/transactions', icon: ArrowLeftRight, label: 'Transactions' },
-  { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices' },
-  { type: 'link', to: '/app/receipts', icon: FileText, label: 'Receipts' },
+  { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices & Receipts' },
   { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
   { type: 'link', to: '/app/assistant', icon: Brain, label: 'AI Assistant' },
@@ -145,21 +143,30 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       )}
 
       <aside style={{
-        width: isMobile ? 240 : (isDesktopCollapsed ? 68 : 240),
-        minWidth: isMobile ? 240 : (isDesktopCollapsed ? 68 : 240),
-        height: '100dvh',
+        width: isMobile ? '100%' : (isDesktopCollapsed ? 68 : 240),
+        minWidth: isMobile ? '100%' : (isDesktopCollapsed ? 68 : 240),
+        height: isMobile ? 'auto' : '100dvh',
+        maxHeight: isMobile ? '82vh' : '100dvh',
         background: sidebarBg,
-        borderRight: `1px solid ${sidebarBorder}`,
-        display: 'flex',
+        borderRight: isMobile ? 'none' : `1px solid ${sidebarBorder}`,
+        borderTop: isMobile ? `1px solid ${sidebarBorder}` : 'none',
+        borderRadius: isMobile ? '20px 20px 0 0' : '0',
+        display: isMobile && !isOpen ? 'none' : 'flex',
         flexDirection: 'column',
         position: isMobile ? 'fixed' : 'sticky',
-        top: 0,
+        top: isMobile ? 'auto' : 0,
+        bottom: 0,
         left: 0,
+        right: isMobile ? 0 : 'auto',
         zIndex: 50,
-        transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
-        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        padding: '16px 0',
+        transform: isMobile ? (isOpen ? 'translateY(0)' : 'translateY(100%)') : 'none',
+        transition: isMobile ? 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        padding: isMobile ? '14px 0 calc(65px + env(safe-area-inset-bottom, 0px))' : '16px 0',
+        boxShadow: isMobile ? '0 -10px 40px rgba(0,0,0,0.4)' : 'none',
       }}>
+        {isMobile && (
+          <div style={{ width: 42, height: 4, borderRadius: 2, background: 'var(--bg-border)', margin: '0 auto 8px', flexShrink: 0 }} />
+        )}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -324,39 +331,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           )}
         </div>
 
-        {/* Primary Action Button (New Transaction) */}
-        <div style={{ padding: '0 10px 8px', display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
-          <button
-            onClick={() => setShowQuickAdd(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: isDesktopCollapsed ? 'center' : 'flex-start',
-              gap: isDesktopCollapsed ? 0 : 10,
-              padding: '8px 10px',
-              borderRadius: '6px',
-              color: itemColor,
-              fontSize: '13px',
-              fontWeight: '500',
-              transition: 'all 0.15s ease',
-              cursor: 'pointer',
-              width: '100%',
-              border: 'none',
-              background: 'transparent'
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = hoverBg;
-              (e.currentTarget as HTMLElement).style.color = textColorActive;
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = 'transparent';
-              (e.currentTarget as HTMLElement).style.color = itemColor;
-            }}
-          >
-            <Plus size={16} style={{ flexShrink: 0 }} />
-            {!isDesktopCollapsed && 'Add Transaction'}
-          </button>
-        </div>
+        {/* Add Transaction removed per user request */}
 
         {/* Navigation Items List */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 10px', flexShrink: 0 }}>

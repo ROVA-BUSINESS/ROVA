@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, Receipt as ReceiptIcon, Search, Download, Send, Eye,
   X, Share2, AlertTriangle, ArrowLeftRight
@@ -43,6 +43,7 @@ const PAYMENT_METHODS = [
 ];
 
 export default function ReceiptsPage() {
+  const navigate = useNavigate();
   const isMobile = useMobile();
   const location = useLocation();
   const { user, profile, isStaff, staffData } = useAuth();
@@ -392,6 +393,22 @@ export default function ReceiptsPage() {
 
   return (
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1060, animation: 'fadeIn 0.3s ease' }}>
+      {/* Unified Tab Switcher for Invoices & Receipts */}
+      <div style={{ display: 'inline-flex', padding: 3, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', marginBottom: 20 }}>
+        <button
+          type="button"
+          onClick={() => navigate('/app/invoices')}
+          style={{ padding: '6px 18px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, fontSize: 13, border: 'none', cursor: 'pointer' }}
+        >
+          Invoices
+        </button>
+        <button
+          type="button"
+          style={{ padding: '6px 18px', borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#ffffff', fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer' }}
+        >
+          Receipts
+        </button>
+      </div>
       {/* ── Page Header ─────────────────────────────────────────── */}
       <div
         className="mobile-col mobile-gap-4"
@@ -440,7 +457,7 @@ export default function ReceiptsPage() {
               setShowCreateModal(true);
             }}
           >
-            + Create Receipt
+            Create Receipt
           </Button>
         </div>
       </div>
@@ -633,7 +650,7 @@ export default function ReceiptsPage() {
               No payment receipts found
             </p>
             <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 4 }}>
-              Click "+ Create Receipt" to issue your first payment receipt.
+              Click "Create Receipt" to issue your first payment receipt.
             </p>
           </div>
         ) : isMobile ? (

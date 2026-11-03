@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download, Package } from 'lucide-react';
 import { supabase, type Invoice, type InventoryItem } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
@@ -162,10 +162,12 @@ export default function InvoicesPage() {
   const { user, profile, isStaff, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const location = useLocation();
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [nextReminderDate, setNextReminderDate] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [saving, setSaving] = useState(false);
@@ -176,9 +178,9 @@ export default function InvoicesPage() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [form, setForm] = useState({
     client_name: '', client_email: '', client_address: '',
-    due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid' as 'unpaid' | 'paid_in_full' | 'part_payment', amount_paid: '',
+    due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid' as 'unpaid' | 'paid_in_full' | 'part_payment', amount_paid: '', repayment_reminder_date: '',
   });
-  const [items, setItems] = useState<{ description: string; quantity: string; unit_price: string; inventory_item_id: string }[]>([
+  const [items, setItems] = useState<{ description: string; quantity: string; unit_price: string; inventory_item_id: string; addToInventory?: boolean }[]>([
     { description: '', quantity: '1', unit_price: '', inventory_item_id: '' }
   ]);
 
@@ -280,7 +282,7 @@ export default function InvoicesPage() {
         due_date: form.due_date,
         tax_rate: Number(form.tax_rate) || 0,
         discount_rate: Number(form.discount_rate) || 0,
-        notes: form.notes,
+        notes: form.repayment_reminder_date ? (form.notes ? `${form.notes} | Repayment Reminder: ${form.repayment_reminder_date}` : `Repayment Reminder: ${form.repayment_reminder_date}`) : form.notes,
         payment_status: form.payment_status,
         amount_paid: Number(form.amount_paid) || 0,
         items: validItems,
@@ -375,7 +377,7 @@ export default function InvoicesPage() {
   }
 
   function resetForm() {
-    setForm({ client_name: '', client_email: '', client_address: '', due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '' });
+    setForm({ client_name: '', client_email: '', client_address: '', due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '', repayment_reminder_date: '' });
     setItems([{ description: '', quantity: '1', unit_price: '', inventory_item_id: '' }]);
   }
 
@@ -416,6 +418,22 @@ export default function InvoicesPage() {
 
   return (
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1000, animation: 'fadeIn 0.3s ease' }}>
+      {/* Unified Tab Switcher for Invoices & Receipts */}
+      <div style={{ display: 'inline-flex', padding: 3, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', marginBottom: 20 }}>
+        <button
+          type="button"
+          style={{ padding: '6px 18px', borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#ffffff', fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer' }}
+        >
+          Invoices
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/app/receipts')}
+          style={{ padding: '6px 18px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, fontSize: 13, border: 'none', cursor: 'pointer' }}
+        >
+          Receipts
+        </button>
+      </div>
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Invoices</h1>
@@ -702,7 +720,21 @@ export default function InvoicesPage() {
                       ))}
                     </select>
                   </div>
-                  <Input label={isMobile ? "Description" : undefined} placeholder="Description" value={item.description} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <Input label={isMobile ? "Description" : undefined} placeholder={!item.inventory_item_id ? "Type custom item name..." : "Description"} value={item.description} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
+                    {!item.inventory_item_id && (
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--accent-light)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!item.addToInventory}
+                          onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, addToInventory: e.target.checked } : x))}
+                          style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                        />
+                        <Package size={12} />
+                        <span>Add to inventory</span>
+                      </label>
+                    )}
+                  </div>
                   <Input label={isMobile ? "Quantity" : undefined} placeholder="Qty" type="number" min="0" step="0.01" value={item.quantity} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
                   <Input label={isMobile ? "Unit Price (₦)" : undefined} placeholder="Unit Price (₦)" type="number" min="0" step="0.01" value={item.unit_price} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))} />
                   <button type="button" onClick={() => removeItem(i)}
@@ -914,6 +946,25 @@ export default function InvoicesPage() {
             </div>
           )}
           <Input label="Payment Amount (₦)" type="number" min="0" step="0.01" max={viewInvoice ? String(viewInvoice.total - (viewInvoice.amount_paid || 0)) : undefined} value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
+          {viewInvoice && Number(paymentAmount) < (viewInvoice.total - (viewInvoice.amount_paid || 0)) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--warning)' }}>Next Repayment Reminder Date</label>
+              <input
+                type="date"
+                value={nextReminderDate}
+                onChange={e => setNextReminderDate(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--warning)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                  fontSize: 13,
+                }}
+              />
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <Button variant="secondary" type="button" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
             <Button variant="primary" loading={saving} type="submit">Save Payment</Button>

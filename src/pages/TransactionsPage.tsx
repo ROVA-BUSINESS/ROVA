@@ -38,6 +38,31 @@ export default function TransactionsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'transfer' | 'cash'>('transfer');
+  const [isLoan, setIsLoan] = useState(false);
+  const [loanDirection, setLoanDirection] = useState<'received' | 'given'>('received');
+  const [loanReminderDate, setLoanReminderDate] = useState('');
+  const [loanCounterparty, setLoanCounterparty] = useState('');
+  const [duplicateReason, setDuplicateReason] = useState<'separate' | 'different_account' | null>(null);
+
+  const similarSyncedTx = useMemo(() => {
+    if (paymentMethod !== 'transfer' || !form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) return null;
+    const targetAmt = Number(form.amount);
+    const targetDate = form.date ? new Date(form.date).getTime() : Date.now();
+
+    return transactions.find(t => {
+      const amtMatch = Math.abs(Number(t.amount) - targetAmt) < 1;
+      if (!amtMatch) return false;
+      const txDate = new Date(t.date).getTime();
+      const withinWindow = Math.abs(txDate - targetDate) <= 7 * 24 * 3600 * 1000;
+      if (!withinWindow) return false;
+      const isSynced = (
+        (t.reference && (t.reference.includes('gmail') || t.reference.includes('mono') || t.reference.length > 8)) ||
+        (t.notes && (t.notes.toLowerCase().includes('gmail') || t.notes.toLowerCase().includes('sync') || t.notes.toLowerCase().includes('bank')))
+      );
+      return isSynced;
+    });
+  }, [paymentMethod, form.amount, form.date, transactions]);
   const [autoSuggestion, setAutoSuggestion] = useState('');
 
   useEffect(() => {
@@ -85,7 +110,10 @@ export default function TransactionsPage() {
     setSaving(true);
     setFormError('');
     const actorText = isStaff ? 'Staff' : (profile?.full_name ? `Admin (${profile.full_name})` : 'Admin 1');
-    const notesWithActor = form.notes ? `${form.notes} | Performed by: ${actorText}` : `Performed by: ${actorText}`;
+    const methodTag = `[Method: ${paymentMethod.toUpperCase()}]`;
+    const loanTag = isLoan ? `[Loan: ${loanDirection === 'received' ? 'Borrowed' : 'Lent'} | Due: ${loanReminderDate || 'Unspecified'} | Party: ${loanCounterparty || 'N/A'}]` : '';
+    const queryTag = duplicateReason ? `[ROVA Sync Query Verified: ${duplicateReason === 'separate' ? 'Separate transaction' : 'Different account/split'}]` : '';
+    const notesWithActor = [form.notes, methodTag, loanTag, queryTag, `Performed by: ${actorText}`].filter(Boolean).join(' | ');
 
     const { error } = await supabase.from('transactions').insert({
       user_id: effectiveUserId,
@@ -488,6 +516,96 @@ export default function TransactionsPage() {
               </button>
             ))}
           </div>
+
+          {/* Payment Method Option: Cash or Bank Transfer */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Payment Method</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('transfer')}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
+                  border: '1px solid',
+                  background: paymentMethod === 'transfer' ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                  color: paymentMethod === 'transfer' ? 'var(--accent-light)' : 'var(--text-muted)',
+                  borderColor: paymentMethod === 'transfer' ? 'var(--accent-primary)' : 'var(--bg-border)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                🏦 Bank Transfer
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cash')}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
+                  border: '1px solid',
+                  background: paymentMethod === 'cash' ? 'var(--success-dim)' : 'var(--bg-elevated)',
+                  color: paymentMethod === 'cash' ? 'var(--success)' : 'var(--text-muted)',
+                  borderColor: paymentMethod === 'cash' ? 'var(--success)' : 'var(--bg-border)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                💵 Cash
+              </button>
+            </div>
+          </div>
+
+          {/* ROVA Smart Sync Query Callout when similar transfer exists */}
+          {similarSyncedTx && (
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(234, 179, 8, 0.08)',
+              border: '1px solid rgba(234, 179, 8, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--warning)', fontWeight: 700, fontSize: 12.5 }}>
+                <Brain size={15} /> ROVA Smart Sync Query: Similar Transfer Detected
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                A similar bank/Gmail synced transfer of <strong>{formatCurrency(similarSyncedTx.amount)}</strong> on {similarSyncedTx.date} (<em>{similarSyncedTx.description}</em>) is already recorded.
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Why is this manual entry being recorded?
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateReason('separate')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    background: duplicateReason === 'separate' ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                    color: duplicateReason === 'separate' ? '#fff' : 'var(--text-primary)',
+                    border: '1px solid var(--bg-border)',
+                    fontSize: 11.5,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✓ Separate transaction
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateReason('different_account')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    background: duplicateReason === 'different_account' ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                    color: duplicateReason === 'different_account' ? '#fff' : 'var(--text-primary)',
+                    border: '1px solid var(--bg-border)',
+                    fontSize: 11.5,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✓ Different account / Split
+                </button>
+              </div>
+            </div>
+          )}
           <Input
             label="Amount (₦)"
             type="number"
@@ -511,9 +629,13 @@ export default function TransactionsPage() {
               value={form.category_id}
               onChange={e => setForm(p => ({ ...p, category_id: e.target.value }))}
               style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                height: 40,
                 padding: '9px 12px', background: 'var(--bg-elevated)',
                 border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
                 color: form.category_id ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
+                fontSize: 13.5,
               }}
             >
               <option value="">Select category...</option>
@@ -526,15 +648,96 @@ export default function TransactionsPage() {
               value={form.account_id}
               onChange={e => setForm(p => ({ ...p, account_id: e.target.value }))}
               style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                height: 40,
                 padding: '9px 12px', background: 'var(--bg-elevated)',
                 border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
                 color: form.account_id ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
+                fontSize: 13.5,
               }}
             >
               <option value="">Select account (optional)</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
+          {/* Loan Option with Repayment Reminder Date */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={isLoan}
+                onChange={e => setIsLoan(e.target.checked)}
+                style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer', width: 16, height: 16 }}
+              />
+              <span>This is a Loan / Debt</span>
+            </label>
+            {isLoan && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setLoanDirection('received')}
+                    style={{
+                      flex: 1, padding: '7px 10px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600,
+                      border: '1px solid',
+                      background: loanDirection === 'received' ? 'var(--accent-dim)' : 'var(--bg-base)',
+                      color: loanDirection === 'received' ? 'var(--accent-light)' : 'var(--text-muted)',
+                      borderColor: loanDirection === 'received' ? 'var(--accent-primary)' : 'var(--bg-border)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Borrowed (Money In)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoanDirection('given')}
+                    style={{
+                      flex: 1, padding: '7px 10px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600,
+                      border: '1px solid',
+                      background: loanDirection === 'given' ? 'var(--warning-dim)' : 'var(--bg-base)',
+                      color: loanDirection === 'given' ? 'var(--warning)' : 'var(--text-muted)',
+                      borderColor: loanDirection === 'given' ? 'var(--warning)' : 'var(--bg-border)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Lent out (Money Out)
+                  </button>
+                </div>
+                <Input
+                  label="Lender / Borrower Name"
+                  placeholder="e.g. Bank name, Lender, or Customer"
+                  value={loanCounterparty}
+                  onChange={e => setLoanCounterparty(e.target.value)}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--warning)' }}>Repayment Reminder Date</label>
+                  <input
+                    type="date"
+                    value={loanReminderDate}
+                    onChange={e => setLoanReminderDate(e.target.value)}
+                    required={isLoan}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      height: 40,
+                      padding: '9px 12px',
+                      background: 'var(--bg-base)',
+                      border: '1px solid var(--warning)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      outline: 'none',
+                      fontSize: 13,
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    ROVA will remind you when repayment is due on this loan.
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
           <Input
             label="Notes (optional)"
             placeholder="Additional notes..."

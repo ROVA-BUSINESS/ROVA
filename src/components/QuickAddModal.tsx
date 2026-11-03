@@ -27,6 +27,11 @@ export default function QuickAddModal({ open, onClose }: Props) {
   const [intentPrompt, setIntentPrompt] = useState<string | null>(null);
   const [intentConfirmed, setIntentConfirmed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'transfer' | 'cash'>('transfer');
+  const [isLoan, setIsLoan] = useState(false);
+  const [loanDirection, setLoanDirection] = useState<'received' | 'given'>('received');
+  const [loanReminderDate, setLoanReminderDate] = useState('');
+  const [loanCounterparty, setLoanCounterparty] = useState('');
 
   const [form, setForm] = useState({
     description: '',
@@ -49,6 +54,11 @@ export default function QuickAddModal({ open, onClose }: Props) {
     }
     if (!open) {
       setForm({ description: '', amount: '', type: 'expense', date: new Date().toISOString().split('T')[0], category_id: '', account_id: '' });
+      setPaymentMethod('transfer');
+      setIsLoan(false);
+      setLoanDirection('received');
+      setLoanReminderDate('');
+      setLoanCounterparty('');
       setError('');
       setAutoSuggestion('');
       setSuccess(false);
@@ -140,7 +150,11 @@ export default function QuickAddModal({ open, onClose }: Props) {
       date: form.date,
       category_id: form.category_id || null,
       account_id: form.account_id || null,
-      notes: `Performed by: ${actorText}`,
+      notes: [
+        `[Method: ${paymentMethod.toUpperCase()}]`,
+        isLoan ? `[Loan: ${loanDirection === 'received' ? 'Borrowed' : 'Lent'} | Due: ${loanReminderDate || 'Unspecified'} | Party: ${loanCounterparty || 'N/A'}]` : '',
+        `Performed by: ${actorText}`
+      ].filter(Boolean).join(' | '),
     }).select().single();
 
     if (err) {

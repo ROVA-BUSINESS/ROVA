@@ -28,7 +28,7 @@ export default function AppLayout() {
   const mobileNavTabs = [
     { label: 'Home', path: '/app/dashboard', icon: Home, match: (p: string) => p === '/app/dashboard' || p === '/app' },
     { label: 'Transactions', path: '/app/transactions', icon: ArrowLeftRight, match: (p: string) => p.startsWith('/app/transactions') },
-    { label: 'Invoices', path: '/app/invoices', icon: Receipt, match: (p: string) => p.startsWith('/app/invoices') },
+    { label: 'Invoices & Receipts', path: '/app/invoices', icon: Receipt, match: (p: string) => p.startsWith('/app/invoices') || p.startsWith('/app/receipts') },
     { label: 'Inventory', path: '/app/inventory', icon: Package, match: (p: string) => p.startsWith('/app/inventory') },
     { label: 'More', isAction: true, icon: LayoutGrid, onClick: () => setIsSidebarOpen(true), match: () => isSidebarOpen },
   ];
