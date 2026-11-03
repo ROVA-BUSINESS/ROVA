@@ -156,7 +156,7 @@ export default function LandingPage() {
             <div className="hero-visual">
               <div className="visual-index">
                 <span>01 / ROVA INTELLIGENCE</span>
-                <span>DESIGNED TO FIT IN. BUILT TO EMPOWER.</span>
+                <span style={{ textAlign: 'right' }}>DESIGNED TO FIT IN. BUILT TO EMPOWER.</span>
               </div>
 
               <div className="hero-mockup-frame">
@@ -173,7 +173,7 @@ export default function LandingPage() {
                     <span className="sample-heading">
                       <span className="status-dot" /> YOUR BUSINESS, AT A GLANCE
                     </span>
-                    <div>
+                    <div className="sample-amount-row">
                       <strong>₦1,420,000</strong>
                       <small>Net Revenue</small>
                     </div>
