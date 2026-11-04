@@ -1,3 +1,5 @@
+const sumRecord = (rec: Record<string, number>) => Object.values(rec).reduce((sum, val) => sum + (val || 0), 0);
+
 import { useState, useMemo } from 'react';
 import type { RovaTaxState, AssetCategory } from '../../types/rovaTaxFlow';
 
@@ -39,6 +41,8 @@ const INITIAL_STATE: RovaTaxState = {
     investments: {},
     intangibleAssets: {},
     otherNonCurrentAssets: {},
+    inventories: null,
+    tradeReceivables: null,
     otherCurrentAssets: {},
     cashAndEquivalents: {},
     otherCurrentLiabilities: {},
@@ -53,6 +57,7 @@ const INITIAL_STATE: RovaTaxState = {
     hasDeductions: null,
     deductions: {},
   },
+  otherIncome: {},
   adminExpense: {},
 };
 
@@ -78,11 +83,18 @@ export function useRovaTaxFlow() {
     });
 
     // Helper to sum record values
-    const sumRecord = (rec: Record<string, number>) => Object.values(rec).reduce((sum, val) => sum + (val || 0), 0);
 
     // 2. Cost of Sales & P&L
     const openingInventory = sumRecord(state.costOfSales.openingInventory);
-    const purchases = sumRecord(state.costOfSales.purchases);
+    const localPurchases = state.costOfSales.purchases['Local Purchases'] || 0;
+    const importPurchases = state.costOfSales.purchases['Import Purchases'] || 0;
+    const returnOutwards = state.costOfSales.purchases['Return Outwards'] ||
+      state.costOfSales.purchases['Returns Outwards'] ||
+      state.costOfSales.purchases['Return outwards'] || 0;
+    const otherPurchases = Object.entries(state.costOfSales.purchases)
+      .filter(([k]) => !['Local Purchases', 'Import Purchases', 'Return Outwards', 'Returns Outwards', 'Return outwards'].includes(k))
+      .reduce((s, [_, v]) => s + (v || 0), 0);
+    const purchases = localPurchases + importPurchases - returnOutwards + otherPurchases;
     const otherDirectCost = sumRecord(state.costOfSales.otherDirectCost);
     const factoryOverheads = sumRecord(state.costOfSales.factoryOverheads);
     const closingInventory = sumRecord(state.costOfSales.closingInventory);
@@ -91,8 +103,9 @@ export function useRovaTaxFlow() {
     const revenue = state.revenue || 0;
     const grossProfit = revenue - directCost;
 
+    const otherIncomeTotal = sumRecord(state.otherIncome);
     const adminExpensesTotal = sumRecord(state.adminExpense);
-    const operatingIncome = grossProfit - adminExpensesTotal;
+    const operatingIncome = grossProfit + otherIncomeTotal - adminExpensesTotal;
     const financeCost = 0;
     const opbt = operatingIncome - financeCost;
 
@@ -136,6 +149,7 @@ export function useRovaTaxFlow() {
       directCost,
       revenue,
       grossProfit,
+      otherIncomeTotal,
       adminExpensesTotal,
       operatingIncome,
       financeCost,
@@ -194,6 +208,8 @@ export function useRovaTaxFlow() {
         investments: filterRecord(state.sfp.investments),
         intangible_assets: filterRecord(state.sfp.intangibleAssets),
         other_non_current_assets: filterRecord(state.sfp.otherNonCurrentAssets),
+        inventories: state.sfp.inventories !== null ? String(state.sfp.inventories) : (sumRecord(state.costOfSales.closingInventory) ? String(sumRecord(state.costOfSales.closingInventory)) : '0'),
+        trade_receivables: state.sfp.tradeReceivables !== null ? String(state.sfp.tradeReceivables) : '0',
         other_current_assets: filterRecord(state.sfp.otherCurrentAssets),
         cash_and_cash_equivalents: filterRecord(state.sfp.cashAndEquivalents),
         other_current_liabilities: filterRecord(state.sfp.otherCurrentLiabilities),
@@ -202,6 +218,7 @@ export function useRovaTaxFlow() {
         current_liabilities: filterRecord(state.sfp.tradePayablesAndCurrentTax),
         equity: filterRecord(state.sfp.equity),
       },
+      other_income: filterRecord(state.otherIncome),
       admin: filterRecord(state.adminExpense),
       addbacks: filterRecord(state.profitAdjustment.addbacks),
       deductions: filterRecord(state.profitAdjustment.deductions),

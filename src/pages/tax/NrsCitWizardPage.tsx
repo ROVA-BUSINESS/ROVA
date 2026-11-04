@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +19,7 @@ const STAGES = [
   { id: 'pnl', label: 'Computed', title: 'Profit or Loss' },
   { id: 'sfp', label: 'Balance sheet', title: 'Statement of Financial Position' },
   { id: 'adjustment', label: 'Add-backs & deductions', title: 'Profit adjustment' },
+  { id: 'other_income', label: 'Select any applicable', title: 'Other income' },
   { id: 'admin', label: 'Select any applicable', title: 'Administrative expense' },
   { id: 'done', label: 'Review & sign', title: 'Done' }
 ];
@@ -32,6 +32,93 @@ const SECTORS: Sector[] = [
   'PROFESSIONAL SCIENTIFIC AND TECHNICAL ACTIVITIES', 'ADMINISTRATIVE AND SUPPORT ACTIVITIES',
   'EDUCATION', 'OIL AND GAS', 'NGOs NFPOs RELIGIOUS INSTITUTIONS', 'ART ENTERTAINMENT AND RECREATION',
   'DIGITAL AND VIRTUAL ASSETS', 'Others'
+];
+
+const ADMIN_EXPENSE_OPTIONS = [
+  'Salary and Wages',
+  'Employee Benefit Expenses',
+  'Directors Emoluments',
+  'Directors expenses',
+  'Staff Allowances',
+  'Staff Loan written off',
+  'Staff Gratuity',
+  'Pension and Gratuity',
+  'Other staff & related Cost',
+  'depreciation',
+  'Amortisation of intangible assets',
+  'Government and regulatory costs',
+  'Advertisement & Promotion',
+  'Bad Debt written off',
+  'Bank charges',
+  'Interest Expense',
+  'Rooms/ Accomodation cost',
+  'Audit fees',
+  'Donations',
+  'Entertainment expenses',
+  'Postages',
+  'Fuel expenses',
+  'Generator expenses',
+  'Head office cost',
+  'Internet Cost',
+  'Loss on sale of property, plants and equipments',
+  'Medical Expenses',
+  'Newspaper & Periodicals',
+  'Outsourcing Services expenses',
+  'Rates',
+  'Rent & Rates',
+  'Repairs and Maintenance',
+  'Research cost',
+  'Security expenses',
+  'Selling & Distribution Expenses',
+  'Service Charge',
+  'Public Relation',
+  'Publication Cost',
+  'Permits',
+  'Telephone',
+  'Trade fairs & exhibitions',
+  'Training and Development',
+  'Transport of supplies',
+  'Utilities',
+  'Website Design & Maintenance',
+  'Software maintenance',
+  'Cleaning & Janitory Services',
+  'Corporate promotion',
+  'Freight & Transport Expenses',
+  'Subscription & Dues',
+  'Sponsorship',
+  'Stationeries expenses',
+  'other professional fees',
+  'Fines',
+  'penalties',
+  'AMCON charges',
+  'Realized foreign exchange loss',
+  'Corporate Social Responsibilities',
+  'Royalties',
+  'Electricity & Power',
+  'PMS',
+  'Health, safety and environmental expenses',
+  'Licences & leases charges',
+  'Other statutory charges & levies',
+  'AGO-Diesel',
+  'Travel Expenses',
+  'Others'
+];
+
+const OTHER_INCOME_OPTIONS = [
+  'Commision Income',
+  'Interest Income',
+  'Lease Income-Finance',
+  'Rental Income',
+  'Dividend Income',
+  'Profit from disposal of investment in subsidiary income',
+  'Decrease in provision',
+  'Gain on sale of asset',
+  'Non-taxable revenue',
+  'Realized foreign exchange gain',
+  'Unrealized foreign exchange gain',
+  'Bad debt recovered',
+  'Other investment income',
+  'Others'
 ];
 
 export default function NrsCitWizardPage() {
@@ -242,14 +329,25 @@ export default function NrsCitWizardPage() {
             </GateBlock>
             <GateBlock title="Purchases (raw materials / finished goods)">
               <ChipSelectAmount
-                options={['Local Purchases', 'Import Purchases']}
+                options={['Local Purchases', 'Import Purchases', 'Return Outwards']}
                 value={state.costOfSales.purchases}
                 onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, purchases: val } }))}
               />
             </GateBlock>
             <GateBlock title="Other direct cost">
               <ChipSelectAmount
-                options={['Direct wages', 'Direct expenses', 'Other Direct costs']}
+                searchable
+                options={[
+                  'Direct wages',
+                  'Direct expenses',
+                  'Carriage Inwards',
+                  'Depreciation',
+                  'Mining Cost',
+                  'Direct construction cost',
+                  'Cost of Storage',
+                  'Amortisation of intangible assets',
+                  'Other Direct costs'
+                ]}
                 value={state.costOfSales.otherDirectCost}
                 onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, otherDirectCost: val } }))}
               />
@@ -283,6 +381,9 @@ export default function NrsCitWizardPage() {
               <PnlRow label="Direct Cost" value={computed.directCost} isNegative />
               <hr style={{ borderTop: '1px solid var(--bg-border)', borderBottom: 'none', margin: '8px 0' }} />
               <PnlRow label="Gross Profit" value={computed.grossProfit} bold />
+              {computed.otherIncomeTotal ? (
+                <PnlRow label="Other Income" value={computed.otherIncomeTotal} />
+              ) : null}
               <PnlRow label="Administrative expenses" value={computed.adminExpensesTotal} isNegative />
               <hr style={{ borderTop: '1px solid var(--bg-border)', borderBottom: 'none', margin: '8px 0' }} />
               <PnlRow label="Operating Income" value={computed.operatingIncome} bold />
@@ -302,9 +403,13 @@ export default function NrsCitWizardPage() {
       case 'sfp':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Non-Current Assets */}
             <div>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Properties, Plants and Equipment</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--text-primary)', borderBottom: '1px solid var(--bg-border)', paddingBottom: 6 }}>
+                Non-Current Assets
+              </h3>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: 13.5 }}>Properties, Plants and Equipment</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
                 <input
                   type="number"
@@ -321,7 +426,18 @@ export default function NrsCitWizardPage() {
             
             <GateBlock title="Investments">
               <ChipSelectAmount
-                options={['Investment in securities', 'Investment in stock and bonds', 'Investment in Properties', 'Investment in Associate & Joint Ventures', 'Investment in Subsidiaries', 'Investment in finance lease', 'Investment in staff loan', 'Investment in digital assets', 'Investment in Commodities', 'Others']}
+                options={[
+                  'Investment in securities',
+                  'Investment in stock and bonds',
+                  'Investment in Properties',
+                  'Investment in Associate & Joint Ventures',
+                  'Investment in Subsidiaries',
+                  'Investment in finance lease',
+                  'Investment in staff loan',
+                  'Investment in digital assets',
+                  'Investment in Commodities',
+                  'Others'
+                ]}
                 value={state.sfp.investments}
                 onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, investments: val } }))}
               />
@@ -329,7 +445,17 @@ export default function NrsCitWizardPage() {
 
             <GateBlock title="Intangible assets">
               <ChipSelectAmount
-                options={['Goodwill', 'Patent', 'Trademarks', 'Terminal and service concession rights', 'Brands', 'Customer relationships', 'Right of use', 'Copyrights', 'Others']}
+                options={[
+                  'Goodwill',
+                  'Patent',
+                  'Trademarks',
+                  'Terminal and service concession rights',
+                  'Brands',
+                  'Customer relationships',
+                  'Right of use',
+                  'Copyrights',
+                  'Others'
+                ]}
                 value={state.sfp.intangibleAssets}
                 onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, intangibleAssets: val } }))}
               />
@@ -337,15 +463,106 @@ export default function NrsCitWizardPage() {
 
             <GateBlock title="Other non-current assets">
               <ChipSelectAmount
-                options={['Lease-hold Land', 'Lease-hold Building', 'Building and Real estate lease', 'Other leases', 'Non-Current Assets Held for Sale', 'Contract assets', 'Deferred tax asset', 'Other financial assets', 'Others']}
+                searchable
+                options={[
+                  'Lease-hold Land',
+                  'Lease-hold Building',
+                  'Building and Real estate lease',
+                  'Other leases',
+                  'Non-Current Assets Held for Sale',
+                  'Contract assets',
+                  'Deferred tax asset',
+                  'Other financial assets',
+                  'Derivative financial instruments',
+                  'Long-term borrowings and debts',
+                  'Defined Benefits Assets',
+                  'Others'
+                ]}
                 value={state.sfp.otherNonCurrentAssets}
                 onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherNonCurrentAssets: val } }))}
               />
             </GateBlock>
 
+            {/* Current Assets */}
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, margin: '8px 0 16px 0', color: 'var(--text-primary)', borderBottom: '1px solid var(--bg-border)', paddingBottom: 6 }}>
+                Current Assets
+              </h3>
+
+              {/* Inventories Section */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13.5 }}>Inventories</label>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  Total value of inventories held as at end of the financial year
+                  {computed.closingInventory > 0 && ` (Closing inventory from Cost of Sales: ₦${computed.closingInventory.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={state.sfp.inventories === null ? '' : state.sfp.inventories}
+                    onChange={e => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, inventories: e.target.value ? Number(e.target.value) : null } }))}
+                    style={{
+                      width: '100%', maxWidth: 300, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)'
+                    }}
+                  />
+                  {computed.closingInventory > 0 && state.sfp.inventories !== computed.closingInventory && (
+                    <button
+                      type="button"
+                      onClick={() => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, inventories: computed.closingInventory } }))}
+                      style={{
+                        padding: '8px 12px', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                        borderRadius: 'var(--radius-md)', color: 'var(--accent-light)', fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      Use closing inventory (₦{computed.closingInventory.toLocaleString()})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Trade Receivables Section */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13.5 }}>Trade receivables</label>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  Amounts due from customers for sales or services delivered on credit
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={state.sfp.tradeReceivables === null ? '' : state.sfp.tradeReceivables}
+                    onChange={e => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, tradeReceivables: e.target.value ? Number(e.target.value) : null } }))}
+                    style={{
+                      width: '100%', maxWidth: 300, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
             <GateBlock title="Other current assets">
               <ChipSelectAmount
-                options={['Other Receivables', 'Trade receivables', 'Withholding tax receivables', 'Prepaid Expenses', 'Goods in transit', 'Others']}
+                searchable
+                options={[
+                  'Other Interbank Advances',
+                  'Withholding tax receivables',
+                  'Other receivables',
+                  'Current portion of long term loan',
+                  'Short term investments',
+                  'Accrued income',
+                  'Assets classified as held for sale',
+                  'Advance payment to vendor',
+                  'Prepaid Expenses',
+                  'Small tools',
+                  'Goods in transit',
+                  'Chemicals, materials supplies and others',
+                  'Others'
+                ]}
                 value={state.sfp.otherCurrentAssets}
                 onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherCurrentAssets: val } }))}
               />
@@ -359,29 +576,12 @@ export default function NrsCitWizardPage() {
               />
             </GateBlock>
 
-            <GateBlock title="Other current liabilities">
-              <ChipSelectAmount
-                options={['Other payables', 'Financial liabilities', 'Accruals', 'Unearned income (advance from customers)', 'Interest payable', 'Short-term debt', 'Provisions', 'Dividend payable', 'Others']}
-                value={state.sfp.otherCurrentLiabilities}
-                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherCurrentLiabilities: val } }))}
-              />
-            </GateBlock>
-
-            <GateBlock title="Non-current liabilities">
-              <ChipSelectAmount
-                options={['Long Term Debt', 'Long term Borrowings', 'Pension and Employee Benefit obligation', 'Deferred Tax Liabilities', 'Lease liabilities', 'Others']}
-                value={state.sfp.nonCurrentLiabilities}
-                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, nonCurrentLiabilities: val } }))}
-              />
-            </GateBlock>
-
-            <GateBlock title="Other reserves">
-              <ChipSelectAmount
-                options={['Contingency reserve', 'Cumulative Translation Adjustment', 'Share based payment reserve', 'Reserve for bonus issue', 'Capital reserve', 'Others']}
-                value={state.sfp.otherReserves}
-                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherReserves: val } }))}
-              />
-            </GateBlock>
+            {/* Current Liabilities */}
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, margin: '8px 0 16px 0', color: 'var(--text-primary)', borderBottom: '1px solid var(--bg-border)', paddingBottom: 6 }}>
+                Liabilities & Equity
+              </h3>
+            </div>
 
             <GateBlock title="Trade Payables & current tax liabilities">
               <ChipSelectAmount
@@ -391,15 +591,90 @@ export default function NrsCitWizardPage() {
               />
             </GateBlock>
 
+            <GateBlock title="Other current liabilities">
+              <ChipSelectAmount
+                searchable
+                options={[
+                  'Other payables',
+                  'Financial liabilities',
+                  'Accruals',
+                  'Unearned income (advance from customers)',
+                  'Interest payable',
+                  'Short-term debt',
+                  'Provisions for warranty expenses',
+                  'Provisions for bonuses and employee benefits',
+                  'Current portion of lease liability',
+                  'Current portion of long term debt',
+                  'Dividend payable',
+                  'Provisions',
+                  'Income taxes payable',
+                  'Decommissioning and other provisions',
+                  'Others'
+                ]}
+                value={state.sfp.otherCurrentLiabilities}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherCurrentLiabilities: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Non-current liabilities">
+              <ChipSelectAmount
+                searchable
+                options={[
+                  'Long Term Debt',
+                  'Long term Borrowings',
+                  'Pension and Employee Benefit obligation',
+                  'Deferred Revenue (Long term portion)',
+                  'Contingent Liabilities (Long term Provision)',
+                  'Employees Benefits Obligation',
+                  'Non-current portion of Lease Obligation',
+                  'Deferred Tax Liabilities',
+                  'Stock warrant Obligation',
+                  'Debt Securities',
+                  'Lease Liabilities',
+                  'Derivative Liabilities held for risk Management',
+                  'Deposits from Customers',
+                  'Retirement benefits',
+                  'Derivative financial instruments liabilities',
+                  'Others'
+                ]}
+                value={state.sfp.nonCurrentLiabilities}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, nonCurrentLiabilities: val } }))}
+              />
+            </GateBlock>
+
+            <GateBlock title="Other reserves">
+              <ChipSelectAmount
+                searchable
+                options={[
+                  'Contingency reserve',
+                  'Cumulative Translation Adjustment',
+                  'Share based payment reserve',
+                  'Reserve for bonus issue',
+                  'Capital reserve',
+                  'Other reserves',
+                  'Equity contribution to shareholders/Equity holders'
+                ]}
+                value={state.sfp.otherReserves}
+                onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, otherReserves: val } }))}
+              />
+            </GateBlock>
+
             <GateBlock title="Equity">
               <ChipSelectAmount
-                options={['Issued Share Capital', 'Share premium', 'Revaluation reserve', 'Statutory reserve', 'Non-controlling interest']}
+                options={[
+                  'Issued Share Capital',
+                  'Share premium',
+                  'Retained earnings',
+                  'Revaluation reserve',
+                  'Statutory reserve',
+                  'Non-controlling interest',
+                  'Others'
+                ]}
                 value={state.sfp.equity}
                 onChange={val => updateState(prev => ({ ...prev, sfp: { ...prev.sfp, equity: val } }))}
               />
               <div style={{ marginTop: 12, fontSize: 13, color: 'var(--text-muted)' }}>
-                Retained earnings carried forward is derived from Q6 [Profit or Loss] — not re-entered. 
-                (₦{computed.profitForYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                Computed profit for the year: <strong>₦{computed.profitForYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
               </div>
             </GateBlock>
           </div>
@@ -420,7 +695,28 @@ export default function NrsCitWizardPage() {
                 <div style={{ marginTop: 16 }}>
                   <ChipSelectAmount
                     searchable
-                    options={['Depreciation', 'Expenses Related To Exempt Income', 'Donations (To The Extent Not Allowed)', 'Unrealised Foreign Exchange Loss', 'Loss On Disposal Of Fixed Assets', 'Entertainment Expenses (To The Extent Not Allowed)', 'Capital Repaid/Withdrawn', 'Expenses of Capital Nature', 'Expenditure on assets not used for the purpose of trade', 'Sum recoverable under an insurance or contract of indemnity', 'Taxes on Profit or Incomes', 'Payment to any unapproved retirement fund or scheme under the Pension Reform Act', 'Any sum reserved out of profits subject to the provisions of section 20(1)(h) of this Act', 'Any payment to a related party that contravenes the Transfer Pricing Regulations', 'Any expense incurred in deriving an income that is exempt from income tax', 'Any expense allowable as a deduction in determining chargeable gains', 'Penalty or fine imposed under any law', 'Expenses liable to VAT or import duties but not charged or paid', 'Compensating payments in regulated securities lending that qualify as dividends or interest under this Act', 'Others']}
+                    options={[
+                      'Depreciation',
+                      'Expenses Related To Exempt Income',
+                      'Donations (To The Extent Not Allowed)',
+                      'Unrealised Foreign Exchange Loss',
+                      'Loss On Disposal Of Fixed Assets',
+                      'Entertainment Expenses (To The Extent Not Allowed)',
+                      'Capital Repaid/Withdrawn',
+                      'Expenses of Capital Nature',
+                      'Expenditure on assets not used for the purpose of trade',
+                      'Sum recoverable under an insurance or contract of indemnity',
+                      'Taxes on Profit or Incomes',
+                      'Payment to any unapproved retirement fund or scheme under the Pension Reform Act',
+                      'Any sum reserved out of profits subject to the provisions of section 20(1)(h) of this Act',
+                      'Any payment to a related party that contravenes the Transfer Pricing Regulations',
+                      'Any expense incurred in deriving an income that is exempt from income tax',
+                      'Any expense allowable as a deduction in determining chargeable gains',
+                      'Penalty or fine imposed under any law',
+                      'Expenses liable to VAT or import duties but not charged or paid',
+                      'Compensating payments in regulated securities lending that qualify as dividends or interest under this Act',
+                      'Others'
+                    ]}
                     value={state.profitAdjustment.addbacks}
                     onChange={val => updateState(prev => ({ ...prev, profitAdjustment: { ...prev.profitAdjustment, addbacks: val } }))}
                   />
@@ -451,12 +747,40 @@ export default function NrsCitWizardPage() {
           </div>
         );
 
-      case 'admin':
+      case 'other_income':
         return (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
+                Other income
+              </label>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+                Select any applicable income source and enter the amount assigned to it:
+              </p>
+            </div>
             <ChipSelectAmount
               searchable
-              options={['Salary and Wages', 'Employee Benefit Expenses', 'Staff Allowances', 'Pension and Gratuity', 'Other staff & related Cost', 'depreciation', 'Government and regulatory costs', 'Advertisement & Promotion', 'Bad Debt written off', 'Bank charges', 'Interest Expense', 'Audit fees', 'Entertainment expenses', 'Fuel expenses', 'Generator expenses', 'Internet Cost', 'Rent & Rates', 'Repairs and Maintenance', 'Security expenses', 'Selling & Distribution Expenses', 'Service Charge', 'Public Relation', 'Permits', 'Telephone', 'Training and Development', 'Transport of supplies', 'Utilities', 'Website Design & Maintenance', 'Software maintenance', 'Cleaning & Janitory Services', 'Freight & Transport Expenses', 'Subscription & Dues', 'Stationeries expenses', 'other professional fees', 'Fines', 'penalties', 'Electricity & Power', 'PMS', 'Health safety and environmental expenses', 'Licences & leases charges', 'Other statutory charges & levies', 'AGO-Diesel', 'Travel Expenses', 'Others']}
+              options={OTHER_INCOME_OPTIONS}
+              value={state.otherIncome}
+              onChange={val => updateState(prev => ({ ...prev, otherIncome: val }))}
+            />
+          </div>
+        );
+
+      case 'admin':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
+                Administrative expenses
+              </label>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+                Select any applicable expenses incurred in the operation of your business:
+              </p>
+            </div>
+            <ChipSelectAmount
+              searchable
+              options={ADMIN_EXPENSE_OPTIONS}
               value={state.adminExpense}
               onChange={val => updateState(prev => ({ ...prev, adminExpense: val }))}
             />

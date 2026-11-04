@@ -69,6 +69,8 @@ export interface RovaTaxState {
     investments: Record<string, number>;
     intangibleAssets: Record<string, number>;
     otherNonCurrentAssets: Record<string, number>;
+    inventories: number | null;
+    tradeReceivables: number | null;
     otherCurrentAssets: Record<string, number>;
     cashAndEquivalents: Record<string, number>;
     otherCurrentLiabilities: Record<string, number>;
@@ -83,5 +85,6 @@ export interface RovaTaxState {
     hasDeductions: boolean | null;
     deductions: Record<string, number>;
   };
+  otherIncome: Record<string, number>;
   adminExpense: Record<string, number>;
 }

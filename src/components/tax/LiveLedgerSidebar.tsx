@@ -1,4 +1,3 @@
-
 import { AlertTriangle } from 'lucide-react';
 
 interface LiveLedgerSidebarProps {
@@ -6,6 +5,7 @@ interface LiveLedgerSidebarProps {
     revenue: number;
     directCost: number;
     grossProfit: number;
+    otherIncomeTotal?: number;
     adminExpensesTotal: number;
     addbacksTotal: number;
     deductionsTotal: number;
@@ -47,6 +47,9 @@ export function LiveLedgerSidebar({ computed, mneCfcFlagged }: LiveLedgerSidebar
         <LedgerRow label="Direct Cost" value={computed.directCost} isNegative />
         <div style={{ height: 1, background: 'var(--bg-border)', margin: '4px 0' }} />
         <LedgerRow label="Gross Profit" value={computed.grossProfit} bold />
+        {computed.otherIncomeTotal ? (
+          <LedgerRow label="Other Income" value={computed.otherIncomeTotal} />
+        ) : null}
         <LedgerRow label="Admin Expenses" value={computed.adminExpensesTotal} isNegative />
         <LedgerRow label="Add-backs" value={computed.addbacksTotal} />
         <LedgerRow label="Deductions" value={computed.deductionsTotal} isNegative />
