@@ -723,17 +723,22 @@ export default function InvoicesPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <Input label={isMobile ? "Description" : undefined} placeholder={!item.inventory_item_id ? "Type custom item name..." : "Description"} value={item.description} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
                     {!item.inventory_item_id && (
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--accent-light)', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={!!item.addToInventory}
-                          onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, addToInventory: e.target.checked } : x))}
-                          style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-                        />
-                        <Package size={12} />
-                        <span>Add to inventory</span>
-                      </label>
-                    )}
+                       <button
+                         type="button"
+                         onClick={() => setItems(p => p.map((x, j) => j === i ? { ...x, addToInventory: !x.addToInventory } : x))}
+                         style={{
+                           display: 'inline-flex', alignItems: 'center', gap: 5,
+                           padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 11.5,
+                           border: '1px solid', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s',
+                           background: item.addToInventory ? 'rgba(34,197,94,0.15)' : 'var(--bg-elevated)',
+                           color: item.addToInventory ? 'var(--success)' : 'var(--text-muted)',
+                           borderColor: item.addToInventory ? 'rgba(34,197,94,0.3)' : 'var(--bg-border)',
+                         }}
+                       >
+                         <Package size={11} />
+                         {item.addToInventory ? 'âœ“ Added to Inventory' : '+ Add to Inventory'}
+                       </button>
+                     )}
                   </div>
                   <Input label={isMobile ? "Quantity" : undefined} placeholder="Qty" type="number" min="0" step="0.01" value={item.quantity} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
                   <Input label={isMobile ? "Unit Price (₦)" : undefined} placeholder="Unit Price (₦)" type="number" min="0" step="0.01" value={item.unit_price} onChange={e => setItems(p => p.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))} />
@@ -781,7 +786,7 @@ export default function InvoicesPage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Payment Terms</div>
-            <div style={{ display: 'grid', gridTemplateColumns: form.payment_status === 'part_payment' ? '1fr 1fr' : '1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: form.payment_status === 'part_payment' && window.innerWidth >= 640 ? '1fr 1fr' : '1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Payment Status</label>
                 <select

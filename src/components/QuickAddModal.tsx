@@ -295,7 +295,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
           ))}
         </div>
 
-        <div className="mobile-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input
             label="Amount (₦)"
             type="number"
@@ -315,39 +315,128 @@ export default function QuickAddModal({ open, onClose }: Props) {
           />
         </div>
 
-        <div className="mobile-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
-            <select
-              value={form.category_id}
-              onChange={e => setForm(p => ({ ...p, category_id: e.target.value }))}
-              style={{
-                padding: '9px 12px', background: 'var(--bg-elevated)',
-                border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
-                color: form.category_id ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
-              }}
-            >
-              <option value="">Select category...</option>
-              {filteredCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Account</label>
-            <select
-              value={form.account_id}
-              onChange={e => setForm(p => ({ ...p, account_id: e.target.value }))}
-              style={{
-                padding: '9px 12px', background: 'var(--bg-elevated)',
-                border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
-                color: form.account_id ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
-              }}
-            >
-              <option value="">Account (optional)</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+        {/* Payment Method */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Payment Method</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['transfer', 'cash'] as const).map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPaymentMethod(m)}
+                style={{
+                  flex: 1, padding: '8px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
+                  border: '1px solid', cursor: 'pointer',
+                  background: paymentMethod === m ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                  color: paymentMethod === m ? 'var(--accent-light)' : 'var(--text-muted)',
+                  borderColor: paymentMethod === m ? 'var(--accent-border)' : 'var(--bg-border)',
+                  transition: 'all 0.15s', textTransform: 'capitalize',
+                }}
+              >
+                {m === 'transfer' ? 'ðŸ¦ Transfer' : 'ðŸ’µ Cash'}
+              </button>
+            ))}
           </div>
         </div>
 
+        {/* Category (full width) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
+          <select
+            value={form.category_id}
+            onChange={e => setForm(p => ({ ...p, category_id: e.target.value }))}
+            style={{
+              width: '100%', boxSizing: 'border-box' as const, height: 40,
+              padding: '9px 12px', background: 'var(--bg-elevated)',
+              border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
+              color: form.category_id ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
+            }}
+          >
+            <option value="">Select category...</option>
+            {filteredCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        {/* Account (full width) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Account</label>
+          <select
+            value={form.account_id}
+            onChange={e => setForm(p => ({ ...p, account_id: e.target.value }))}
+            style={{
+              width: '100%', boxSizing: 'border-box' as const, height: 40,
+              padding: '9px 12px', background: 'var(--bg-elevated)',
+              border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
+              color: form.account_id ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
+            }}
+          >
+            <option value="">Account (optional)</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+
+        {/* Loan / Debt */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setIsLoan(p => !p)}
+            style={{
+              padding: '8px 12px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
+              border: '1px solid', cursor: 'pointer', textAlign: 'left' as const,
+              background: isLoan ? 'rgba(245,158,11,0.1)' : 'var(--bg-elevated)',
+              color: isLoan ? '#f59e0b' : 'var(--text-muted)',
+              borderColor: isLoan ? 'rgba(245,158,11,0.3)' : 'var(--bg-border)',
+              transition: 'all 0.15s',
+            }}
+          >
+            {isLoan ? 'âœ“ Loan / Debt' : '+ Mark as Loan / Debt'}
+          </button>
+          {isLoan && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(['received', 'given'] as const).map(d => (
+                  <button key={d} type="button" onClick={() => setLoanDirection(d)}
+                    style={{
+                      flex: 1, padding: '7px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600,
+                      border: '1px solid', cursor: 'pointer',
+                      background: loanDirection === d ? 'rgba(245,158,11,0.2)' : 'var(--bg-elevated)',
+                      color: loanDirection === d ? '#f59e0b' : 'var(--text-muted)',
+                      borderColor: loanDirection === d ? 'rgba(245,158,11,0.4)' : 'var(--bg-border)',
+                    }}
+                  >
+                    {d === 'received' ? 'â†“ Borrowed' : 'â†‘ Lent'}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder={loanDirection === 'received' ? 'Lender name...' : 'Borrower name...'}
+                value={loanCounterparty}
+                onChange={e => setLoanCounterparty(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box' as const, height: 40,
+                  padding: '9px 12px', background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)', outline: 'none', fontSize: 13,
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Repayment Reminder Date</label>
+                <input
+                  type="date"
+                  value={loanReminderDate}
+                  onChange={e => setLoanReminderDate(e.target.value)}
+                  style={{
+                    width: '100%', boxSizing: 'border-box' as const, height: 40,
+                    padding: '9px 12px', background: 'var(--bg-elevated)',
+                    border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)', outline: 'none', fontSize: 13,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
         {error && (
           <div style={{ padding: '10px 12px', background: 'var(--error-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)', color: 'var(--error)', fontSize: 13 }}>
             {error}
