@@ -486,7 +486,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
         background: 'var(--bg-elevated)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {isIncome ? <ArrowUpRight size={14} color="var(--text-primary)" /> : <ArrowDownRight size={14} color="var(--text-primary)" />}
+        {isIncome ? <ArrowUpRight size={14} color="var(--success)" /> : <ArrowDownRight size={14} color="var(--error)" />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

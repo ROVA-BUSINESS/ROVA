@@ -26,7 +26,13 @@ export async function createInvoice(input: CreateInvoiceInput) {
   const discountAmount = subtotal * (discountRate / 100);
   const taxAmount = (subtotal - discountAmount) * (taxRate / 100);
   const total = subtotal - discountAmount + taxAmount;
-  const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+  // Sequential invoice number per user
+  const { count: invCount } = await supabase
+    .from('invoices')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', input.userId);
+  const nextInvNum = ((invCount ?? 0) + 1).toString().padStart(3, '0');
+  const invoiceNumber = `INV-${nextInvNum}`;
 
   let initialAmountPaid = 0;
   let status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' = 'sent';
