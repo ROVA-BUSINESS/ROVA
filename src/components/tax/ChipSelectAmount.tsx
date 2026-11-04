@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Plus, Check, X } from 'lucide-react';
+import { TaxTooltip } from './TaxTooltip';
 
 interface ChipSelectAmountProps {
   options?: string[];
@@ -52,28 +53,37 @@ export const ChipSelectAmount: React.FC<ChipSelectAmountProps> = ({
   const renderChip = (opt: string) => {
     const isSelected = value[opt] !== undefined;
     return (
-      <button
+      <div
         key={opt}
-        type="button"
-        onClick={() => handleToggleChip(opt)}
         style={{
-          padding: '6px 12px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '4px 8px 4px 10px',
           borderRadius: 20,
           fontSize: 13,
           fontWeight: 500,
           border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--bg-border)',
           background: isSelected ? 'var(--accent-dim)' : 'var(--bg-elevated)',
           color: isSelected ? 'var(--accent-light)' : 'var(--text-secondary)',
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
           transition: 'all 0.15s ease',
         }}
       >
-        {isSelected ? <Check size={14} /> : <Plus size={14} />}
-        {opt}
-      </button>
+        <span
+          onClick={() => handleToggleChip(opt)}
+          style={{
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            userSelect: 'none',
+          }}
+        >
+          {isSelected ? <Check size={14} /> : <Plus size={14} />}
+          {opt}
+        </span>
+        <TaxTooltip term={opt} size={13} />
+      </div>
     );
   };
 
@@ -163,8 +173,9 @@ export const ChipSelectAmount: React.FC<ChipSelectAmountProps> = ({
                 border: '1px solid var(--bg-border)',
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', flex: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 {keyName}
+                <TaxTooltip term={keyName} size={14} />
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>₦</span>

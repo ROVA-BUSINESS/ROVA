@@ -483,10 +483,10 @@ function TransactionRow({ tx }: { tx: Transaction }) {
     }}>
       <div style={{
         width: 32, height: 32, borderRadius: 'var(--radius-md)', flexShrink: 0,
-        background: 'var(--bg-elevated)',
+        background: isIncome ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {isIncome ? <ArrowUpRight size={14} color="var(--success)" /> : <ArrowDownRight size={14} color="var(--error)" />}
+        {isIncome ? <ArrowUpRight size={14} color="#10b981" /> : <ArrowDownRight size={14} color="#ef4444" />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

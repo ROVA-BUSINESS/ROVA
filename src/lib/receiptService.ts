@@ -27,32 +27,31 @@ export type CreateReceiptInput = {
 */
 export async function getNextReceiptNumber(userId: string): Promise<string> {
   try {
-    const { data, error } = await supabase.rpc('generate_next_receipt_number', {
-      target_user_id: userId,
-    });
-    if (!error && data) return data as string;
-  } catch (e) {
-    console.warn('RPC generate_next_receipt_number fallback:', e);
-  }
+    // Check highest existing receipt number for chronological order REC-001, REC-002...
+    const { data: allReceipts } = await supabase
+      .from('receipts')
+      .select('receipt_number')
+      .eq('user_id', userId);
 
-  // Fallback if RPC function is not yet created in live schema
-  const { data: latest } = await supabase
-    .from('receipts')
-    .select('receipt_number')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latest && latest.receipt_number) {
-    const match = latest.receipt_number.match(/RCPT-(\d+)/i);
-    if (match) {
-      const nextNum = parseInt(match[1], 10) + 1;
-      return `RCPT-${String(nextNum).padStart(6, '0')}`;
+    let maxNum = 0;
+    if (allReceipts && allReceipts.length > 0) {
+      for (const r of allReceipts) {
+        if (!r.receipt_number) continue;
+        const match = r.receipt_number.match(/(?:REC|RCPT)-(\d+)/i);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      }
+      if (maxNum === 0) maxNum = allReceipts.length;
     }
-  }
 
-  return 'RCPT-000001';
+    const nextNum = maxNum + 1;
+    return `REC-${String(nextNum).padStart(3, '0')}`;
+  } catch (e) {
+    console.warn('getNextReceiptNumber fallback:', e);
+    return 'REC-001';
+  }
 }
 
 /**

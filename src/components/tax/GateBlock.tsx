@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { TaxTooltip } from './TaxTooltip';
 
 interface GateBlockProps {
   title: string;
+  tooltipTerm?: string;
   isOpen?: boolean;
   onToggle?: (isOpen: boolean) => void;
   children: React.ReactNode;
 }
 
-export function GateBlock({ title, isOpen: controlledIsOpen, onToggle, children }: GateBlockProps) {
+export function GateBlock({ title, tooltipTerm, isOpen: controlledIsOpen, onToggle, children }: GateBlockProps) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
 
@@ -46,7 +48,10 @@ export function GateBlock({ title, isOpen: controlledIsOpen, onToggle, children 
           fontWeight: 600,
         }}
       >
-        {title}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {title}
+          <TaxTooltip term={tooltipTerm || title} size={15} />
+        </span>
         {isOpen ? <ChevronDown size={18} color="var(--text-muted)" /> : <ChevronRight size={18} color="var(--text-muted)" />}
       </button>
       

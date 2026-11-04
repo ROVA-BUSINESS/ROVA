@@ -224,7 +224,30 @@ export async function createInvoice(params: CreateInvoiceParams, customSupabaseC
   else if (paymentStatus === 'part_payment') computedPaid = amountPaid;
   else computedPaid = 0;
 
-  const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+  // Sequential chronological numbering INV-001, INV-002...
+  let invoiceNumber = 'INV-001';
+  try {
+    const { data: existingInvs } = await client
+      .from('invoices')
+      .select('invoice_number')
+      .eq('user_id', userId);
+
+    let maxInvNum = 0;
+    if (existingInvs && existingInvs.length > 0) {
+      for (const inv of existingInvs) {
+        if (!inv.invoice_number) continue;
+        const match = inv.invoice_number.match(/INV-(\d+)/i);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (n > maxInvNum) maxInvNum = n;
+        }
+      }
+      if (maxInvNum === 0) maxInvNum = existingInvs.length;
+    }
+    invoiceNumber = `INV-${String(maxInvNum + 1).padStart(3, '0')}`;
+  } catch (err) {
+    invoiceNumber = `INV-${Date.now().toString().slice(-4)}`;
+  }
   const status = computedPaid >= total ? 'paid' : computedPaid > 0 ? 'partially_paid' : 'sent';
 
   // 1. Insert Invoice

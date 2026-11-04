@@ -320,12 +320,12 @@ export default function TransactionsPage() {
                   </td>
                   <td className="mobile-tight-td" style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div className="mobile-hide" style={{
+                      <div style={{
                         width: 28, height: 28, borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                        background: tx.type === 'income' ? 'var(--success-dim)' : 'var(--error-dim)',
+                        background: tx.type === 'income' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        {tx.type === 'income' ? <ArrowUpRight size={13} color="var(--success)" /> : <ArrowDownRight size={13} color="var(--error)" />}
+                        {tx.type === 'income' ? <ArrowUpRight size={13} color="#10b981" /> : <ArrowDownRight size={13} color="#ef4444" />}
                       </div>
                       {editingId === tx.id && editingField === 'description' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>

@@ -6,6 +6,7 @@ import { AssetEntryCard } from '../../components/tax/AssetEntryCard';
 import { ChipSelect } from '../../components/tax/ChipSelect';
 import { ChipSelectAmount } from '../../components/tax/ChipSelectAmount';
 import { GateBlock } from '../../components/tax/GateBlock';
+import { TaxTooltip } from '../../components/tax/TaxTooltip';
 import { LiveLedgerSidebar } from '../../components/tax/LiveLedgerSidebar';
 import type { Sector } from '../../types/rovaTaxFlow';
 
@@ -300,7 +301,10 @@ export default function NrsCitWizardPage() {
       case 'revenue':
         return (
           <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>What was your total revenue for the year?</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 12 }}>
+              What was your total revenue for the year?
+              <TaxTooltip term="revenue" size={15} />
+            </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
               <input
@@ -327,7 +331,7 @@ export default function NrsCitWizardPage() {
                 onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, openingInventory: val } }))}
               />
             </GateBlock>
-            <GateBlock title="Purchases (raw materials / finished goods)">
+            <GateBlock title="Purchases (raw materials / finished goods)" tooltipTerm="purchases">
               <ChipSelectAmount
                 options={['Local Purchases', 'Import Purchases', 'Return Outwards']}
                 value={state.costOfSales.purchases}
@@ -408,7 +412,10 @@ export default function NrsCitWizardPage() {
               <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--text-primary)', borderBottom: '1px solid var(--bg-border)', paddingBottom: 6 }}>
                 Non-Current Assets
               </h3>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: 13.5 }}>Properties, Plants and Equipment</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 8, fontSize: 13.5 }}>
+                Properties, Plants and Equipment
+                <TaxTooltip term="properties, plants and equipment" size={15} />
+              </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
                 <input
@@ -491,7 +498,10 @@ export default function NrsCitWizardPage() {
 
               {/* Inventories Section */}
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13.5 }}>Inventories</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 4, fontSize: 13.5 }}>
+                  Inventories
+                  <TaxTooltip term="inventories" size={15} />
+                </label>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
                   Total value of inventories held as at end of the financial year
                   {computed.closingInventory > 0 && ` (Closing inventory from Cost of Sales: ₦${computed.closingInventory.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
@@ -525,7 +535,10 @@ export default function NrsCitWizardPage() {
 
               {/* Trade Receivables Section */}
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13.5 }}>Trade receivables</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 4, fontSize: 13.5 }}>
+                  Trade receivables
+                  <TaxTooltip term="trade receivables" size={15} />
+                </label>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
                   Amounts due from customers for sales or services delivered on credit
                 </p>
@@ -583,7 +596,7 @@ export default function NrsCitWizardPage() {
               </h3>
             </div>
 
-            <GateBlock title="Trade Payables & current tax liabilities">
+            <GateBlock title="Trade Payables & current tax liabilities" tooltipTerm="trade payables">
               <ChipSelectAmount
                 options={['Trade Payables', 'Current tax liabilities']}
                 value={state.sfp.tradePayablesAndCurrentTax}
@@ -751,8 +764,9 @@ export default function NrsCitWizardPage() {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
                 Other income
+                <TaxTooltip term="other income" size={16} />
               </label>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
                 Select any applicable income source and enter the amount assigned to it:
@@ -771,8 +785,9 @@ export default function NrsCitWizardPage() {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
                 Administrative expenses
+                <TaxTooltip term="administrative expenses" size={16} />
               </label>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
                 Select any applicable expenses incurred in the operation of your business:
@@ -966,8 +981,11 @@ export default function NrsCitWizardPage() {
 function PnlRow({ label, value, isNegative, bold }: { label: string, value: number, isNegative?: boolean, bold?: boolean }) {
   const formatted = `₦${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-      <span style={{ fontSize: 13, color: bold ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: bold ? 600 : 400 }}>{label}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', alignItems: 'center' }}>
+      <span style={{ fontSize: 13, color: bold ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: bold ? 600 : 400, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        {label}
+        <TaxTooltip term={label} size={13} />
+      </span>
       <span style={{ fontSize: 13, fontWeight: bold ? 700 : 500, color: bold ? 'var(--text-primary)' : (isNegative && value > 0 ? 'var(--error)' : 'var(--text-primary)') }}>
         {isNegative && value > 0 ? `-${formatted}` : formatted}
       </span>

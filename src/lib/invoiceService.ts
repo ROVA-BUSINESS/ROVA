@@ -26,13 +26,35 @@ export async function createInvoice(input: CreateInvoiceInput) {
   const discountAmount = subtotal * (discountRate / 100);
   const taxAmount = (subtotal - discountAmount) * (taxRate / 100);
   const total = subtotal - discountAmount + taxAmount;
-  // Sequential invoice number per user
-  const { count: invCount } = await supabase
-    .from('invoices')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', input.userId);
-  const nextInvNum = ((invCount ?? 0) + 1).toString().padStart(3, '0');
-  const invoiceNumber = `INV-${nextInvNum}`;
+  // Sequential chronological invoice number per user (INV-001, INV-002, ...)
+  let invoiceNumber = 'INV-001';
+  try {
+    const { data: existingInvs } = await supabase
+      .from('invoices')
+      .select('invoice_number')
+      .eq('user_id', input.userId);
+
+    let maxInvNum = 0;
+    if (existingInvs && existingInvs.length > 0) {
+      for (const inv of existingInvs) {
+        if (!inv.invoice_number) continue;
+        const match = inv.invoice_number.match(/INV-(\d+)/i);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (n > maxInvNum) maxInvNum = n;
+        }
+      }
+      if (maxInvNum === 0) maxInvNum = existingInvs.length;
+    }
+    invoiceNumber = `INV-${String(maxInvNum + 1).padStart(3, '0')}`;
+  } catch (err) {
+    const { count: invCount } = await supabase
+      .from('invoices')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', input.userId);
+    const nextInvNum = ((invCount ?? 0) + 1).toString().padStart(3, '0');
+    invoiceNumber = `INV-${nextInvNum}`;
+  }
 
   let initialAmountPaid = 0;
   let status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' = 'sent';
