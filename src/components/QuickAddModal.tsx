@@ -333,7 +333,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
                   transition: 'all 0.15s', textTransform: 'capitalize',
                 }}
               >
-                {m === 'transfer' ? 'ðŸ¦ Transfer' : 'ðŸ’µ Cash'}
+                {m === 'transfer' ? 'Bank Transfer' : 'Cash'}
               </button>
             ))}
           </div>

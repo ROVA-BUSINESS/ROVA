@@ -728,15 +728,15 @@ export default function InvoicesPage() {
                          onClick={() => setItems(p => p.map((x, j) => j === i ? { ...x, addToInventory: !x.addToInventory } : x))}
                          style={{
                            display: 'inline-flex', alignItems: 'center', gap: 5,
-                           padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 11.5,
+                           padding: '5px 12px', borderRadius: 'var(--radius-md)', fontSize: 12,
                            border: '1px solid', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s',
-                           background: item.addToInventory ? 'rgba(34,197,94,0.15)' : 'var(--bg-elevated)',
-                           color: item.addToInventory ? 'var(--success)' : 'var(--text-muted)',
-                           borderColor: item.addToInventory ? 'rgba(34,197,94,0.3)' : 'var(--bg-border)',
+                           background: item.addToInventory ? 'var(--accent-primary)' : 'var(--accent-dim)',
+                           color: 'white',
+                           borderColor: 'var(--accent-border)',
                          }}
                        >
                          <Package size={11} />
-                         {item.addToInventory ? 'âœ“ Added to Inventory' : '+ Add to Inventory'}
+                         {item.addToInventory ? 'Added to Inventory' : '+ Add Item'}
                        </button>
                      )}
                   </div>
