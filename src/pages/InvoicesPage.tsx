@@ -288,6 +288,28 @@ export default function InvoicesPage() {
         items: validItems,
       });
 
+
+      // Save any custom items marked "+ Add Item" to inventory
+      const toAddToInventory = items.filter(i => i.addToInventory && !i.inventory_item_id && i.description);
+      if (toAddToInventory.length > 0) {
+        await supabase.from('inventory_items').insert(
+          toAddToInventory.map(i => ({
+            user_id: effectiveUserId!,
+            name: i.description,
+            selling_price: Number(i.unit_price) || 0,
+            cost_price: Number(i.unit_price) || 0,
+            current_stock: 0,
+            reorder_level: 0,
+            status: 'active' as const,
+            sku: '',
+            description: '',
+            category: '',
+            unit: '',
+            notes: 'Added from invoice',
+            supplier_id: null,
+          }))
+        );
+      }
       setShowModal(false);
       resetForm();
       loadInvoices();
