@@ -14,6 +14,7 @@ import {
   type ChatAction,
 } from '../lib/deepseekClient';
 import { createInvoice } from '../lib/invoiceService';
+import { getNextSku } from '../lib/inventoryService';
 import {
   type ChatMessage,
   type Conversation,
@@ -467,7 +468,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           .insert({
             user_id: effectiveUserId,
             name: flow.itemName,
-            sku: `SKU-${Date.now()}`,
+            sku: await getNextSku(effectiveUserId),
             category: flow.category || 'General',
             unit: flow.unit || 'unit',
             cost_price: flow.cost_price || 0,
@@ -575,7 +576,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
         .insert({
           user_id: effectiveUserId,
           name: payload.name,
-          sku: payload.sku || `SKU-${Date.now()}`,
+          sku: payload.sku || await getNextSku(effectiveUserId),
           category: payload.category || 'General',
           unit: payload.unit || 'unit',
           cost_price: Number(payload.cost_price) || 0,

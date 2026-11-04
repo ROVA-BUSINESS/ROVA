@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Plus, Pencil, Trash2, Package, TriangleAlert as AlertTriangle, TrendingDown, CircleArrowUp as ArrowUpCircle, CircleArrowDown as ArrowDownCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, type InventoryItem, type Supplier } from '../../lib/supabase';
+import { getNextSku } from '../../lib/inventoryService';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/format';
 import Card from '../../components/ui/Card';
@@ -90,7 +91,19 @@ export default function StockTab({ items, suppliers, onRefresh, locationState }:
         // Open Add Item modal
         setEditing(null);
         setForm({
-          sku: payload.sku || `SKU-${Date.now().toString().slice(-6)}`,
+          sku: payload.sku || (() => {
+          let maxNum = 0;
+          for (const item of items) {
+            if (!item.sku) continue;
+            const match = item.sku.match(/SKU-(\d+)/i);
+            if (match) {
+              const n = parseInt(match[1], 10);
+              if (n > maxNum) maxNum = n;
+            }
+          }
+          if (maxNum === 0 && items.length > 0) maxNum = items.length;
+          return `SKU-${String(maxNum + 1).padStart(3, '0')}`;
+        })(),
           name: itemName,
           description: payload.description || '',
           category: payload.category || '',
@@ -113,7 +126,12 @@ export default function StockTab({ items, suppliers, onRefresh, locationState }:
   const outOfStock = items.filter(i => i.current_stock === 0);
   const totalValue = items.reduce((s, i) => s + i.current_stock * i.cost_price, 0);
 
-  function openNew() { setEditing(null); setForm(EMPTY_ITEM); setShowItemModal(true); }
+  async function openNew() {
+    setEditing(null);
+    const nextSku = await getNextSku(user?.id || '', items);
+    setForm({ ...EMPTY_ITEM, sku: nextSku });
+    setShowItemModal(true);
+  }
   function openEdit(item: InventoryItem) {
     setEditing(item);
     setForm({
@@ -133,8 +151,13 @@ export default function StockTab({ items, suppliers, onRefresh, locationState }:
   async function handleItemSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
+    let finalSku = form.sku.trim();
+    if (!finalSku && !editing) {
+      finalSku = await getNextSku(user!.id, items);
+    }
     const payload = {
       ...form,
+      sku: finalSku,
       cost_price: Number(form.cost_price), selling_price: Number(form.selling_price),
       current_stock: Number(form.current_stock), reorder_level: Number(form.reorder_level),
       supplier_id: form.supplier_id || null, user_id: user!.id,

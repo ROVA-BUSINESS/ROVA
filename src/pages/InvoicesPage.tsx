@@ -289,11 +289,22 @@ export default function InvoicesPage() {
       });
 
 
-      // Save any custom items marked "+ Add Item" to inventory
+      // Save any custom items marked "+ Add Item" to inventory with sequential chronological SKUs
       const toAddToInventory = items.filter(i => i.addToInventory && !i.inventory_item_id && i.description);
       if (toAddToInventory.length > 0) {
+        let maxNum = 0;
+        for (const item of inventoryItems) {
+          if (!item.sku) continue;
+          const match = item.sku.match(/SKU-(\d+)/i);
+          if (match) {
+            const n = parseInt(match[1], 10);
+            if (n > maxNum) maxNum = n;
+          }
+        }
+        if (maxNum === 0 && inventoryItems.length > 0) maxNum = inventoryItems.length;
+
         await supabase.from('inventory_items').insert(
-          toAddToInventory.map(i => ({
+          toAddToInventory.map((i, idx) => ({
             user_id: effectiveUserId!,
             name: i.description,
             selling_price: Number(i.unit_price) || 0,
@@ -301,7 +312,7 @@ export default function InvoicesPage() {
             current_stock: 0,
             reorder_level: 0,
             status: 'active' as const,
-            sku: '',
+            sku: `SKU-${String(maxNum + idx + 1).padStart(3, '0')}`,
             description: '',
             category: '',
             unit: '',

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getNextSku } from './inventoryService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -273,7 +274,7 @@ export async function applyInventoryIntent(params: {
       .insert({
         user_id: params.userId,
         name: params.itemName,
-        sku: `SKU-${Date.now()}`,
+        sku: await getNextSku(params.userId),
         unit: 'unit',
         cost_price: params.unitCost,
         selling_price: params.unitCost,
