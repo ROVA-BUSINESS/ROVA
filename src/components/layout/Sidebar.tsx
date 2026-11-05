@@ -5,7 +5,7 @@ import {
   Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
   Users, Package, Shield, X, Brain,
-  TrendingDown, CreditCard
+  TrendingDown, TrendingUp, CreditCard
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';
@@ -56,7 +56,8 @@ const mainNavItems: NavGroupItem[] = [
     key: 'accounting',
     icon: BookOpen,
     items: [
-      { to: '/app/accounting', icon: BookOpen, label: 'Accounting Hub' }
+      { to: '/app/accounting', icon: BookOpen, label: 'Accounting Hub' },
+      { to: '/app/profit-loss', icon: TrendingUp, label: 'Profit & Loss' }
     ]
   },
   {
