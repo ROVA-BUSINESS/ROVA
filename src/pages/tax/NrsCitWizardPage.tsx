@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle, FileSpreadsheet, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRovaTaxFlow } from './useRovaTaxFlow';
 import { AssetEntryCard } from '../../components/tax/AssetEntryCard';
@@ -127,6 +127,7 @@ export default function NrsCitWizardPage() {
   const navigate = useNavigate();
   const { state, computed, updateState, exportForFiling } = useRovaTaxFlow();
   const [currentStep, setCurrentStep] = useState(0);
+  const [exportFileName, setExportFileName] = useState('');
 
   const stage = STAGES[currentStep];
 
@@ -814,17 +815,46 @@ export default function NrsCitWizardPage() {
             </div>
 
             {/* Export Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 420, margin: '0 auto 32px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420, margin: '0 auto 32px' }}>
               
+              {/* File Name Input */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Edit2 size={14} color="var(--accent-primary)" /> Name your export file:
+                </label>
+                <input
+                  type="text"
+                  value={exportFileName}
+                  onChange={e => setExportFileName(e.target.value)}
+                  placeholder={`CIT_Filing_${state.yearOfAssessment || new Date().getFullYear()}`}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                    fontSize: 14,
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Optional custom name (extension .xlsx or .json will be added automatically).
+                </span>
+              </div>
+
               {/* Download Filing Data JSON */}
               <button
                 onClick={() => {
                   const data = exportForFiling();
+                  const baseName = (exportFileName.trim() || `ROVA_CIT_Filing_${data.year || 'data'}`).replace(/[\\/:*?"<>|]/g, '_');
+                  const filename = `${baseName.replace(/\.json$/i, '')}.json`;
                   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `ROVA_CIT_Filing_${data.year || 'data'}.json`;
+                  a.download = filename;
                   a.click();
                   URL.revokeObjectURL(url);
                 }}
@@ -842,6 +872,8 @@ export default function NrsCitWizardPage() {
                 onClick={async () => {
                   try {
                     const data = exportForFiling();
+                    const baseName = (exportFileName.trim() || `CIT_Filing_${data.year || new Date().getFullYear()}`).replace(/[\\/:*?"<>|]/g, '_');
+                    const filename = `${baseName.replace(/\.xlsx$/i, '')}.xlsx`;
                     // Fetch the blank CIT template bundled in /public
                     const resp = await fetch('/CIT_template_2026.xlsx');
                     if (!resp.ok) throw new Error('Could not load CIT template. Please try again.');
@@ -851,7 +883,7 @@ export default function NrsCitWizardPage() {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `CIT_Filing_${data.year || new Date().getFullYear()}.xlsx`;
+                    a.download = filename;
                     a.click();
                     URL.revokeObjectURL(url);
                   } catch (err) {
