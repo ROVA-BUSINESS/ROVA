@@ -46,6 +46,7 @@ type NavGroupItem = {
 
 const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/dashboard', icon: Home, label: 'Home' },
+  { type: 'link', to: '/app/payment', icon: CreditCard, label: 'Payment' },
   { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices & Receipts' },
   { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },

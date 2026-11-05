@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { sendDashboardFlow } from './send-dashboard-flow.js';
 import flowApp from './rova-flow-api.js';
 import paystackApp from './paystack-api.js';
+import paymentApp from './payment-api.js';
 
 dotenv.config();
 
@@ -16,6 +17,10 @@ app.use(flowApp);
 // Mount Paystack Billing & Webhook API
 app.use('/api/paystack', paystackApp);
 app.use('/paystack', paystackApp);
+
+// Mount Unified Payment & Multi-Provider API
+app.use('/api/payment', paymentApp);
+app.use('/payment', paymentApp);
 
 // Helper function to send WhatsApp message
 async function sendMessage(to, text) {

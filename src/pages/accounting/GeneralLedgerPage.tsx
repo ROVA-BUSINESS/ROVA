@@ -81,7 +81,7 @@ export default function GeneralLedgerPage() {
       </div>
 
       {loading ? (
-        <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 56, marginBottom: 8 }} />)}</div>
+        <div>{[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 56, marginBottom: 8 }} />)}</div>
       ) : filtered.length === 0 ? (
         <Card>
           <div style={{ textAlign: 'center', padding: '32px 0' }}>

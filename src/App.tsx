@@ -5,6 +5,7 @@ import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/auth/SignupPage';
 import DashboardPage from './pages/DashboardPage';
+import PaymentPage from './pages/payment/PaymentPage';
 import TransactionsPage from './pages/TransactionsPage';
 import ReportsPage from './pages/ReportsPage';
 import TaxPage from './pages/TaxPage';
@@ -153,6 +154,7 @@ export default function App() {
 
             {/* These pages check subscription status */}
             <Route path="dashboard" element={<SubscriptionRoute><DashboardPage /></SubscriptionRoute>} />
+            <Route path="payment" element={<SubscriptionRoute><PaymentPage /></SubscriptionRoute>} />
             <Route path="transactions" element={<SubscriptionRoute><TransactionsPage /></SubscriptionRoute>} />
             <Route path="invoices" element={<SubscriptionRoute><InvoicesPage /></SubscriptionRoute>} />
             <Route path="receipts" element={<SubscriptionRoute><ReceiptsPage /></SubscriptionRoute>} />
