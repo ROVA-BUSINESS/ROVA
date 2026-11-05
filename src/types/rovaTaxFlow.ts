@@ -56,6 +56,8 @@ export interface RovaTaxState {
   };
   yearOfAssessment: string;
   sector: Sector | '';
+  sectors?: Sector[];
+  sectorRevenues?: Record<string, number>;
   revenue: number | null;
   costOfSales: {
     openingInventory: Record<string, number>;

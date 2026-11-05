@@ -287,46 +287,153 @@ export default function NrsCitWizardPage() {
           </div>
         );
 
-      case 'sector':
+      case 'sector': {
+        const activeSectors = state.sectors && state.sectors.length > 0
+          ? state.sectors
+          : (state.sector ? [state.sector] : []);
         return (
           <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>Business sector</label>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: 16 }}>Business sector(s)</label>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              Select all sectors that apply to your business operations. You can select more than one sector.
+            </p>
             <ChipSelect
-              isMulti={false}
+              isMulti={true}
               options={SECTORS}
-              selectedOptions={state.sector ? [state.sector] : []}
-              onChange={([val]) => updateState(prev => ({ ...prev, sector: (val as Sector) || '' }))}
+              selectedOptions={activeSectors}
+              onChange={(vals) => {
+                const newSectors = vals as Sector[];
+                updateState(prev => ({
+                  ...prev,
+                  sectors: newSectors,
+                  sector: newSectors[0] || '',
+                }));
+              }}
             />
           </div>
         );
+      }
 
-      case 'revenue':
+      case 'revenue': {
+        const activeSectors = state.sectors && state.sectors.length > 0
+          ? state.sectors
+          : (state.sector ? [state.sector] : []);
+        const isMulti = activeSectors.length > 1;
+
         return (
           <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 12 }}>
-              What was your total revenue for the year?
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 8, fontSize: 16 }}>
+              {isMulti ? 'Turnover by Sector' : 'What was your total revenue for the year?'}
               <TaxTooltip term="revenue" size={15} />
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={state.revenue === null ? '' : state.revenue}
-                onChange={e => updateState(prev => ({ ...prev, revenue: e.target.value ? Number(e.target.value) : null }))}
-                style={{
-                  width: '100%', maxWidth: 300, padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)'
-                }}
-              />
-            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              {isMulti
+                ? 'Enter the revenue earned under each of your selected sectors. Total revenue is automatically calculated.'
+                : 'Enter your total turnover for the accounting year.'}
+            </p>
+
+            {isMulti ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 440 }}>
+                {activeSectors.map(sec => {
+                  const val = state.sectorRevenues?.[sec] ?? '';
+                  return (
+                    <div
+                      key={sec}
+                      style={{
+                        padding: '12px 14px',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--bg-border)',
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-light)' }}>
+                        {sec}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 15, color: 'var(--text-muted)' }}>₦</span>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={val}
+                          onChange={e => {
+                            const num = e.target.value ? Number(e.target.value) : 0;
+                            const nextSecRevs = { ...(state.sectorRevenues || {}), [sec]: num };
+                            const totalRev = Object.values(nextSecRevs).reduce((a, b) => a + (b || 0), 0);
+                            updateState(prev => ({
+                              ...prev,
+                              sectorRevenues: nextSecRevs,
+                              revenue: totalRev,
+                            }));
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--bg-border)',
+                            background: 'var(--bg-base)',
+                            color: 'var(--text-primary)',
+                            fontSize: 14,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: 'var(--accent-dim)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--accent-primary)',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: 'var(--text-primary)',
+                    marginTop: 4,
+                  }}
+                >
+                  <span>Total Combined Revenue:</span>
+                  <span style={{ color: 'var(--accent-light)', fontFamily: 'Space Grotesk, sans-serif' }}>
+                    ₦{Number(computed.revenue || state.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>₦</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={state.revenue === null ? '' : state.revenue}
+                  onChange={e => {
+                    const rev = e.target.value ? Number(e.target.value) : null;
+                    const primarySec = activeSectors[0];
+                    updateState(prev => ({
+                      ...prev,
+                      revenue: rev,
+                      sectorRevenues: primarySec ? { [primarySec]: rev || 0 } : {},
+                    }));
+                  }}
+                  style={{
+                    width: '100%', maxWidth: 300, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--bg-border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)'
+                  }}
+                />
+              </div>
+            )}
           </div>
         );
+      }
 
       case 'cost_of_sales':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <GateBlock title="Opening inventory" isOpen>
+            <GateBlock title="Opening inventory" isOpen tooltipTerm="opening_inventory">
               <ChipSelectAmount
                 options={['Raw materials', 'Work in progress', 'Finished goods']}
                 value={state.costOfSales.openingInventory}
@@ -335,12 +442,12 @@ export default function NrsCitWizardPage() {
             </GateBlock>
             <GateBlock title="Purchases (raw materials / finished goods)" tooltipTerm="purchases">
               <ChipSelectAmount
-                options={['Local Purchases', 'Import Purchases', 'Return Outwards']}
+                options={['Local Purchases', 'Import Purchases', 'Returns Outwards']}
                 value={state.costOfSales.purchases}
                 onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, purchases: val } }))}
               />
             </GateBlock>
-            <GateBlock title="Other direct cost">
+            <GateBlock title="Other direct cost" tooltipTerm="other_direct_cost">
               <ChipSelectAmount
                 searchable
                 options={[
@@ -358,20 +465,65 @@ export default function NrsCitWizardPage() {
                 onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, otherDirectCost: val } }))}
               />
             </GateBlock>
-            <GateBlock title="Factory overheads">
+            <GateBlock title="Factory overheads" tooltipTerm="factory_overheads">
               <ChipSelectAmount
                 options={['Factory Rent', 'Factory Rates', 'Fuel and Power', 'Indirect Wages', 'Other Factory Overheads']}
                 value={state.costOfSales.factoryOverheads}
                 onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, factoryOverheads: val } }))}
               />
             </GateBlock>
-            <GateBlock title="Closing inventory">
+            <GateBlock title="Closing inventory (deducted from cost)" tooltipTerm="closing_inventory">
               <ChipSelectAmount
                 options={['Raw materials', 'Work In Progress', 'Finished goods']}
                 value={state.costOfSales.closingInventory}
                 onChange={val => updateState(prev => ({ ...prev, costOfSales: { ...prev.costOfSales, closingInventory: val } }))}
               />
             </GateBlock>
+
+            {/* Live Cost of Sales calculation summary */}
+            <div
+              style={{
+                padding: '16px 18px',
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--bg-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                fontSize: 13,
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
+                Cost of Sales Summary:
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <span>Opening inventory (+)</span>
+                <span>₦{computed.openingInventory.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <span>Purchases (net after returns) (+)</span>
+                <span>₦{computed.purchases.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <span>Other direct costs (+)</span>
+                <span>₦{computed.otherDirectCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <span>Factory overheads (+)</span>
+                <span>₦{computed.factoryOverheads.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--error, #ef4444)' }}>
+                <span>Closing inventory (deducted) (−)</span>
+                <span>−₦{computed.closingInventory.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ height: 1, background: 'var(--bg-border)', margin: '4px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                <span>Total Direct Cost (Cost of Sales):</span>
+                <span style={{ color: 'var(--accent-light)', fontFamily: 'Space Grotesk, sans-serif' }}>
+                  ₦{computed.directCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
           </div>
         );
 

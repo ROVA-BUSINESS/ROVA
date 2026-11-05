@@ -28,6 +28,8 @@ const INITIAL_STATE: RovaTaxState = {
   mneCfc: { isMNE: null, isCFC: null },
   yearOfAssessment: '',
   sector: '',
+  sectors: [],
+  sectorRevenues: {},
   revenue: null,
   costOfSales: {
     openingInventory: {},
@@ -82,25 +84,40 @@ export function useRovaTaxFlow() {
       return { ...asset, salvageValue, annualDepreciation };
     });
 
-    // Helper to sum record values
-
     // 2. Cost of Sales & P&L
     const openingInventory = sumRecord(state.costOfSales.openingInventory);
-    const localPurchases = state.costOfSales.purchases['Local Purchases'] || 0;
-    const importPurchases = state.costOfSales.purchases['Import Purchases'] || 0;
-    const returnOutwards = state.costOfSales.purchases['Return Outwards'] ||
-      state.costOfSales.purchases['Returns Outwards'] ||
-      state.costOfSales.purchases['Return outwards'] || 0;
+    
+    // Purchases: Local + Import - Returns Outwards + other
+    const findPurchKey = (needle: string) => {
+      const entry = Object.entries(state.costOfSales.purchases).find(([k]) =>
+        k.trim().toLowerCase() === needle.trim().toLowerCase()
+      );
+      return entry ? entry[1] || 0 : 0;
+    };
+    const localPurchases = findPurchKey('Local Purchases');
+    const importPurchases = findPurchKey('Import Purchases');
+    const returnOutwards = findPurchKey('Return Outwards') || findPurchKey('Returns Outwards') || findPurchKey('Purchase returns (if any)');
     const otherPurchases = Object.entries(state.costOfSales.purchases)
-      .filter(([k]) => !['Local Purchases', 'Import Purchases', 'Return Outwards', 'Returns Outwards', 'Return outwards'].includes(k))
+      .filter(([k]) => {
+        const cleanK = k.trim().toLowerCase();
+        return !cleanK.includes('local') && !cleanK.includes('import') && !cleanK.includes('return');
+      })
       .reduce((s, [_, v]) => s + (v || 0), 0);
     const purchases = localPurchases + importPurchases - returnOutwards + otherPurchases;
+    
     const otherDirectCost = sumRecord(state.costOfSales.otherDirectCost);
     const factoryOverheads = sumRecord(state.costOfSales.factoryOverheads);
     const closingInventory = sumRecord(state.costOfSales.closingInventory);
 
+    // Direct Cost = Opening Inventory + Purchases + Other Direct Cost + Factory Overheads - Closing Inventory
     const directCost = openingInventory + purchases + otherDirectCost + factoryOverheads - closingInventory;
-    const revenue = state.revenue || 0;
+
+    // Revenue: sum of sectorRevenues if multi-sector, or state.revenue
+    const totalSectorRev = state.sectorRevenues
+      ? Object.values(state.sectorRevenues).reduce((s, v) => s + (v || 0), 0)
+      : 0;
+    const revenue = totalSectorRev > 0 ? totalSectorRev : (state.revenue || 0);
+    
     const grossProfit = revenue - directCost;
 
     const otherIncomeTotal = sumRecord(state.otherIncome);
@@ -118,10 +135,7 @@ export function useRovaTaxFlow() {
     const fixedAssets = state.sfp.propertiesPlantsEquipment || 0;
     
     // CIT Rate Determination
-    // Small companies: turnover <= 100m AND fixed assets <= 250m => 0%
-    // Large companies: 30% CIT + 4% Dev Levy
-    // Consultancy (PROFESSIONAL SCIENTIFIC AND TECHNICAL ACTIVITIES): 30% CIT + 4% Dev Levy
-    const isConsultancy = state.sector === 'PROFESSIONAL SCIENTIFIC AND TECHNICAL ACTIVITIES';
+    const isConsultancy = (state.sectors || [state.sector]).includes('PROFESSIONAL SCIENTIFIC AND TECHNICAL ACTIVITIES');
     const assessableProfit = Math.max(0, taxableProfit);
 
     if (isConsultancy) {
@@ -170,7 +184,6 @@ export function useRovaTaxFlow() {
 
   /** Serialize wizard state + computed values into the JSON format the filing bot and Excel generator expect. */
   const exportForFiling = () => {
-    // Filter only non-zero entries from a record
     const filterRecord = (rec: Record<string, number>) => {
       const out: Record<string, string> = {};
       for (const [k, v] of Object.entries(rec)) {
@@ -179,10 +192,16 @@ export function useRovaTaxFlow() {
       return out;
     };
 
+    const activeSectors = state.sectors && state.sectors.length > 0
+      ? state.sectors
+      : (state.sector ? [state.sector] : []);
+
     return {
       year: state.yearOfAssessment,
-      sector: state.sector,
-      revenue: state.revenue ? String(state.revenue) : '0',
+      sector: activeSectors.join(', '),
+      sectors: activeSectors,
+      sector_revenues: filterRecord(state.sectorRevenues || {}),
+      revenue: String(computed.revenue || state.revenue || 0),
       mne: state.mneCfc.isMNE ? 'Yes' : 'No',
       cfc: state.mneCfc.isCFC ? 'Yes' : 'No',
       has_new_fixed_assets: state.hasNewFixedAssets ? 'Yes' : 'No',
