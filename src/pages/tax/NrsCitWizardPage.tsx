@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle, FileSpreadsheet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRovaTaxFlow } from './useRovaTaxFlow';
 import { AssetEntryCard } from '../../components/tax/AssetEntryCard';
@@ -8,6 +8,7 @@ import { ChipSelectAmount } from '../../components/tax/ChipSelectAmount';
 import { GateBlock } from '../../components/tax/GateBlock';
 import { TaxTooltip } from '../../components/tax/TaxTooltip';
 import { LiveLedgerSidebar } from '../../components/tax/LiveLedgerSidebar';
+import { populateCitExcel } from '../../lib/citExcelExport';
 import type { Sector } from '../../types/rovaTaxFlow';
 
 const STAGES = [
@@ -834,6 +835,39 @@ export default function NrsCitWizardPage() {
                 }}
               >
                 📄 Download Filing Data (JSON)
+              </button>
+
+              {/* Download Filled NRS CIT Excel */}
+              <button
+                onClick={async () => {
+                  try {
+                    const data = exportForFiling();
+                    // Fetch the blank CIT template bundled in /public
+                    const resp = await fetch('/CIT_template_2026.xlsx');
+                    if (!resp.ok) throw new Error('Could not load CIT template. Please try again.');
+                    const templateBytes = await resp.arrayBuffer();
+                    const filledBytes = populateCitExcel(templateBytes, data as unknown as Record<string, unknown>);
+                    const blob = new Blob([filledBytes.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `CIT_Filing_${data.year || new Date().getFullYear()}.xlsx`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } catch (err) {
+                    alert(`Excel export failed: ${err instanceof Error ? err.message : String(err)}`);
+                  }
+                }}
+                style={{
+                  padding: '12px 20px',
+                  background: 'linear-gradient(135deg, #064e3b, #065f46)',
+                  border: 'none', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700,
+                  color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                  boxShadow: '0 2px 8px rgba(6,78,59,0.3)',
+                }}
+              >
+                <FileSpreadsheet size={16} />
+                Download NRS CIT Excel (Ready to Submit)
               </button>
 
               {/* Send to Chrome Extension for NRS autofill */}
