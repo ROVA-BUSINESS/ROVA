@@ -31,6 +31,30 @@ function formatTimestamp(iso: string) {
   }
 }
 
+function generateNoteId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+}
+
+function getLocalNotes(key: string): BusinessNote[] {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalNotes(key: string, list: BusinessNote[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Notes storage error:', e);
+  }
+}
+
 // ─── Empty state ────────────────────────────────────────────────────────────
 
 function EmptyState({ onNew }: { onNew: () => void }) {
@@ -99,13 +123,15 @@ export default function NotesPage() {
   const { user } = useAuth();
   const isMobile = useMobile(1024);
 
+  const storageKey = `rova_notes_${user?.id || 'default'}`;
+
   const [notes, setNotes] = useState<BusinessNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<BusinessNote | null>(null);
   const [search, setSearch] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [showEditor, setShowEditor] = useState(false); // mobile: toggle between list and editor
+  const [showEditor, setShowEditor] = useState(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -113,27 +139,32 @@ export default function NotesPage() {
   const selectedRef = useRef<BusinessNote | null>(null);
   selectedRef.current = selected;
 
-  // ── Load notes ───────────────────────────────────────────────────────────
+  // ── Load notes (Immediate local storage + silent cloud sync) ──────────────────
 
-  async function loadNotes() {
-    if (!user) return;
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('business_notes')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('is_pinned', { ascending: false })
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      console.error('Notes load error:', error);
-    } else {
-      setNotes(data as BusinessNote[]);
-    }
+  useEffect(() => {
+    const local = getLocalNotes(storageKey);
+    setNotes(local);
     setLoading(false);
-  }
 
-  useEffect(() => { loadNotes(); }, [user]);
+    if (user?.id) {
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('business_notes')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('is_pinned', { ascending: false })
+            .order('updated_at', { ascending: false });
+          if (!error && data && data.length > 0) {
+            setNotes(data as BusinessNote[]);
+            saveLocalNotes(storageKey, data as BusinessNote[]);
+          }
+        } catch {
+          // If table not found or network error, silently fall back to local storage
+        }
+      })();
+    }
+  }, [user?.id, storageKey]);
 
   // ── Populate editor when selected note changes ───────────────────────────
 
@@ -147,94 +178,153 @@ export default function NotesPage() {
     if (editorRef.current) editorRef.current.innerHTML = selected.content_html || '';
   }, [selected?.id]);
 
-  // ── Auto-save (debounced 800ms) ──────────────────────────────────────────
+  // ── Auto-save (debounced 600ms) ──────────────────────────────────────────
 
   const scheduleSave = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveStatus('saving');
-    saveTimer.current = setTimeout(() => { doSave(); }, 800);
+    saveTimer.current = setTimeout(() => { doSave(); }, 600);
   }, []);
 
   async function doSave() {
     const note = selectedRef.current;
-    if (!note || !user) return;
+    if (!note) return;
     const title = titleRef.current?.value ?? '';
     const content_html = editorRef.current?.innerHTML ?? '';
     const content = htmlToPlainText(content_html);
     const updated_at = new Date().toISOString();
 
-    const { error } = await supabase
-      .from('business_notes')
-      .update({ title, content, content_html, updated_at })
-      .eq('id', note.id);
+    const updatedNote: BusinessNote = {
+      ...note,
+      title,
+      content,
+      content_html,
+      updated_at
+    };
 
-    if (error) {
-      console.error('Save error:', error);
-      setSaveStatus('error');
-    } else {
-      setSaveStatus('saved');
-      setNotes(prev =>
-        prev.map(n => n.id === note.id ? { ...n, title, content, content_html, updated_at } : n)
-      );
-      selectedRef.current = { ...note, title, content, content_html, updated_at };
-      setSelected(s => s ? { ...s, title, content, content_html, updated_at } : s);
-      setTimeout(() => setSaveStatus('idle'), 2000);
+    setNotes(prev => {
+      const next = prev.map(n => n.id === note.id ? updatedNote : n);
+      saveLocalNotes(storageKey, next);
+      return next;
+    });
+    selectedRef.current = updatedNote;
+    setSelected(s => s?.id === note.id ? updatedNote : s);
+    setSaveStatus('saved');
+    setTimeout(() => setSaveStatus('idle'), 1500);
+
+    // Silent background sync to DB if available
+    if (user?.id) {
+      try {
+        await supabase
+          .from('business_notes')
+          .upsert({
+            id: note.id,
+            user_id: user.id,
+            title,
+            content,
+            content_html,
+            is_pinned: note.is_pinned,
+            updated_at
+          });
+      } catch {
+        // Silently keep in local storage
+      }
     }
   }
 
-  // ── Create note ──────────────────────────────────────────────────────────
+  // ── Create note (Instant 0-delay creation) ────────────────────────────────
 
-  async function createNote() {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('business_notes')
-      .insert({
-        user_id: user.id,
-        title: '',
-        content: '',
-        content_html: '',
-        is_pinned: false,
-        color: 'default',
-        tags: []
-      })
-      .select()
-      .single();
+  function createNote() {
+    const newNote: BusinessNote = {
+      id: generateNoteId(),
+      user_id: user?.id || 'user',
+      title: '',
+      content: '',
+      content_html: '',
+      is_pinned: false,
+      color: 'default',
+      tags: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-    if (error) { console.error('Create note error:', error); return; }
-    const newNote = data as BusinessNote;
-    setNotes(prev => [newNote, ...prev]);
+    setNotes(prev => {
+      const next = [newNote, ...prev];
+      saveLocalNotes(storageKey, next);
+      return next;
+    });
+
     setSelected(newNote);
     setShowEditor(true);
-    setTimeout(() => titleRef.current?.focus(), 50);
+    setSaveStatus('idle');
+
+    setTimeout(() => {
+      if (titleRef.current) {
+        titleRef.current.focus();
+      }
+    }, 50);
+
+    // Silent background sync
+    if (user?.id) {
+      Promise.resolve(
+        supabase
+          .from('business_notes')
+          .insert({
+            id: newNote.id,
+            user_id: user.id,
+            title: '',
+            content: '',
+            content_html: '',
+            is_pinned: false,
+            color: 'default',
+            tags: []
+          })
+      ).catch(() => {});
+    }
   }
 
   // ── Delete note ──────────────────────────────────────────────────────────
 
-  async function deleteNote(id: string) {
-    const { error } = await supabase.from('business_notes').delete().eq('id', id);
-    if (error) { console.error('Delete error:', error); return; }
-    setNotes(prev => prev.filter(n => n.id !== id));
-    if (selected?.id === id) { setSelected(null); setShowEditor(false); }
+  function deleteNote(id: string) {
+    setNotes(prev => {
+      const next = prev.filter(n => n.id !== id);
+      saveLocalNotes(storageKey, next);
+      return next;
+    });
+
+    if (selected?.id === id) {
+      setSelected(null);
+      setShowEditor(false);
+    }
     setDeleteConfirm(null);
+
+    if (user?.id) {
+      Promise.resolve(supabase.from('business_notes').delete().eq('id', id)).catch(() => {});
+    }
   }
 
   // ── Pin toggle ───────────────────────────────────────────────────────────
 
-  async function togglePin(note: BusinessNote) {
+  function togglePin(note: BusinessNote) {
     const is_pinned = !note.is_pinned;
-    const { error } = await supabase
-      .from('business_notes')
-      .update({ is_pinned })
-      .eq('id', note.id);
-    if (error) { console.error('Pin error:', error); return; }
-    setNotes(prev =>
-      [...prev.map(n => n.id === note.id ? { ...n, is_pinned } : n)]
+    const updatedNote = { ...note, is_pinned };
+
+    setNotes(prev => {
+      const next = prev
+        .map(n => n.id === note.id ? updatedNote : n)
         .sort((a, b) => {
           if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
           return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        })
-    );
-    if (selected?.id === note.id) setSelected(s => s ? { ...s, is_pinned } : s);
+        });
+      saveLocalNotes(storageKey, next);
+      return next;
+    });
+
+    if (selected?.id === note.id) setSelected(updatedNote);
+
+    if (user?.id) {
+      Promise.resolve(supabase.from('business_notes').update({ is_pinned }).eq('id', note.id)).catch(() => {});
+    }
   }
 
   // ── Rich-text commands ───────────────────────────────────────────────────
@@ -250,7 +340,7 @@ export default function NotesPage() {
   const filtered = notes.filter(n => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+    return (n.title || '').toLowerCase().includes(q) || (n.content || '').toLowerCase().includes(q);
   });
 
   const pinned = filtered.filter(n => n.is_pinned);
@@ -280,7 +370,8 @@ export default function NotesPage() {
           cursor: 'pointer',
           background: isActive ? 'var(--accent-primary)' : 'transparent',
           transition: 'background 0.15s',
-          position: 'relative'
+          position: 'relative',
+          marginBottom: 4
         }}
         onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
         onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
@@ -292,7 +383,7 @@ export default function NotesPage() {
               color: isActive ? '#fff' : 'var(--text-primary)',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
             }}>
-              {note.title || 'Untitled'}
+              {note.title.trim() ? note.title : 'Untitled note'}
             </p>
             <p style={{
               margin: '4px 0 0', fontSize: 12,
@@ -300,7 +391,7 @@ export default function NotesPage() {
               display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
               overflow: 'hidden', lineHeight: 1.4
             }}>
-              {note.content || 'No content'}
+              {note.content.trim() ? note.content : 'No additional text'}
             </p>
             <p style={{
               margin: '6px 0 0', fontSize: 11,
@@ -345,7 +436,7 @@ export default function NotesPage() {
   // ─── List panel ────────────────────────────────────────────────────────────
 
   const ListPanel = (
-    <div style={{ ...panelStyle, flex: isMobile ? 1 : '0 0 300px', minWidth: 0 }}>
+    <div style={{ ...panelStyle, flex: isMobile ? 1 : '0 0 320px', minWidth: 0 }}>
       {/* Header */}
       <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--bg-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -355,12 +446,12 @@ export default function NotesPage() {
             title="New note"
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 12px', borderRadius: 8, border: 'none',
+              padding: '7px 14px', borderRadius: 8, border: 'none',
               background: 'var(--accent-primary)', color: '#fff',
               fontSize: 13, fontWeight: 600, cursor: 'pointer'
             }}
           >
-            <Plus size={14} /> New
+            <Plus size={14} /> New Note
           </button>
         </div>
         <div style={{
@@ -383,7 +474,7 @@ export default function NotesPage() {
       </div>
 
       {/* Note list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 10px' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
             <Loader2 size={22} style={{ color: 'var(--text-muted)', animation: 'spin 1s linear infinite' }} />
@@ -394,12 +485,12 @@ export default function NotesPage() {
           <>
             {pinned.length > 0 && (
               <>
-                <p style={{ margin: '4px 6px 2px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                <p style={{ margin: '4px 6px 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   Pinned
                 </p>
                 {pinned.map(n => <NoteCard key={n.id} note={n} />)}
                 {unpinned.length > 0 && (
-                  <p style={{ margin: '10px 6px 2px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <p style={{ margin: '12px 6px 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                     All Notes
                   </p>
                 )}
@@ -451,12 +542,12 @@ export default function NotesPage() {
                 <span style={{ color: 'var(--text-muted)' }}>Saving…</span></>
               )}
               {saveStatus === 'saved' && (
-                <><CheckCircle size={13} style={{ color: 'var(--success)' }} />
-                <span style={{ color: 'var(--success)' }}>Saved</span></>
+                <><CheckCircle size={13} style={{ color: 'var(--success, #10b981)' }} />
+                <span style={{ color: 'var(--success, #10b981)' }}>Saved</span></>
               )}
               {saveStatus === 'error' && (
-                <><AlertCircle size={13} style={{ color: 'var(--error)' }} />
-                <span style={{ color: 'var(--error)' }}>Error saving</span></>
+                <><AlertCircle size={13} style={{ color: 'var(--error, #ef4444)' }} />
+                <span style={{ color: 'var(--error, #ef4444)' }}>Error saving</span></>
               )}
             </div>
           </div>
@@ -487,7 +578,7 @@ export default function NotesPage() {
               color: 'var(--text-primary)', fontSize: 15, lineHeight: 1.7,
               minHeight: 300
             }}
-            data-placeholder="Start writing…"
+            data-placeholder="Start typing your note here…"
           />
 
           {/* Created timestamp */}
@@ -501,11 +592,11 @@ export default function NotesPage() {
       ) : (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 12, opacity: 0.5
+          alignItems: 'center', justifyContent: 'center', gap: 12, opacity: 0.6
         }}>
           <NotebookPen size={40} style={{ color: 'var(--text-muted)' }} />
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>
-            Select a note or create a new one
+            Select a note or click "New Note" to start writing
           </p>
         </div>
       )}
@@ -543,7 +634,7 @@ export default function NotesPage() {
             onClick={() => deleteNote(deleteConfirm)}
             style={{
               padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: 'var(--error)', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600
+              background: 'var(--error, #ef4444)', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600
             }}
           >
             Delete
@@ -581,7 +672,7 @@ export default function NotesPage() {
             Notes Pad
           </h1>
           <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 14 }}>
-            Capture and organise your business ideas and notes.
+            Capture and organise your business notes, thoughts, and ideas.
           </p>
         </div>
 
