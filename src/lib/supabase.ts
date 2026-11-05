@@ -614,3 +614,16 @@ export async function recalculateAccountBalance(accountId: string) {
 }
 
 
+
+export type BusinessNote = {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;       // plain text for search/preview
+  content_html: string;  // HTML for rich text display
+  is_pinned: boolean;
+  color: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+};

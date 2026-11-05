@@ -22,6 +22,7 @@ import BalanceSheetPage from './pages/statements/BalanceSheetPage';
 import CashFlowPage from './pages/statements/CashFlowPage';
 import ChangesInEquityPage from './pages/statements/ChangesInEquityPage';
 import FinancialNotesPage from './pages/statements/FinancialNotesPage';
+import NotesPage from './pages/notes/NotesPage';
 import PayrollPage from './pages/payroll/PayrollPage';
 import AssistantPage from './pages/AssistantPage';
 import InventoryPage from './pages/inventory/InventoryPage';
@@ -158,6 +159,7 @@ export default function App() {
             <Route path="expenses" element={<SubscriptionRoute><AdminRoute><ExpensesPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="bills" element={<Navigate to="/app/expenses?tab=bills" replace />} />
             <Route path="assistant" element={<SubscriptionRoute><AssistantPage /></SubscriptionRoute>} />
+            <Route path="notes" element={<SubscriptionRoute><AdminRoute><NotesPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="settings" element={<SubscriptionRoute><SettingsPage /></SubscriptionRoute>} />
             <Route path="notifications" element={<SubscriptionRoute><AdminRoute><NotificationsPage /></AdminRoute></SubscriptionRoute>} />
 

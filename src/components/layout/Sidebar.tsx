@@ -1,10 +1,10 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Home, ChartBar as BarChart2, FileText, Receipt,
   Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
-  Users, Package, Shield, X, Brain,
+  Users, Package, Shield, X, Brain, NotebookPen,
   TrendingDown, TrendingUp, CreditCard, PieChart, Scale
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
@@ -50,6 +50,7 @@ const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
   { type: 'link', to: '/app/assistant', icon: Brain, label: 'AI Assistant' },
+  { type: 'link', to: '/app/notes', icon: NotebookPen, label: 'Notes Pad' },
   {
     type: 'group',
     label: 'Accounting',
@@ -491,7 +492,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           flexDirection: 'column',
           gap: 1
         }}>
-          {/* Billing Link â€” admin only */}
+          {/* Billing Link — admin only */}
           {!isStaff && (
             <NavLink
               to="/app/billing"
