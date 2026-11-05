@@ -1,142 +1,116 @@
 /**
  * citExcelExport.ts
- * Populates the official NRS CIT Excel template with data from the Rova CIT wizard.
- * Uses the xlsx library (browser-compatible, no Node.js required).
- *
- * Sheet structure (confirmed from 2026_2622496730309_CIT.xlsx):
- *   USER_INPUT              — C5 = year of assessment, D7 = accounting year
- *   INCOME_STATEMENT        — labels in col C, values in col D (revenue rows 7-27, COS rows 66-96)
- *   OTHER_INCOME            — labels in col C, values in col E (rows 4-17)
- *   ADMINISTRATIVE_EXPENSES — labels in col B, values in col D (rows 4-70)
- *   STATEMENT_OF_FINANCIAL_POSITION — labels in col C, values in col E (rows 8-121)
- *   PROFIT_ADJUSTMENT       — labels in col C, values in col E (rows 14-40)
+ * 
+ * Fills the official NRS CIT Excel template (CIT_template_2026.xlsx) with data
+ * from the Rova CIT Tax Wizard using ExcelJS.
+ * 
+ * Unlike SheetJS, ExcelJS preserves 100% of:
+ *  - Original FIRS colors, formatting, fonts, and borders
+ *  - Excel Table definitions (e.g. administrative_expenses, other_income)
+ *  - All automated calculation formulas (=SUM, =D7, etc.)
+ *  - Original OpenXML metadata required by the NRS portal
  */
 
-import { read, utils, write } from 'xlsx';
+import ExcelJS from 'exceljs';
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-type WorkbookType = ReturnType<typeof read>;
-type WorksheetType = NonNullable<WorkbookType['Sheets'][string]>;
-
-function getSheet(wb: WorkbookType, name: string): WorksheetType | null {
-  return wb.Sheets[name] ?? null;
+function cleanStr(s: unknown): string {
+  return String(s || '').trim().toLowerCase();
 }
 
-/** Write a numeric value into a cell, preserving existing cell style. */
-function setCell(ws: WorksheetType, addr: string, value: number): void {
-  if (!ws[addr]) ws[addr] = { t: 'n', v: value };
-  else { ws[addr].t = 'n'; ws[addr].v = value; }
-  // Remove formula so the written value is used
-  delete ws[addr].f;
-}
-
-/** Fuzzy-match: find the first row in `rows` whose label (col `labelCol`) matches `target`. */
+/** Find a row index (1-based) in a worksheet by searching for label text in a column */
 function findRowByLabel(
-  ws: WorksheetType,
-  target: string,
-  labelCol: number,   // 0-indexed
-  startRow: number,   // 0-indexed
+  ws: ExcelJS.Worksheet,
+  targetLabel: string,
+  labelCol: number,
+  startRow: number,
   endRow: number,
 ): number | null {
-  const needle = target.trim().toLowerCase();
+  const needle = cleanStr(targetLabel);
+  if (!needle) return null;
+
   // 1. Exact match
   for (let r = startRow; r <= endRow; r++) {
-    const addr = utils.encode_cell({ r, c: labelCol });
-    const cell = ws[addr];
-    if (cell && String(cell.v).trim().toLowerCase() === needle) return r;
+    const val = cleanStr(ws.getRow(r).getCell(labelCol).value);
+    if (val === needle) return r;
   }
+
   // 2. Substring match
   for (let r = startRow; r <= endRow; r++) {
-    const addr = utils.encode_cell({ r, c: labelCol });
-    const cell = ws[addr];
-    if (cell) {
-      const cv = String(cell.v).trim().toLowerCase();
-      if (cv.includes(needle) || needle.includes(cv)) return r;
-    }
+    const val = cleanStr(ws.getRow(r).getCell(labelCol).value);
+    if (val && (val.includes(needle) || needle.includes(val))) return r;
   }
+
   return null;
 }
 
-/** Write an entire Record<label, value> into a sheet using fuzzy label matching. */
+/** Write Record<label, value> into the sheet by searching label in `labelCol` and writing value into `valueCol` */
 function writeRecord(
-  ws: WorksheetType,
-  record: Record<string, number>,
+  ws: ExcelJS.Worksheet,
+  record: Record<string, string> | undefined,
   labelCol: number,
   valueCol: number,
   startRow: number,
   endRow: number,
 ): void {
-  for (const [label, val] of Object.entries(record)) {
-    if (!val && val !== 0) continue;
+  if (!record || typeof record !== 'object') return;
+  for (const [label, strVal] of Object.entries(record)) {
+    const n = parseFloat(strVal);
+    if (isNaN(n) || n === 0) continue;
     const row = findRowByLabel(ws, label, labelCol, startRow, endRow);
     if (row !== null) {
-      setCell(ws, utils.encode_cell({ r: row, c: valueCol }), val);
+      ws.getRow(row).getCell(valueCol).value = n;
     }
   }
 }
 
-// ── sector row map (INCOME_STATEMENT col C rows 7-27 → D, 0-indexed rows 6-26) ──
-const SECTOR_ROW: Record<string, number> = {
-  'MANUFACTURING': 6,
-  'AGRICULTURE FORESTRY & FISHING': 7,
-  'AGRICULTURE, FORESTRY & FISHING': 7,
-  'MINING & QUARRY': 8,
-  'MINNING & QUARRY': 8,
-  'ELECTRICITY': 9,
-  'WATER SUPPLY SEWERAGE & WASTE MANAGEMENT': 10,
-  'WATER SUPPLY, SEWERAGE & WASTE MANAGEMENT': 10,
-  'CONSTRUCTION': 11,
-  'WHOLESALE AND RETAIL TRADE': 12,
-  'WHOLESALE & RETAIL TRADE': 12,
-  'TRANSPORTATION AND HAULAGE': 13,
-  'TRANSPORTATION & HAULAGE': 13,
-  'ACCOMODATION AND FOOD SERVICE ACTIVITIES': 14,
-  'ACCOMODATION & FOOD SERVICE ACTIVITIES': 14,
-  'COMMUNICATION & INFORMATION': 15,
-  'COMMUNICATION &. INFORMATION': 15,
-  'BANKS & OTHER FINANCIAL AND ACTIVITIES': 16,
-  'BANKS & OTHER FINANCIAL ACTIVITIES': 16,
-  'INSURANCE ACTIVITIES': 17,
-  'REAL ESTATE ACTIVITIES': 18,
-  'PROFESSIONAL, SCIENTIFIC AND TECHNICAL ACTIVITIES': 19,
-  'PROFESSIONAL, SCIENTIFIC & TECHNICAL ACTIVITIES': 19,
-  'ADMINISTRATIVE AND SUPPORT ACTIVITIES': 20,
-  'ADMINISTRATIVE & SUPPORT ACTIVITIES': 20,
-  'EDUCATION': 21,
-  'OIL AND GAS': 22,
-  'OIL & GAS': 22,
-  'NGOS, NFPOS, RELIGIOUS INSTITUTIONS': 23,
-  'ART, ENTERTAINMENT AND RECREATION': 24,
-  'ART, ENTERTAINMENT & RECREATION': 24,
-  'DIGITAL AND VIRTUAL ASSETS': 25,
-  'OTHERS': 26,
+// Map of business sectors to row numbers in INCOME_STATEMENT (rows 7 to 27)
+const SECTOR_ROW_MAP: Record<string, number> = {
+  'MANUFACTURING': 7,
+  'AGRICULTURE FORESTRY & FISHING': 8,
+  'AGRICULTURE, FORESTRY & FISHING': 8,
+  'MINING & QUARRY': 9,
+  'MINNING & QUARRY': 9,
+  'ELECTRICITY': 10,
+  'WATER SUPPLY SEWERAGE & WASTE MANAGEMENT': 11,
+  'WATER SUPPLY, SEWERAGE & WASTE MANAGEMENT': 11,
+  'CONSTRUCTION': 12,
+  'WHOLESALE AND RETAIL TRADE': 13,
+  'WHOLESALE & RETAIL TRADE': 13,
+  'TRANSPORTATION AND HAULAGE': 14,
+  'TRANSPORTATION & HAULAGE': 14,
+  'ACCOMODATION AND FOOD SERVICE ACTIVITIES': 15,
+  'ACCOMODATION & FOOD SERVICE ACTIVITIES': 15,
+  'COMMUNICATION & INFORMATION': 16,
+  'COMMUNICATION &. INFORMATION': 16,
+  'BANKS & OTHER FINANCIAL AND ACTIVITIES': 17,
+  'BANKS & OTHER FINANCIAL ACTIVITIES': 17,
+  'BANKS & OTHER FINANCIAL AND  ACTIVITIES': 17,
+  'INSURANCE ACTIVITIES': 18,
+  'REAL ESTATE ACTIVITIES': 19,
+  'PROFESSIONAL, SCIENTIFIC AND TECHNICAL ACTIVITIES': 20,
+  'PROFESSIONAL, SCIENTIFIC & TECHNICAL ACTIVITIES': 20,
+  'ADMINISTRATIVE AND SUPPORT ACTIVITIES': 21,
+  'ADMINISTRATIVE & SUPPORT ACTIVITIES': 21,
+  'EDUCATION': 22,
+  'OIL AND GAS': 23,
+  'OIL & GAS': 23,
+  'NGOS, NFPOS, RELIGIOUS INSTITUTIONS': 24,
+  'ART, ENTERTAINMENT AND RECREATION': 25,
+  'ART, ENTERTAINMENT & RECREATION': 25,
+  'DIGITAL AND VIRTUAL ASSETS': 26,
+  'OTHERS': 27,
 };
 
-// ── main export function ──────────────────────────────────────────────────────
-
-/** Convert string-valued record from exportForFiling() to number-valued. */
-function toNum(rec: Record<string, string>): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(rec)) {
-    const n = parseFloat(v);
-    if (!isNaN(n)) out[k] = n;
-  }
-  return out;
-}
-
 /**
- * Load the CIT template from a URL/base64 blob, populate it with wizard data,
- * and return a Uint8Array ready for download.
- *
- * @param templateBytes  ArrayBuffer of the original .xlsx template
- * @param data           Output of exportForFiling() from useRovaTaxFlow
+ * Loads the original template binary, sets input values on the exact cells,
+ * and outputs a 100% styled and formula-complete .xlsx buffer.
  */
-export function populateCitExcel(
+export async function populateCitExcel(
   templateBytes: ArrayBuffer,
   data: Record<string, unknown>,
-): Uint8Array {
-  const wb = read(templateBytes, { type: 'array', cellStyles: true, cellFormula: true });
+): Promise<Uint8Array> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(templateBytes);
 
   const year = String((data.year as string) || '');
   const sector = String((data.sector as string) || '').toUpperCase().trim();
@@ -146,110 +120,115 @@ export function populateCitExcel(
   const computed = (data.computed as Record<string, string>) || {};
 
   // ── 1. USER_INPUT ──────────────────────────────────────────────────────────
-  const userInput = getSheet(wb, 'USER_INPUT');
+  const userInput = wb.getWorksheet('USER_INPUT');
   if (userInput && year) {
-    // C5 (0-indexed r=4, c=2) = year of assessment
-    setCell(userInput, utils.encode_cell({ r: 4, c: 2 }), parseInt(year));
-    // D7 (r=6, c=3) = accounting year (prior year)
-    setCell(userInput, utils.encode_cell({ r: 6, c: 3 }), parseInt(year) - 1);
+    const y = parseInt(year);
+    if (!isNaN(y)) {
+      userInput.getCell('C5').value = y;
+      userInput.getCell('D7').value = y - 1;
+    }
   }
 
   // ── 2. INCOME_STATEMENT ───────────────────────────────────────────────────
-  const incStmt = getSheet(wb, 'INCOME_STATEMENT');
+  const incStmt = wb.getWorksheet('INCOME_STATEMENT');
   if (incStmt) {
-    // Revenue: col D (index 3), rows 7-27 (0-indexed 6-26)
-    const sectorRow = SECTOR_ROW[sector] ?? SECTOR_ROW['OTHERS'];
-    setCell(incStmt, utils.encode_cell({ r: sectorRow, c: 3 }), revenue);
+    // Sector revenue input is in Column D (cols: C=label, D=input, E=formula)
+    const sectorRow = SECTOR_ROW_MAP[sector] ?? SECTOR_ROW_MAP['OTHERS'];
+    if (revenue > 0) {
+      incStmt.getRow(sectorRow).getCell(4).value = revenue;
+    }
 
-    // Opening Inventory: col D (3), rows 66-68 (0-indexed 65-67)
-    if (cos.opening_inventory) writeRecord(incStmt, toNum(cos.opening_inventory), 2, 3, 65, 68);
-    // Purchases: col D (3), rows 71-73 (0-indexed 70-72)
-    if (cos.purchases) writeRecord(incStmt, toNum(cos.purchases), 2, 3, 70, 73);
-    // Other Direct Cost: col D (3), rows 76-84 (0-indexed 75-83)
-    if (cos.other_direct_cost) writeRecord(incStmt, toNum(cos.other_direct_cost), 2, 3, 75, 84);
-    // Factory Overheads: col D (3), rows 87-91 (0-indexed 86-90)
-    if (cos.factory_overheads) writeRecord(incStmt, toNum(cos.factory_overheads), 2, 3, 86, 91);
-    // Closing Inventory: col D (3), rows 94-96 (0-indexed 93-95)
-    if (cos.closing_inventory) writeRecord(incStmt, toNum(cos.closing_inventory), 2, 3, 93, 96);
+    // Cost of Sales input cells are in Column D (col 4), labels in Column C (col 3)
+    if (cos.opening_inventory) writeRecord(incStmt, cos.opening_inventory, 3, 4, 66, 68);
+    if (cos.purchases) writeRecord(incStmt, cos.purchases, 3, 4, 71, 73);
+    if (cos.other_direct_cost) writeRecord(incStmt, cos.other_direct_cost, 3, 4, 76, 84);
+    if (cos.factory_overheads) writeRecord(incStmt, cos.factory_overheads, 3, 4, 87, 91);
+    if (cos.closing_inventory) writeRecord(incStmt, cos.closing_inventory, 3, 4, 94, 96);
   }
 
   // ── 3. OTHER_INCOME ───────────────────────────────────────────────────────
-  const otherIncome = getSheet(wb, 'OTHER_INCOME');
+  const otherIncome = wb.getWorksheet('OTHER_INCOME');
   if (otherIncome && data.other_income) {
-    // labels col C (2), values col E (4), rows 4-17 (0-indexed 3-16)
-    writeRecord(otherIncome, toNum(data.other_income as Record<string, string>), 2, 4, 3, 16);
+    // Labels in Column C (col 3), inputs in Column D (col 4, REVENUE)
+    // E3 has the table formula: =SUM(other_income[REVENUE])
+    writeRecord(otherIncome, data.other_income as Record<string, string>, 3, 4, 4, 17);
   }
 
-  // ── 4. ADMINISTRATIVE_EXPENSES ────────────────────────────────────────────
-  const adminSheet = getSheet(wb, 'ADMINISTRATIVE_EXPENSES');
+  // ── 4. ADMINISTRATIVE_EXPENSES ────────────────────────────────────
+  const adminSheet = wb.getWorksheet('ADMINISTRATIVE_EXPENSES');
   if (adminSheet && data.admin) {
-    // labels col B (1), values col D (3), rows 4-70 (0-indexed 3-69)
-    writeRecord(adminSheet, toNum(data.admin as Record<string, string>), 1, 3, 3, 69);
+    // Labels in Column B (col 2), inputs in Column C (col 3, REVENUE)
+    // D3 has the table formula: =SUM(administrative_expenses[REVENUE])
+    writeRecord(adminSheet, data.admin as Record<string, string>, 2, 3, 4, 70);
   }
 
   // ── 5. STATEMENT_OF_FINANCIAL_POSITION ────────────────────────────────────
-  const sfpSheet = getSheet(wb, 'STATEMENT_OF_FINANCIAL_POSITION');
+  const sfpSheet = wb.getWorksheet('STATEMENT_OF_FINANCIAL_POSITION');
   if (sfpSheet) {
-    // PPE: E8 (r=7, c=4)
+    // All inputs are in Column D (col 4), labels in Column C (col 3)
+    // Column E has formula calculations (=D8, =SUM(...), etc.)
+
+    // PPE (D8)
     const ppe = parseFloat((sfp.properties_plant_equipment as string) || '0');
-    if (ppe) setCell(sfpSheet, utils.encode_cell({ r: 7, c: 4 }), ppe);
+    if (ppe > 0) sfpSheet.getCell('D8').value = ppe;
 
-    // Investments: labels col C (2), values col E (4), rows 10-19 (0-idx 9-18)
-    if (sfp.investments) writeRecord(sfpSheet, toNum(sfp.investments as Record<string, string>), 2, 4, 9, 18);
-    // Intangible assets: rows 21-29 (0-idx 20-28)
-    if (sfp.intangible_assets) writeRecord(sfpSheet, toNum(sfp.intangible_assets as Record<string, string>), 2, 4, 20, 28);
-    // Other non-current assets: rows 31-42 (0-idx 30-41)
-    if (sfp.other_non_current_assets) writeRecord(sfpSheet, toNum(sfp.other_non_current_assets as Record<string, string>), 2, 4, 30, 41);
+    // Investments (D10 to D19)
+    if (sfp.investments) writeRecord(sfpSheet, sfp.investments as Record<string, string>, 3, 4, 10, 19);
 
-    // Inventories: E46 (r=45, c=4)
-    const inventories = parseFloat((sfp.inventories as string) || '0');
-    if (inventories) setCell(sfpSheet, utils.encode_cell({ r: 45, c: 4 }), inventories);
-    // Trade Receivables: E48 (r=47, c=4)
+    // Intangible assets (D21 to D29)
+    if (sfp.intangible_assets) writeRecord(sfpSheet, sfp.intangible_assets as Record<string, string>, 3, 4, 21, 29);
+
+    // Other non-current assets (D31 to D42)
+    if (sfp.other_non_current_assets) writeRecord(sfpSheet, sfp.other_non_current_assets as Record<string, string>, 3, 4, 31, 42);
+
+    // Inventories (D46)
+    const inv = parseFloat((sfp.inventories as string) || '0');
+    if (inv > 0) sfpSheet.getCell('D46').value = inv;
+
+    // Trade Receivables (D48)
     const tradeRec = parseFloat((sfp.trade_receivables as string) || '0');
-    if (tradeRec) setCell(sfpSheet, utils.encode_cell({ r: 47, c: 4 }), tradeRec);
+    if (tradeRec > 0) sfpSheet.getCell('D48').value = tradeRec;
 
-    // Other current assets: rows 50-62 (0-idx 49-61)
-    if (sfp.other_current_assets) writeRecord(sfpSheet, toNum(sfp.other_current_assets as Record<string, string>), 2, 4, 49, 61);
-    // Cash & equivalents: rows 64-67 (0-idx 63-66)
-    if (sfp.cash_and_cash_equivalents) writeRecord(sfpSheet, toNum(sfp.cash_and_cash_equivalents as Record<string, string>), 2, 4, 63, 66);
+    // Other current assets (D50 to D62)
+    if (sfp.other_current_assets) writeRecord(sfpSheet, sfp.other_current_assets as Record<string, string>, 3, 4, 50, 62);
 
-    // Current liabilities (trade payables + current tax): rows 73-74 (0-idx 72-73)
-    if (sfp.current_liabilities) writeRecord(sfpSheet, toNum(sfp.current_liabilities as Record<string, string>), 2, 4, 72, 73);
-    // Other current liabilities: rows 76-92 (0-idx 75-91)
-    if (sfp.other_current_liabilities) writeRecord(sfpSheet, toNum(sfp.other_current_liabilities as Record<string, string>), 2, 4, 75, 91);
+    // Cash and Cash Equivalents (D64 to D67)
+    if (sfp.cash_and_cash_equivalents) writeRecord(sfpSheet, sfp.cash_and_cash_equivalents as Record<string, string>, 3, 4, 64, 67);
 
-    // Non-current liabilities: rows 95-110 (0-idx 94-109)
-    if (sfp.non_current_liabilities) writeRecord(sfpSheet, toNum(sfp.non_current_liabilities as Record<string, string>), 2, 4, 94, 109);
+    // Trade Payables & Current Tax (D73, D74)
+    if (sfp.current_liabilities) writeRecord(sfpSheet, sfp.current_liabilities as Record<string, string>, 3, 4, 73, 74);
 
-    // Equity: rows 112-117 (0-idx 111-116)
-    if (sfp.equity) writeRecord(sfpSheet, toNum(sfp.equity as Record<string, string>), 2, 4, 111, 116);
+    // Other Current Liabilities (D76 to D92)
+    if (sfp.other_current_liabilities) writeRecord(sfpSheet, sfp.other_current_liabilities as Record<string, string>, 3, 4, 76, 92);
 
-    // Retained earnings from computed profit: E114 (r=113, c=4)
-    const profitForYear = parseFloat(computed.profit_for_year || '0');
-    if (profitForYear) setCell(sfpSheet, utils.encode_cell({ r: 113, c: 4 }), profitForYear);
+    // Non-current Liabilities (D95 to D110)
+    if (sfp.non_current_liabilities) writeRecord(sfpSheet, sfp.non_current_liabilities as Record<string, string>, 3, 4, 95, 110);
 
-    // Other reserves: rows 119-121 (0-idx 118-120)
-    if (sfp.other_reserves) writeRecord(sfpSheet, toNum(sfp.other_reserves as Record<string, string>), 2, 4, 118, 120);
+    // Equity (D112 to D117)
+    if (sfp.equity) writeRecord(sfpSheet, sfp.equity as Record<string, string>, 3, 4, 112, 117);
+
+    // Retained Earnings (D114) — if user did not set it explicitly, use computed profit
+    const userRetained = (sfp.equity as Record<string, string>)?.[`Retained earnings`] || (sfp.equity as Record<string, string>)?.[`retained_earnings`];
+    if (!userRetained) {
+      const pfy = parseFloat(computed.profit_for_year || '0');
+      if (pfy > 0) sfpSheet.getCell('D114').value = pfy;
+    }
+
+    // Other Reserves (D119 to D125)
+    if (sfp.other_reserves) writeRecord(sfpSheet, sfp.other_reserves as Record<string, string>, 3, 4, 119, 125);
   }
 
   // ── 6. PROFIT_ADJUSTMENT ──────────────────────────────────────────────────
-  const profitAdj = getSheet(wb, 'PROFIT_ADJUSTMENT');
+  const profitAdj = wb.getWorksheet('PROFIT_ADJUSTMENT');
   if (profitAdj) {
-    // Profit before tax: E11 (r=10, c=4)
-    const opbt = parseFloat(computed.opbt || '0');
-    if (opbt) setCell(profitAdj, utils.encode_cell({ r: 10, c: 4 }), opbt);
+    // Addbacks: labels in Column C (col 3), inputs in Column D (col 4, rows 14-32)
+    if (data.addbacks) writeRecord(profitAdj, data.addbacks as Record<string, string>, 3, 4, 14, 32);
 
-    // Depreciation addback auto-fill from capital allowance: E13 (r=12, c=4)
-    const capAllowance = parseFloat(computed.total_capital_allowance || '0');
-    if (capAllowance) setCell(profitAdj, utils.encode_cell({ r: 12, c: 4 }), capAllowance);
-
-    // Addbacks: labels col C (2), values col E (4), rows 14-32 (0-idx 13-31)
-    if (data.addbacks) writeRecord(profitAdj, toNum(data.addbacks as Record<string, string>), 2, 4, 13, 31);
-    // Deductions: rows 36-40 (0-idx 35-39)
-    if (data.deductions) writeRecord(profitAdj, toNum(data.deductions as Record<string, string>), 2, 4, 35, 39);
+    // Deductions: labels in Column C (col 3), inputs in Column D (col 4, rows 36-40)
+    if (data.deductions) writeRecord(profitAdj, data.deductions as Record<string, string>, 3, 4, 36, 40);
   }
 
-  // ── Serialize ─────────────────────────────────────────────────────────────
-  const out = write(wb, { type: 'array', bookType: 'xlsx' });
-  return new Uint8Array(out as ArrayBuffer);
+  // Generate output xlsx buffer
+  const buffer = await wb.xlsx.writeBuffer();
+  return new Uint8Array(buffer);
 }

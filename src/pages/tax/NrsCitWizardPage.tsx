@@ -878,7 +878,7 @@ export default function NrsCitWizardPage() {
                     const resp = await fetch('/CIT_template_2026.xlsx');
                     if (!resp.ok) throw new Error('Could not load CIT template. Please try again.');
                     const templateBytes = await resp.arrayBuffer();
-                    const filledBytes = populateCitExcel(templateBytes, data as unknown as Record<string, unknown>);
+                    const filledBytes = await populateCitExcel(templateBytes, data as unknown as Record<string, unknown>);
                     const blob = new Blob([filledBytes.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
