@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 export function downloadCSV(filename: string, headers: string[], rows: (string | number | null | undefined)[][]) {
   const escape = (v: string | number | null | undefined) => {
     const s = v == null ? '' : String(v);
@@ -12,6 +14,18 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function downloadExcelWorkbook(
+  filename: string,
+  sheets: { sheetName: string; rows: (string | number | null | undefined)[][] }[]
+) {
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(s => {
+    const ws = XLSX.utils.aoa_to_sheet(s.rows);
+    XLSX.utils.book_append_sheet(wb, ws, s.sheetName.slice(0, 31));
+  });
+  XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
 }
 
 export function printStatementHTML(title: string, subtitle: string, businessName: string, html: string) {

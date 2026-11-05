@@ -20,6 +20,8 @@ import TrialBalancePage from './pages/accounting/TrialBalancePage';
 import ProfitLossPage from './pages/statements/ProfitLossPage';
 import BalanceSheetPage from './pages/statements/BalanceSheetPage';
 import CashFlowPage from './pages/statements/CashFlowPage';
+import ChangesInEquityPage from './pages/statements/ChangesInEquityPage';
+import FinancialNotesPage from './pages/statements/FinancialNotesPage';
 import PayrollPage from './pages/payroll/PayrollPage';
 import AssistantPage from './pages/AssistantPage';
 import InventoryPage from './pages/inventory/InventoryPage';
@@ -172,6 +174,8 @@ export default function App() {
             <Route path="profit-loss" element={<SubscriptionRoute><AdminRoute><ProfitLossPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="balance-sheet" element={<SubscriptionRoute><AdminRoute><BalanceSheetPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="cash-flow" element={<SubscriptionRoute><AdminRoute><CashFlowPage /></AdminRoute></SubscriptionRoute>} />
+            <Route path="changes-in-equity" element={<SubscriptionRoute><AdminRoute><ChangesInEquityPage /></AdminRoute></SubscriptionRoute>} />
+            <Route path="financial-notes" element={<SubscriptionRoute><AdminRoute><FinancialNotesPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="tax" element={<SubscriptionRoute><AdminRoute><TaxPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="tax/cit/new" element={<SubscriptionRoute><AdminRoute><NrsCitWizardPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="tax/cit/:filingId" element={<SubscriptionRoute><AdminRoute><NrsCitWizardPage /></AdminRoute></SubscriptionRoute>} />
