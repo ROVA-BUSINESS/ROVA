@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Scale, Download } from 'lucide-react';
 import { supabase, type Transaction } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/format';
+import { computeAccountingHubFinancials, type AccountType } from '../../lib/accountingRules';
+import { downloadCSV } from '../../lib/export';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 
 type TrialBalanceLine = {
   account: string;
-  type: string;
+  type: AccountType | string;
   debit: number;
   credit: number;
 };
@@ -44,12 +46,25 @@ export default function TrialBalancePage() {
     });
   }
 
-  const filtered = filterByPeriod(transactions);
-  const lines = buildTrialBalance(filtered);
+  const filtered = useMemo(() => filterByPeriod(transactions), [transactions, period]);
 
-  const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
-  const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  const summary = useMemo(() => {
+    return computeAccountingHubFinancials(filtered as any);
+  }, [filtered]);
+
+  const lines: TrialBalanceLine[] = summary.trialBalanceLines;
+  const totalDebit = summary.totalTrialDebits;
+  const totalCredit = summary.totalTrialCredits;
+  const isBalanced = summary.isTrialBalanced;
+
+  function handleExport() {
+    const rows: (string | number)[][] = [];
+    lines.forEach(l => {
+      rows.push([l.account, l.type, l.debit || 0, l.credit || 0]);
+    });
+    rows.push(['TOTALS', '', totalDebit, totalCredit]);
+    downloadCSV(`trial-balance-${period}.csv`, ['Account', 'Type', 'Debit (NGN)', 'Credit (NGN)'], rows);
+  }
 
   return (
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 900, animation: 'fadeIn 0.3s ease' }}>
@@ -73,7 +88,7 @@ export default function TrialBalancePage() {
               </button>
             ))}
           </div>
-          <Button variant="secondary" icon={<Download size={14} />}>Export</Button>
+          <Button variant="secondary" icon={<Download size={14} />} onClick={handleExport}>Export</Button>
         </div>
       </div>
 
@@ -98,30 +113,34 @@ export default function TrialBalancePage() {
       </div>
 
       {loading ? (
-        <div>{[1,2,3,4,5].map(i => <div key={i} className="skeleton" style={{ height: 44, marginBottom: 6 }} />)}</div>
+        <div>{[1,2,3,4].map(i => <div key={i} className="skeleton" style={{ height: 44, marginBottom: 8 }} />)}</div>
+      ) : lines.length === 0 ? (
+        <Card>
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
+            <Scale size={32} color="var(--text-disabled)" style={{ margin: '0 auto 12px' }} />
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No transactions in this period</p>
+          </div>
+        </Card>
       ) : (
         <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <div className="mobile-table-container">
-            <table className="transaction-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="mobile-overflow-x">
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'var(--bg-elevated)' }}>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account</th>
-                <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Type</th>
-                <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Debit</th>
-                <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Credit</th>
+              <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--bg-border)' }}>
+                <th className="mobile-tight-th" style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account</th>
+                <th className="mobile-tight-th" style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Type</th>
+                <th className="mobile-tight-th" style={{ padding: '10px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Debit</th>
+                <th className="mobile-tight-th" style={{ padding: '10px 16px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Credit</th>
               </tr>
             </thead>
             <tbody>
               {lines.map((line, i) => (
-                <tr key={line.account} style={{ borderTop: i > 0 ? '1px solid var(--bg-border)' : 'none' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                >
+                <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)' }}>
                   <td className="mobile-tight-td" style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
-                    <div className="mobile-desc-text" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{line.account}</div>
+                    <div className="mobile-desc-text" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>{line.account}</div>
                   </td>
                   <td className="mobile-tight-td" style={{ padding: '10px 16px' }}>
-                    <Badge variant={line.type === 'income' ? 'success' : line.type === 'expense' ? 'default' : 'info'}>{line.type}</Badge>
+                    <Badge variant={line.type === 'income' ? 'success' : line.type === 'expense' ? 'default' : line.type === 'asset' ? 'info' : 'warning'}>{line.type}</Badge>
                   </td>
                   <td className="mobile-tight-td" style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontFamily: 'Space Grotesk, sans-serif', color: line.debit ? 'var(--success)' : 'var(--text-disabled)' }}>
                     {line.debit ? formatCurrency(line.debit) : '—'}
@@ -143,36 +162,4 @@ export default function TrialBalancePage() {
       )}
     </div>
   );
-}
-
-function buildTrialBalance(transactions: Transaction[]): TrialBalanceLine[] {
-  const map = new Map<string, TrialBalanceLine>();
-
-  transactions.forEach(tx => {
-    const catName = (tx.category as any)?.name || 'Uncategorized';
-    const accName = (tx.account as any)?.name || 'Cash';
-
-    if (tx.type === 'income') {
-      const cashLine = map.get(accName) || { account: accName, type: 'asset', debit: 0, credit: 0 };
-      cashLine.debit += tx.amount;
-      map.set(accName, cashLine);
-
-      const incLine = map.get(catName) || { account: catName, type: 'income', debit: 0, credit: 0 };
-      incLine.credit += tx.amount;
-      map.set(catName, incLine);
-    }
-
-    if (tx.type === 'expense') {
-      const expLine = map.get(catName) || { account: catName, type: 'expense', debit: 0, credit: 0 };
-      expLine.debit += tx.amount;
-      map.set(catName, expLine);
-
-      const cashLine = map.get(accName) || { account: accName, type: 'asset', debit: 0, credit: 0 };
-      cashLine.credit += tx.amount;
-      map.set(accName, cashLine);
-    }
-  });
-
-  const typeOrder = ['asset', 'liability', 'equity', 'income', 'expense'];
-  return Array.from(map.values()).sort((a, b) => typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type) || a.account.localeCompare(b.account));
 }

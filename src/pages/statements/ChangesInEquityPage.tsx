@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Transaction, type Account } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/format';
 import { downloadCSV, downloadExcelWorkbook, printStatementHTML } from '../../lib/export';
+import { computeAccountingHubFinancials } from '../../lib/accountingRules';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -159,18 +160,11 @@ export default function ChangesInEquityPage() {
 
   // Helper to compute statement for any given financial year
   function computeStatementForYear(targetYear: number) {
-    // 1. Transactions strictly before this year (Opening retained earnings)
+    // 1. Prior financial summary
     const priorTxs = transactions.filter(t => new Date(t.date).getFullYear() < targetYear);
-    const priorIncome = priorTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const priorExpenses = priorTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const computedPriorRetained = priorIncome - priorExpenses;
-
-    // Prior equity transactions (e.g. founder funding tagged in previous years)
-    const priorEquityIncome = priorTxs.filter(t => {
-      const desc = (t.description || '').toLowerCase();
-      const cat = ((t.category as any)?.name || '').toLowerCase();
-      return t.type === 'income' && (desc.includes('equity') || desc.includes('share capital') || desc.includes('founder') || cat.includes('equity'));
-    }).reduce((s, t) => s + t.amount, 0);
+    const priorSummary = priorTxs.length > 0 ? computeAccountingHubFinancials(priorTxs as any) : null;
+    const computedPriorRetained = priorSummary ? priorSummary.pl.netProfit : 0;
+    const priorEquityIncome = priorSummary ? priorSummary.soce.closingShareCapital : 0;
 
     // Check if user set custom opening balances
     const customOp = customOpening[targetYear];
@@ -180,18 +174,12 @@ export default function ChangesInEquityPage() {
     const openingOtherReserves = customOp ? customOp.otherReserves : 0;
     const openingTotalEquity = openingShareCapital + openingSharePremium + openingRetainedEarnings + openingOtherReserves;
 
-    // 2. Transactions during targetYear
+    // 2. Current year financial summary using strict accounting principles
     const yearTxs = transactions.filter(t => new Date(t.date).getFullYear() === targetYear);
-    const currentIncome = yearTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const currentExpenses = yearTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const netProfitForYear = currentIncome - currentExpenses; // Matches P&L exactly
-
-    // Automatically detect auto-equity transactions in current year
-    const autoEquityContributions = yearTxs.filter(t => {
-      const desc = (t.description || '').toLowerCase();
-      const cat = ((t.category as any)?.name || '').toLowerCase();
-      return t.type === 'income' && (desc.includes('capital contribution') || desc.includes('founder funding') || desc.includes('share capital') || cat.includes('equity'));
-    }).reduce((s, t) => s + t.amount, 0);
+    const yearSummary = computeAccountingHubFinancials(yearTxs as any);
+    const netProfitForYear = yearSummary.pl.netProfit;
+    const autoEquityContributions = yearSummary.soce.capitalInjections;
+    const autoDividends = yearSummary.soce.dividends;
 
     // 3. User custom movements for this year
     const yearCustomMovements = customMovements.filter(m => m.year === targetYear);
@@ -206,6 +194,16 @@ export default function ChangesInEquityPage() {
         retainedEarnings: 0,
         otherReserves: 0,
         total: autoEquityContributions,
+        isAuto: true,
+      }] : []),
+      ...(autoDividends > 0 ? [{
+        id: 'auto-dividends',
+        description: 'Dividends paid to shareholders',
+        shareCapital: 0,
+        sharePremium: 0,
+        retainedEarnings: -autoDividends,
+        otherReserves: 0,
+        total: -autoDividends,
         isAuto: true,
       }] : []),
       ...yearCustomMovements.map(m => ({
@@ -272,8 +270,6 @@ export default function ChangesInEquityPage() {
         total: closingTotalEquity,
       },
       netProfitForYear,
-      currentIncome,
-      currentExpenses,
     };
   }
 

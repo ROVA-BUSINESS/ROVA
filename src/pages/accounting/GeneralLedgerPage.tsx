@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { BookOpen, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase, type Transaction } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatCurrency, formatDate, cleanDescription } from '../../lib/format';
+import { formatCurrency, formatDate } from '../../lib/format';
+import { computeAccountingHubFinancials, type AccountType } from '../../lib/accountingRules';
 import Card from '../../components/ui/Card';
 
 type LedgerAccount = {
   name: string;
-  type: string;
+  type: AccountType | string;
   entries: { date: string; description: string; debit: number; credit: number; balance: number }[];
   totalDebit: number;
   totalCredit: number;
@@ -46,7 +47,10 @@ export default function GeneralLedgerPage() {
     }
   }
 
-  const ledger = buildLedger(transactions);
+  const ledger: LedgerAccount[] = useMemo(() => {
+    return computeAccountingHubFinancials(transactions as any).ledgerAccounts;
+  }, [transactions]);
+
   const filtered = search
     ? ledger.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
     : ledger;
@@ -166,55 +170,4 @@ export default function GeneralLedgerPage() {
       )}
     </div>
   );
-}
-
-function buildLedger(transactions: Transaction[]): LedgerAccount[] {
-  const accountMap = new Map<string, LedgerAccount>();
-
-  function getOrCreate(name: string, type: string): LedgerAccount {
-    if (!accountMap.has(name)) {
-      accountMap.set(name, { name, type, entries: [], totalDebit: 0, totalCredit: 0, balance: 0 });
-    }
-    return accountMap.get(name)!;
-  }
-
-  transactions.forEach(tx => {
-    const catName = (tx.category as any)?.name || 'Uncategorized';
-    const accountName = (tx.account as any)?.name || 'Cash';
-
-    const cleanedDesc = cleanDescription(tx.description);
-
-    const amount = Number(tx.amount) || 0;
-
-    if (tx.type === 'income') {
-      const cashAcc = getOrCreate(accountName, 'asset');
-      const incomeAcc = getOrCreate(catName, 'income');
-
-      cashAcc.totalDebit += amount;
-      cashAcc.balance += amount;
-      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: amount, credit: 0, balance: cashAcc.balance });
-
-      incomeAcc.totalCredit += amount;
-      incomeAcc.balance += amount;
-      incomeAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: 0, credit: amount, balance: incomeAcc.balance });
-    }
-
-    if (tx.type === 'expense') {
-      const expAcc = getOrCreate(catName, 'expense');
-      const cashAcc = getOrCreate(accountName, 'asset');
-
-      expAcc.totalDebit += amount;
-      expAcc.balance += amount;
-      expAcc.entries.push({ date: tx.date, description: cleanedDesc || accountName, debit: amount, credit: 0, balance: expAcc.balance });
-
-      cashAcc.totalCredit += amount;
-      cashAcc.balance -= amount;
-      cashAcc.entries.push({ date: tx.date, description: cleanedDesc || catName, debit: 0, credit: amount, balance: cashAcc.balance });
-    }
-  });
-
-  return Array.from(accountMap.values()).sort((a, b) => {
-    const order = ['asset', 'liability', 'equity', 'income', 'expense'];
-    return order.indexOf(a.type) - order.indexOf(b.type) || a.name.localeCompare(b.name);
-  });
 }

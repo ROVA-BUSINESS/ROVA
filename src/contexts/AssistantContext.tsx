@@ -14,6 +14,7 @@ import {
   type ChatAction,
 } from '../lib/deepseekClient';
 import { createInvoice } from '../lib/invoiceService';
+import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 import { getNextSku } from '../lib/inventoryService';
 import {
   type ChatMessage,
@@ -170,7 +171,9 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
 
       setTransactions(txRes.data || []);
       setAccounts(accRes.data || []);
-      setCategories(catRes.data || []);
+      const rawCats = catRes.data || [];
+      const cats = await ensureStandardAccountingCategories(supabase, effectiveUserId || '', rawCats);
+      setCategories(cats);
       setInventoryItems(invRes.data || []);
       setExpenses(expRes.data || []);
       setBills(billsRes.data || []);

@@ -14,6 +14,7 @@ import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import { useMobile } from '../hooks/useMobile';
 import { ReceiptUploader } from '../components/ui/ReceiptUploader';
+import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 
 const DEFAULT_EXPENSE_CATEGORIES = [
   'Rent',
@@ -158,9 +159,12 @@ export default function ExpensesPage() {
         supabase.from('bill_payments').select('*, bill:bills(*)').eq('user_id', user!.id).order('payment_date', { ascending: false })
       ]);
 
+      const rawCats = catRes.data || [];
+      const cats = await ensureStandardAccountingCategories(supabase, user!.id, rawCats);
+
       setExpenses(expRes.data || []);
       setAccounts(accRes.data || []);
-      setCategories(catRes.data || []);
+      setCategories(cats);
       setBills(billsRes.data || []);
       setAgreements(agreementsRes.data || []);
       setPayments(paymentsRes.data || []);

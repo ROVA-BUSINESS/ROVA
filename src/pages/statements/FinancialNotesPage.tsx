@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Transaction, type Account, type Invoice, type TaxRecord, type Employee } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/format';
 import { downloadCSV, downloadExcelWorkbook, printStatementHTML } from '../../lib/export';
+import { computeAccountingHubFinancials } from '../../lib/accountingRules';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -143,49 +144,65 @@ export default function FinancialNotesPage() {
   const periodTxs = useMemo(() => transactions.filter(t => new Date(t.date).getFullYear() === year), [transactions, year]);
   const priorTxs = useMemo(() => transactions.filter(t => new Date(t.date).getFullYear() === year - 1), [transactions, year]);
 
+  // Accounting Engine Summaries for current & prior years
+  const periodSummary = useMemo(() => computeAccountingHubFinancials(periodTxs as any), [periodTxs]);
+  const priorSummary = useMemo(() => computeAccountingHubFinancials(priorTxs as any), [priorTxs]);
+
   // Note 4: Revenue Breakdown
-  const incomeTxs = periodTxs.filter(t => t.type === 'income');
-  const priorIncomeTxs = priorTxs.filter(t => t.type === 'income');
   const revenueByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    incomeTxs.forEach(t => {
-      const cat = (t.category as any)?.name || 'Direct Sales & Services';
-      map[cat] = (map[cat] || 0) + t.amount;
+    if (periodSummary.pl.revenue > 0) map['Sales / Service Revenue'] = periodSummary.pl.revenue;
+    if (periodSummary.pl.salesReturns > 0) map['Less: Sales Returns & Refunds'] = -periodSummary.pl.salesReturns;
+    Object.entries(periodSummary.pl.otherIncomeByCategory).forEach(([k, v]) => {
+      map[k] = v;
     });
     return map;
-  }, [incomeTxs]);
+  }, [periodSummary]);
+
   const priorRevenueByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    priorIncomeTxs.forEach(t => {
-      const cat = (t.category as any)?.name || 'Direct Sales & Services';
-      map[cat] = (map[cat] || 0) + t.amount;
+    if (priorSummary.pl.revenue > 0) map['Sales / Service Revenue'] = priorSummary.pl.revenue;
+    if (priorSummary.pl.salesReturns > 0) map['Less: Sales Returns & Refunds'] = -priorSummary.pl.salesReturns;
+    Object.entries(priorSummary.pl.otherIncomeByCategory).forEach(([k, v]) => {
+      map[k] = v;
     });
     return map;
-  }, [priorIncomeTxs]);
-  const totalRevenue = useMemo(() => Object.values(revenueByCategory).reduce((s, v) => s + v, 0), [revenueByCategory]);
-  const priorTotalRevenue = useMemo(() => Object.values(priorRevenueByCategory).reduce((s, v) => s + v, 0), [priorRevenueByCategory]);
+  }, [priorSummary]);
+
+  const totalRevenue = periodSummary.pl.netRevenue + periodSummary.pl.totalOtherIncome;
+  const priorTotalRevenue = priorSummary.pl.netRevenue + priorSummary.pl.totalOtherIncome;
 
   // Note 5: Operating Expenses Breakdown
-  const expenseTxs = periodTxs.filter(t => t.type === 'expense');
-  const priorExpenseTxs = priorTxs.filter(t => t.type === 'expense');
   const expenseByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    expenseTxs.forEach(t => {
-      const cat = (t.category as any)?.name || 'General Operating Expenses';
-      map[cat] = (map[cat] || 0) + t.amount;
+    if (periodSummary.pl.costOfSales > 0) {
+      map['Direct Costs / Cost of Sales'] = periodSummary.pl.costOfSales;
+    }
+    Object.entries(periodSummary.pl.operatingExpensesByCategory).forEach(([k, v]) => {
+      map[k] = v;
     });
+    if (periodSummary.pl.financeCosts > 0) {
+      map['Loan Interest & Finance Costs'] = periodSummary.pl.financeCosts;
+    }
     return map;
-  }, [expenseTxs]);
+  }, [periodSummary]);
+
   const priorExpenseByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    priorExpenseTxs.forEach(t => {
-      const cat = (t.category as any)?.name || 'General Operating Expenses';
-      map[cat] = (map[cat] || 0) + t.amount;
+    if (priorSummary.pl.costOfSales > 0) {
+      map['Direct Costs / Cost of Sales'] = priorSummary.pl.costOfSales;
+    }
+    Object.entries(priorSummary.pl.operatingExpensesByCategory).forEach(([k, v]) => {
+      map[k] = v;
     });
+    if (priorSummary.pl.financeCosts > 0) {
+      map['Loan Interest & Finance Costs'] = priorSummary.pl.financeCosts;
+    }
     return map;
-  }, [priorExpenseTxs]);
-  const totalExpenses = useMemo(() => Object.values(expenseByCategory).reduce((s, v) => s + v, 0), [expenseByCategory]);
-  const priorTotalExpenses = useMemo(() => Object.values(priorExpenseByCategory).reduce((s, v) => s + v, 0), [priorExpenseByCategory]);
+  }, [priorSummary]);
+
+  const totalExpenses = periodSummary.pl.costOfSales + periodSummary.pl.totalOperatingExpenses + periodSummary.pl.financeCosts;
+  const priorTotalExpenses = priorSummary.pl.costOfSales + priorSummary.pl.totalOperatingExpenses + priorSummary.pl.financeCosts;
 
   // Note 7: Cash and Cash Equivalents
   const cashAccounts = useMemo(() => accounts.filter(a => a.type === 'cash'), [accounts]);

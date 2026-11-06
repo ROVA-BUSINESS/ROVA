@@ -3,6 +3,7 @@ import { Brain, CheckCircle } from 'lucide-react';
 import { supabase, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { autoClassify } from '../lib/categorise';
+import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 import { classifyTransaction, applyInventoryIntent, applyPayrollIntent, type ClassifyResult } from '../lib/deepseekClient';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -47,9 +48,11 @@ export default function QuickAddModal({ open, onClose }: Props) {
       Promise.all([
         supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
         supabase.from('categories').select('*').or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
-      ]).then(([accRes, catRes]) => {
+      ]).then(async ([accRes, catRes]) => {
         setAccounts(accRes.data || []);
-        setCategories(catRes.data || []);
+        const rawCats = catRes.data || [];
+        const cats = await ensureStandardAccountingCategories(supabase, effectiveUserId || '', rawCats);
+        setCategories(cats);
       });
     }
     if (!open) {

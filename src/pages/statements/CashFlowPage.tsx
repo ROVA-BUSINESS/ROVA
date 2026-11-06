@@ -1,23 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, type Transaction } from '../../lib/supabase';
+import { supabase, type Transaction, type Account } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/format';
 import { downloadCSV, printStatementHTML } from '../../lib/export';
+import { computeAccountingHubFinancials } from '../../lib/accountingRules';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import { Download, Printer, ChevronDown, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useMobile } from '../../hooks/useMobile';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { Download, Printer, ChevronDown } from 'lucide-react';
 
 export default function CashFlowPage() {
   const { user, profile } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const isMobile = useMobile(1024);
 
   useEffect(() => {
     if (user) loadData();
@@ -25,93 +22,92 @@ export default function CashFlowPage() {
 
   async function loadData() {
     setLoading(true);
-    const { data } = await supabase.from('transactions').select('*, category:categories(*)').eq('user_id', user!.id).order('date', { ascending: true });
-    setTransactions(data || []);
+    const [txRes, accRes] = await Promise.all([
+      supabase.from('transactions').select('*, category:categories(*)').eq('user_id', user!.id).order('date', { ascending: true }),
+      supabase.from('accounts').select('*').eq('user_id', user!.id).eq('is_active', true),
+    ]);
+    setTransactions(txRes.data || []);
+    setAccounts(accRes.data || []);
     setLoading(false);
   }
 
-  const periodTx = transactions.filter(t => new Date(t.date).getFullYear() === year);
+  const periodTx = useMemo(
+    () => transactions.filter(t => new Date(t.date).getFullYear() === year),
+    [transactions, year]
+  );
 
-  const operating = periodTx.filter(t => {
-    const cat = (t.category as any)?.name?.toLowerCase() || '';
-    return !cat.includes('investment') && !cat.includes('loan') && !cat.includes('equity');
-  });
-  const investing = periodTx.filter(t => {
-    const cat = (t.category as any)?.name?.toLowerCase() || '';
-    return cat.includes('investment');
-  });
-  const financing = periodTx.filter(t => {
-    const cat = (t.category as any)?.name?.toLowerCase() || '';
-    return cat.includes('loan') || cat.includes('equity');
-  });
+  const baselineCash = useMemo(() => {
+    return accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + (a.balance || 0), 0);
+  }, [accounts]);
 
-  const netOperating = operating.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
-  const netInvesting = investing.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
-  const netFinancing = financing.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
-  const netChange = netOperating + netInvesting + netFinancing;
+  const summary = useMemo(
+    () => computeAccountingHubFinancials(periodTx as any, [], {
+      baselineCash: accounts.length > 0 ? baselineCash : 0,
+    }),
+    [periodTx, accounts, baselineCash]
+  );
 
-  const monthlyData = MONTHS.map((month, i) => {
-    const monthTx = periodTx.filter(t => new Date(t.date).getMonth() === i);
-    const inflow = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const outflow = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    return { month, inflow, outflow, net: inflow - outflow };
-  }).filter(d => d.inflow > 0 || d.outflow > 0);
-
+  const { cashFlow } = summary;
   const availableYears = [...new Set(transactions.map(t => new Date(t.date).getFullYear()))].sort((a, b) => b - a);
   const businessName = profile?.business_name || profile?.full_name || 'My Business';
 
-  function buildSectionItems(txs: Transaction[]) {
-    return txs.reduce<Record<string, number>>((map, t) => {
-      const desc = t.description || (t.category as any)?.name || 'Other';
-      map[desc] = (map[desc] || 0) + (t.type === 'income' ? t.amount : -t.amount);
-      return map;
-    }, {});
-  }
-
   function handleExportCSV() {
     const rows: (string | number)[][] = [];
-    const addSection = (title: string, txs: Transaction[], net: number) => {
-      rows.push([title, '', '']);
-      const items = buildSectionItems(txs);
-      Object.entries(items).forEach(([desc, val]) => rows.push(['', desc, val]));
-      rows.push([`Net Cash from ${title}`, '', net]);
-      rows.push(['', '', '']);
-    };
-    addSection('Operating Activities', operating, netOperating);
-    addSection('Investing Activities', investing, netInvesting);
-    addSection('Financing Activities', financing, netFinancing);
-    rows.push(['Net Change in Cash', '', netChange]);
+    rows.push(['OPERATING ACTIVITIES', '', '']);
+    rows.push(['Cash inflows from operating activities', '', cashFlow.operatingInflows]);
+    rows.push(['Cash outflows from operating activities', '', -cashFlow.operatingOutflows]);
+    rows.push(['Net Cash from Operating Activities', '', cashFlow.netOperating]);
+    rows.push(['', '', '']);
+
+    rows.push(['INVESTING ACTIVITIES', '', '']);
+    rows.push(['Cash inflows from investing activities (asset sales)', '', cashFlow.investingInflows]);
+    rows.push(['Cash outflows for capital expenditures (PPE)', '', -cashFlow.investingOutflows]);
+    rows.push(['Net Cash from Investing Activities', '', cashFlow.netInvesting]);
+    rows.push(['', '', '']);
+
+    rows.push(['FINANCING ACTIVITIES', '', '']);
+    rows.push(['Cash inflows from equity & borrowings', '', cashFlow.financingInflows]);
+    rows.push(['Cash outflows for debt repayment & dividends', '', -cashFlow.financingOutflows]);
+    rows.push(['Net Cash from Financing Activities', '', cashFlow.netFinancing]);
+    rows.push(['', '', '']);
+
+    rows.push(['NET CHANGE IN CASH', '', cashFlow.netChangeInCash]);
+    rows.push(['CLOSING CASH & CASH EQUIVALENTS', '', cashFlow.closingCash]);
+
     downloadCSV(`cash-flow-${year}.csv`, ['Section', 'Description', 'Amount (NGN)'], rows);
     setShowExportMenu(false);
   }
 
   function handlePrint() {
-    const renderSection = (title: string, txs: Transaction[], net: number) => {
-      const items = buildSectionItems(txs);
-      const itemRows = Object.entries(items).map(([name, val]) =>
-        `<tr class="line-row"><td>${name}</td><td class="amount ${val >= 0 ? 'positive' : 'negative'}">${val < 0 ? '-' : '+'}${formatCurrency(Math.abs(val))}</td></tr>`).join('') ||
-        '<tr class="line-row"><td style="color:#9ca3af">No activity</td><td></td></tr>';
-      return `
-        <tr class="section-header"><td colspan="2">${title}</td></tr>
-        ${itemRows}
-        <tr class="subtotal-row"><td>Net Cash from ${title}</td><td class="amount ${net >= 0 ? 'positive' : 'negative'}">${net < 0 ? '-' : ''}${formatCurrency(Math.abs(net))}</td></tr>`;
-    };
     const html = `<table>
-      ${renderSection('Operating Activities', operating, netOperating)}
-      ${renderSection('Investing Activities', investing, netInvesting)}
-      ${renderSection('Financing Activities', financing, netFinancing)}
-      <tr class="total-row"><td>Net Change in Cash</td><td class="amount ${netChange >= 0 ? 'positive' : 'negative'}">${netChange < 0 ? '-' : ''}${formatCurrency(Math.abs(netChange))}</td></tr>
+      <tr class="section-header"><td colspan="2">Cash flows from Operating Activities</td></tr>
+      <tr class="line-row"><td>Cash receipts from customers & operations</td><td class="amount positive">${formatCurrency(cashFlow.operatingInflows)}</td></tr>
+      <tr class="line-row"><td>Cash payments to suppliers & operating expenses</td><td class="amount negative">-${formatCurrency(cashFlow.operatingOutflows)}</td></tr>
+      <tr class="subtotal-row"><td>Net cash generated from Operating Activities</td><td class="amount ${cashFlow.netOperating >= 0 ? 'positive' : 'negative'}">${formatCurrency(cashFlow.netOperating)}</td></tr>
+
+      <tr class="section-header"><td colspan="2">Cash flows from Investing Activities</td></tr>
+      <tr class="line-row"><td>Proceeds from disposal of fixed assets</td><td class="amount positive">${formatCurrency(cashFlow.investingInflows)}</td></tr>
+      <tr class="line-row"><td>Acquisition of Property, Plant & Equipment (PPE)</td><td class="amount negative">-${formatCurrency(cashFlow.investingOutflows)}</td></tr>
+      <tr class="subtotal-row"><td>Net cash used in Investing Activities</td><td class="amount ${cashFlow.netInvesting >= 0 ? 'positive' : 'negative'}">${formatCurrency(cashFlow.netInvesting)}</td></tr>
+
+      <tr class="section-header"><td colspan="2">Cash flows from Financing Activities</td></tr>
+      <tr class="line-row"><td>Owner capital injections & loans received</td><td class="amount positive">${formatCurrency(cashFlow.financingInflows)}</td></tr>
+      <tr class="line-row"><td>Loan principal repayments, director drawings & dividends</td><td class="amount negative">-${formatCurrency(cashFlow.financingOutflows)}</td></tr>
+      <tr class="subtotal-row"><td>Net cash from Financing Activities</td><td class="amount ${cashFlow.netFinancing >= 0 ? 'positive' : 'negative'}">${formatCurrency(cashFlow.netFinancing)}</td></tr>
+
+      <tr class="total-row"><td>Net change in cash and cash equivalents</td><td class="amount ${cashFlow.netChangeInCash >= 0 ? 'positive' : 'negative'}">${cashFlow.netChangeInCash < 0 ? '-' : ''}${formatCurrency(Math.abs(cashFlow.netChangeInCash))}</td></tr>
+      <tr class="total-row"><td>Closing Cash & Cash Equivalents</td><td class="amount positive">${formatCurrency(cashFlow.closingCash)}</td></tr>
     </table>`;
-    printStatementHTML('Cash Flow Statement', `Year Ended December 31, ${year}`, businessName, html);
+    printStatementHTML('Statement of Cash Flows', `January 1 – December 31, ${year}`, businessName, html);
     setShowExportMenu(false);
   }
 
   return (
-    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 900, animation: 'fadeIn 0.3s ease' }}>
+    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 840, animation: 'fadeIn 0.3s ease' }}>
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Cash Flow Statement</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Track the movement of cash in and out</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Statement of Cash Flows (Operating, Investing, Financing per IAS 7)</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select value={year} onChange={e => setYear(Number(e.target.value))}
@@ -124,12 +120,12 @@ export default function CashFlowPage() {
             </Button>
             {showExportMenu && (
               <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
-                <button onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.1s' }}
+                <button onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.1s', border: 'none', background: 'transparent', cursor: 'pointer' }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                   <Download size={13} color="var(--text-muted)" /> Export CSV
                 </button>
-                <button onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.1s', borderTop: '1px solid var(--bg-border)' }}
+                <button onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.1s', borderTop: '1px solid var(--bg-border)', borderLeft: 'none', borderRight: 'none', borderBottom: 'none', background: 'transparent', cursor: 'pointer' }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                   <Printer size={13} color="var(--text-muted)" /> Print / PDF
@@ -140,121 +136,110 @@ export default function CashFlowPage() {
         </div>
       </div>
 
-      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+      <div className="mobile-grid-1 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Operating', value: netOperating, icon: RefreshCw },
-          { label: 'Investing', value: netInvesting, icon: ArrowUpRight },
-          { label: 'Financing', value: netFinancing, icon: ArrowDownRight },
-          { label: 'Net Change', value: netChange, icon: ArrowUpRight },
+          { label: 'Operating Cash Flow', value: (cashFlow.netOperating < 0 ? '-' : '') + formatCurrency(Math.abs(cashFlow.netOperating)), color: cashFlow.netOperating >= 0 ? 'var(--success)' : 'var(--error)' },
+          { label: 'Net Cash Change', value: (cashFlow.netChangeInCash < 0 ? '-' : '') + formatCurrency(Math.abs(cashFlow.netChangeInCash)), color: cashFlow.netChangeInCash >= 0 ? 'var(--success)' : 'var(--error)' },
+          { label: 'Closing Cash Balance', value: formatCurrency(cashFlow.closingCash), color: 'var(--accent-primary)' },
         ].map(s => (
           <Card key={s.label}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <s.icon size={13} color={s.value >= 0 ? 'var(--success)' : 'var(--error)'} />
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</span>
-            </div>
-            <div className="mobile-stat-value" style={{ fontSize: 17, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: s.value >= 0 ? 'var(--success)' : 'var(--error)' }}>
-              {s.value < 0 ? '-' : ''}{formatCurrency(Math.abs(s.value))}
-            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
+            <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: s.color }}>{s.value}</div>
           </Card>
         ))}
       </div>
 
       {loading ? (
-        <div className="skeleton" style={{ height: 250, marginBottom: 20 }} />
+        <div>{[1,2].map(i => <div key={i} className="skeleton" style={{ height: 200, marginBottom: 16 }} />)}</div>
       ) : (
-        <>
-          <Card style={{ marginBottom: 20 }}>
-            <h3 style={{ fontSize: 14, marginBottom: 16 }}>Monthly Cash Flow — {year}</h3>
-            {monthlyData.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>No data for {year}</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={monthlyData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="outflowGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--bg-border)" />
-                  <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₦${(v/1000).toFixed(0)}k`} />
-                  <Tooltip
-                    contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 8, fontSize: 12 }}
-                    formatter={(v) => formatCurrency(Number(v))}
-                  />
-                  <Area type="monotone" dataKey="inflow" stroke="#22c55e" fill="url(#inflowGrad)" strokeWidth={2} name="Inflow" />
-                  <Area type="monotone" dataKey="outflow" stroke="#ef4444" fill="url(#outflowGrad)" strokeWidth={2} name="Outflow" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg-border)' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{businessName}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Statement of Cash Flows · January 1 – December 31, {year}</div>
+          </div>
 
-          <Card style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--bg-border)' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{businessName}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Cash Flow Statement · Year Ended December 31, {year}</div>
+          <div>
+            {/* Operating */}
+            <div style={{ padding: '10px 20px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--bg-border)' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)' }}>Operating Activities</span>
             </div>
-
-            <CashFlowSection title="Operating Activities" transactions={operating} />
-            <SummaryRow label="Net Cash from Operating Activities" value={netOperating} />
-
-            <CashFlowSection title="Investing Activities" transactions={investing} />
-            <SummaryRow label="Net Cash from Investing Activities" value={netInvesting} />
-
-            <CashFlowSection title="Financing Activities" transactions={financing} />
-            <SummaryRow label="Net Cash from Financing Activities" value={netFinancing} />
-
-            <div style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-elevated)', borderTop: '2px solid var(--bg-border)' }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Net Change in Cash</span>
-              <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netChange >= 0 ? 'var(--success)' : 'var(--error)' }}>
-                {netChange < 0 ? '-' : ''}{formatCurrency(Math.abs(netChange))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 20px 9px 32px', borderTop: '1px solid var(--bg-border)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Cash receipts from operations & customers</span>
+              <span style={{ fontSize: 13, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--success)' }}>+{formatCurrency(cashFlow.operatingInflows)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 20px 9px 32px', borderTop: '1px solid var(--bg-border)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Cash payments to suppliers & operating expenses</span>
+              <span style={{ fontSize: 13, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--error)' }}>-{formatCurrency(cashFlow.operatingOutflows)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px', borderTop: '1px solid var(--bg-border)', background: 'rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Net Cash from Operating Activities</span>
+              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: cashFlow.netOperating >= 0 ? 'var(--success)' : 'var(--error)' }}>
+                {cashFlow.netOperating < 0 ? '-' : '+'}{formatCurrency(Math.abs(cashFlow.netOperating))}
               </span>
             </div>
-          </Card>
-        </>
+
+            {/* Investing */}
+            <div style={{ padding: '10px 20px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--bg-border)' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)' }}>Investing Activities</span>
+            </div>
+            {cashFlow.investingInflows > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 20px 9px 32px', borderTop: '1px solid var(--bg-border)' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Proceeds from disposal of fixed assets</span>
+                <span style={{ fontSize: 13, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--success)' }}>+{formatCurrency(cashFlow.investingInflows)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 20px 9px 32px', borderTop: '1px solid var(--bg-border)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Acquisition of Property, Plant & Equipment (PPE)</span>
+              <span style={{ fontSize: 13, fontFamily: 'Space Grotesk, sans-serif', color: cashFlow.investingOutflows > 0 ? 'var(--error)' : 'var(--text-disabled)' }}>
+                {cashFlow.investingOutflows > 0 ? `-${formatCurrency(cashFlow.investingOutflows)}` : '₦0.00'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px', borderTop: '1px solid var(--bg-border)', background: 'rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Net Cash from Investing Activities</span>
+              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: cashFlow.netInvesting >= 0 ? 'var(--success)' : 'var(--error)' }}>
+                {cashFlow.netInvesting < 0 ? '-' : ''}{formatCurrency(Math.abs(cashFlow.netInvesting))}
+              </span>
+            </div>
+
+            {/* Financing */}
+            <div style={{ padding: '10px 20px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--bg-border)' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)' }}>Financing Activities</span>
+            </div>
+            {cashFlow.financingInflows > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 20px 9px 32px', borderTop: '1px solid var(--bg-border)' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Owner capital injections & loans received</span>
+                <span style={{ fontSize: 13, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--success)' }}>+{formatCurrency(cashFlow.financingInflows)}</span>
+              </div>
+            )}
+            {cashFlow.financingOutflows > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 20px 9px 32px', borderTop: '1px solid var(--bg-border)' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Loan principal repayments, drawings & dividends</span>
+                <span style={{ fontSize: 13, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--error)' }}>-{formatCurrency(cashFlow.financingOutflows)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px', borderTop: '1px solid var(--bg-border)', background: 'rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Net Cash from Financing Activities</span>
+              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: cashFlow.netFinancing >= 0 ? 'var(--success)' : 'var(--error)' }}>
+                {cashFlow.netFinancing < 0 ? '-' : '+'}{formatCurrency(Math.abs(cashFlow.netFinancing))}
+              </span>
+            </div>
+
+            {/* Net Change and Closing Cash */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 20px', borderTop: '2px solid var(--bg-border)', background: 'var(--bg-elevated)' }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Net Change in Cash</span>
+              <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: cashFlow.netChangeInCash >= 0 ? 'var(--success)' : 'var(--error)' }}>
+                {cashFlow.netChangeInCash < 0 ? '-' : '+'}{formatCurrency(Math.abs(cashFlow.netChangeInCash))}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--bg-border)', background: 'var(--bg-elevated)' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Closing Cash & Bank Balances (Reconciled with Balance Sheet)</span>
+              <span style={{ fontSize: 15, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--success)' }}>
+                {formatCurrency(cashFlow.closingCash)}
+              </span>
+            </div>
+          </div>
+        </Card>
       )}
-    </div>
-  );
-}
-
-function CashFlowSection({ title, transactions }: { title: string; transactions: Transaction[] }) {
-  const items = transactions.reduce<Record<string, number>>((map, t) => {
-    const desc = t.description || (t.category as any)?.name || 'Other';
-    map[desc] = (map[desc] || 0) + (t.type === 'income' ? t.amount : -t.amount);
-    return map;
-  }, {});
-
-  return (
-    <div>
-      <div style={{ padding: '10px 20px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--bg-border)' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)' }}>{title}</span>
-      </div>
-      {Object.entries(items).length === 0 ? (
-        <div style={{ padding: '10px 32px', fontSize: 12, color: 'var(--text-disabled)' }}>No activity</div>
-      ) : Object.entries(items).map(([name, val]) => (
-        <div key={name} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 20px 8px 32px', borderTop: '1px solid var(--bg-border)' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{name}</span>
-          <span style={{ fontSize: 12, fontFamily: 'Space Grotesk, sans-serif', color: val >= 0 ? 'var(--success)' : 'var(--error)' }}>
-            {val < 0 ? '-' : '+'}{formatCurrency(Math.abs(val))}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px', borderTop: '1px solid var(--bg-border)', background: 'rgba(0,0,0,0.02)' }}>
-      <span style={{ fontSize: 13, fontWeight: 600 }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: value >= 0 ? 'var(--success)' : 'var(--error)' }}>
-        {value < 0 ? '-' : ''}{formatCurrency(Math.abs(value))}
-      </span>
     </div>
   );
 }

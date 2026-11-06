@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { Plus, BookMarked, ChevronDown, ChevronRight, Trash2, X } from 'lucide-react';
-import { supabase, type JournalEntry, type JournalEntryLine, type ChartOfAccount } from '../../lib/supabase';
+import { supabase, type JournalEntry, type JournalEntryLine, type ChartOfAccount, type Transaction } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../../lib/format';
+import { getCategoryRule } from '../../lib/accountingRules';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -13,6 +14,7 @@ import { useMobile } from '../../hooks/useMobile';
 export default function JournalEntriesPage() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [coa, setCoa] = useState<ChartOfAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const isMobile = useMobile(1024);
@@ -32,16 +34,19 @@ export default function JournalEntriesPage() {
 
   async function loadData() {
     setLoading(true);
-    const [entriesRes, coaRes] = await Promise.all([
+    const [entriesRes, coaRes, txRes] = await Promise.all([
       supabase.from('journal_entries').select('*').eq('user_id', user!.id).order('date', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('chart_of_accounts').select('*').eq('user_id', user!.id).eq('is_active', true).order('code'),
+      supabase.from('transactions').select('*, category:categories(*), account:accounts(*)').eq('user_id', user!.id).order('date', { ascending: false }),
     ]);
     setEntries(entriesRes.data || []);
     setCoa(coaRes.data || []);
+    setTransactions(txRes.data || []);
     setLoading(false);
   }
 
   async function loadLines(entryId: string) {
+    if (entryId.startsWith('tx_je_')) return; // Transaction-synthesized entry already has lines
     const { data } = await supabase.from('journal_entry_lines').select('*').eq('journal_entry_id', entryId);
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, lines: data || [] } : e));
   }
@@ -53,6 +58,99 @@ export default function JournalEntriesPage() {
       return next;
     });
   }
+
+  // Synthesize balanced entries for every transaction
+  const allEntries = useMemo(() => {
+    const txEntries: JournalEntry[] = transactions.map((tx, idx) => {
+      const amt = Number(tx.amount) || 0;
+      const catName = (tx.category as any)?.name || 'Uncategorized';
+      const rule = getCategoryRule(catName, tx.type, tx.description);
+      const bankName = (tx.account as any)?.name || 'Bank/Cash';
+      const entryId = `tx_je_${tx.id || idx}`;
+      const entryNum = `TX-${(tx.id || String(idx)).slice(0, 8).toUpperCase()}`;
+
+      let jeLines: JournalEntryLine[] = [];
+
+      if (rule.direction === 'income') {
+        // Debit Bank/Cash, Credit Category Account
+        jeLines = [
+          {
+            id: `${entryId}_dr`,
+            journal_entry_id: entryId,
+            account_id: null,
+            account_name: bankName,
+            description: tx.description || rule.name,
+            debit: amt,
+            credit: 0,          },
+          {
+            id: `${entryId}_cr`,
+            journal_entry_id: entryId,
+            account_id: null,
+            account_name: rule.accountName,
+            description: tx.description || rule.name,
+            debit: 0,
+            credit: amt,          },
+        ];
+      } else if (rule.direction === 'expense') {
+        // Debit Category Account, Credit Bank/Cash
+        jeLines = [
+          {
+            id: `${entryId}_dr`,
+            journal_entry_id: entryId,
+            account_id: null,
+            account_name: rule.accountName,
+            description: tx.description || rule.name,
+            debit: amt,
+            credit: 0,          },
+          {
+            id: `${entryId}_cr`,
+            journal_entry_id: entryId,
+            account_id: null,
+            account_name: bankName,
+            description: tx.description || rule.name,
+            debit: 0,
+            credit: amt,          },
+        ];
+      } else {
+        // Transfer
+        jeLines = [
+          {
+            id: `${entryId}_dr`,
+            journal_entry_id: entryId,
+            account_id: null,
+            account_name: rule.debitAccount,
+            description: tx.description || 'Internal Transfer',
+            debit: amt,
+            credit: 0,          },
+          {
+            id: `${entryId}_cr`,
+            journal_entry_id: entryId,
+            account_id: null,
+            account_name: rule.creditAccount,
+            description: tx.description || 'Internal Transfer',
+            debit: 0,
+            credit: amt,          },
+        ];
+      }
+
+      return {
+        id: entryId,
+        user_id: user?.id || '',
+        entry_number: entryNum,
+        date: tx.date,
+        description: tx.description || rule.name,
+        reference: `TX #${(tx.id || '').slice(0, 6)}`,
+        source: 'transaction' as any,
+        transaction_id: tx.id || null,
+        is_posted: true,
+        created_at: tx.created_at || new Date().toISOString(),
+        lines: jeLines,
+      };
+    });
+
+    const combined = [...entries, ...txEntries];
+    return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [entries, transactions, user?.id]);
 
   const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
@@ -93,6 +191,10 @@ export default function JournalEntriesPage() {
   }
 
   async function handleDelete(id: string) {
+    if (id.startsWith('tx_je_')) {
+      alert('This entry is linked to a business transaction. To remove it, delete the transaction on the Transactions page.');
+      return;
+    }
     if (!confirm('Delete this journal entry?')) return;
     await supabase.from('journal_entry_lines').delete().eq('journal_entry_id', id);
     await supabase.from('journal_entries').delete().eq('id', id);
@@ -132,28 +234,30 @@ export default function JournalEntriesPage() {
 
       {loading ? (
         <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 56, marginBottom: 8 }} />)}</div>
-      ) : entries.length === 0 ? (
+      ) : allEntries.length === 0 ? (
         <Card>
           <div style={{ textAlign: 'center', padding: '48px 20px' }}>
             <BookMarked size={36} color="var(--text-disabled)" style={{ margin: '0 auto 12px' }} />
             <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No journal entries yet</p>
-            <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 4 }}>Create your first manual journal entry</p>
+            <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 4 }}>Transactions or manual entries will appear here</p>
           </div>
         </Card>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {entries.map(entry => (
+          {allEntries.map(entry => (
             <Card key={entry.id} style={{ padding: 0, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px' }}>
                 <button
                   onClick={() => toggleExpand(entry.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', cursor: 'pointer', flex: 1 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', cursor: 'pointer', flex: 1, border: 'none' }}
                 >
                   {expanded.has(entry.id) ? <ChevronDown size={14} color="var(--text-muted)" /> : <ChevronRight size={14} color="var(--text-muted)" />}
                   <div style={{ textAlign: 'left' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-light)', fontFamily: 'Space Grotesk, sans-serif' }}>{entry.entry_number}</span>
-                      <Badge variant={entry.source === 'manual' ? 'default' : 'info'}>{entry.source}</Badge>
+                      <Badge variant={entry.source === 'manual' ? 'default' : entry.source === 'transaction' ? 'success' : 'info'}>
+                        {entry.source}
+                      </Badge>
                       {entry.is_posted && <Badge variant="success">Posted</Badge>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
@@ -161,14 +265,16 @@ export default function JournalEntriesPage() {
                     </div>
                   </div>
                 </button>
-                <button
-                  onClick={() => handleDelete(entry.id)}
-                  style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s', flexShrink: 0 }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--error-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--error)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
-                >
-                  <Trash2 size={13} />
-                </button>
+                {!entry.id.startsWith('tx_je_') && (
+                  <button
+                    onClick={() => handleDelete(entry.id)}
+                    style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s', flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--error-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--error)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
 
               {expanded.has(entry.id) && entry.lines && (
@@ -190,7 +296,7 @@ export default function JournalEntriesPage() {
                       {entry.lines.map((line: JournalEntryLine) => (
                         <tr key={line.id} style={{ borderTop: '1px solid var(--bg-border)' }}>
                           <td className="mobile-tight-td" style={{ padding: '9px 16px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
-                            <div className="mobile-desc-text" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{line.account_name}</div>
+                            <div className="mobile-desc-text" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>{line.account_name}</div>
                           </td>
                           <td className="mobile-hide" style={{ padding: '9px 16px', fontSize: 12, color: 'var(--text-muted)' }}>{line.description || '—'}</td>
                           <td className="mobile-tight-td" style={{ padding: '9px 16px', fontSize: 13, color: line.debit ? 'var(--success)' : 'var(--text-disabled)', fontFamily: 'Space Grotesk, sans-serif' }}>
@@ -245,13 +351,13 @@ export default function JournalEntriesPage() {
                     <Input type="number" min="0" step="0.01" placeholder="0.00" value={line.debit} onChange={e => updateLine(i, 'debit', e.target.value)} />
                     <Input type="number" min="0" step="0.01" placeholder="0.00" value={line.credit} onChange={e => updateLine(i, 'credit', e.target.value)} />
                     <button type="button" onClick={() => setLines(p => p.filter((_, j) => j !== i))}
-                      style={{ padding: 8, background: 'var(--error-dim)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', display: 'flex', alignItems: 'center' }}>
+                      style={{ padding: 8, background: 'var(--error-dim)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', display: 'flex', alignItems: 'center', border: 'none', cursor: 'pointer' }}>
                       <X size={12} />
                     </button>
                   </div>
                 ))}
                 <button type="button" onClick={() => setLines(p => [...p, { account_id: '', account_name: '', debit: '', credit: '', description: '' }])}
-                  style={{ padding: '7px 12px', background: 'var(--bg-elevated)', border: '1px dashed var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center', marginTop: 2, width: 'max-content' }}>
+                  style={{ padding: '7px 12px', background: 'var(--bg-elevated)', border: '1px dashed var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center', marginTop: 2, width: 'max-content', cursor: 'pointer' }}>
                   <Plus size={12} /> Add Line
                 </button>
               </div>

@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib/format';
 import { autoClassify } from '../lib/categorise';
 import { downloadCSV } from '../lib/export';
+import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -83,17 +84,8 @@ export default function TransactionsPage() {
       supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
       supabase.from('categories').select('*').or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
     ]);
-    const cats = catRes.data || [];
-    const hasSales = cats.some(c => c.name.toLowerCase() === 'sales' && c.type === 'income');
-    if (!hasSales && effectiveUserId) {
-      const { data: newCat } = await supabase.from('categories').insert({
-        user_id: effectiveUserId,
-        name: 'Sales',
-        type: 'income',
-        is_system: false,
-      }).select().maybeSingle();
-      if (newCat) cats.push(newCat);
-    }
+    const rawCats = catRes.data || [];
+    const cats = await ensureStandardAccountingCategories(supabase, effectiveUserId || '', rawCats);
 
     setTransactions(txRes.data || []);
     setAccounts(accRes.data || []);
