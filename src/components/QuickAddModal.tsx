@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Brain, CheckCircle } from 'lucide-react';
+import { Brain, CheckCircle, Check, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { supabase, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { autoClassify } from '../lib/categorise';
@@ -392,7 +392,14 @@ export default function QuickAddModal({ open, onClose }: Props) {
               transition: 'all 0.15s',
             }}
           >
-            {isLoan ? '\u2713 Loan / Debt' : '+ Mark as Loan / Debt'}
+            {isLoan ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Check size={14} color="#f59e0b" />
+                <span>Loan / Debt</span>
+              </span>
+            ) : (
+              <span>+ Mark as Loan / Debt</span>
+            )}
           </button>
           {isLoan && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245,158,11,0.2)' }}>
@@ -407,7 +414,10 @@ export default function QuickAddModal({ open, onClose }: Props) {
                       borderColor: loanDirection === d ? 'rgba(245,158,11,0.4)' : 'var(--bg-border)',
                     }}
                   >
-                    {d === 'received' ? '\u2193 Borrowed' : '\u2191 Lent'}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {d === 'received' ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}
+                      <span>{d === 'received' ? 'Borrowed' : 'Lent'}</span>
+                    </span>
                   </button>
                 ))}
               </div>
