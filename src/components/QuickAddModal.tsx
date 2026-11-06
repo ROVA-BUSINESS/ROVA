@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+﻿import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Brain, CheckCircle } from 'lucide-react';
 import { supabase, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -392,7 +392,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
               transition: 'all 0.15s',
             }}
           >
-            {isLoan ? 'âœ“ Loan / Debt' : '+ Mark as Loan / Debt'}
+            {isLoan ? '\u2713 Loan / Debt' : '+ Mark as Loan / Debt'}
           </button>
           {isLoan && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245,158,11,0.2)' }}>
@@ -407,7 +407,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
                       borderColor: loanDirection === d ? 'rgba(245,158,11,0.4)' : 'var(--bg-border)',
                     }}
                   >
-                    {d === 'received' ? 'â†“ Borrowed' : 'â†‘ Lent'}
+                    {d === 'received' ? '\u2193 Borrowed' : '\u2191 Lent'}
                   </button>
                 ))}
               </div>
