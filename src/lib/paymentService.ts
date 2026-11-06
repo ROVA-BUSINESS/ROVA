@@ -297,6 +297,65 @@ export async function togglePaymentLinkStatus(
   if (error) throw error;
 }
 
+export async function recordDirectPayment(params: {
+  userId: string;
+  provider: PaymentProvider;
+  reference: string;
+  amount: number;
+  currency?: string;
+  description?: string;
+  payerName?: string;
+  payerEmail?: string;
+  channel?: string;
+  metadata?: Record<string, any>;
+}): Promise<PaymentTransaction | null> {
+  const {
+    userId,
+    provider,
+    reference,
+    amount,
+    currency = 'NGN',
+    description = 'Direct Payment into Rova via Paystack',
+    payerName,
+    payerEmail,
+    channel = 'paystack_inline',
+    metadata = {},
+  } = params;
+
+  const nowIso = new Date().toISOString();
+  const row = {
+    user_id: userId,
+    provider,
+    provider_reference: reference,
+    transaction_date: nowIso,
+    amount,
+    currency,
+    type: 'credit' as const,
+    description,
+    counterparty_name: payerName || null,
+    counterparty_email: payerEmail || null,
+    provider_status: 'success' as const,
+    verification_status: 'verified' as const,
+    source: 'paystack_direct' as const,
+    channel,
+    metadata,
+    accounting_status: 'unclassified' as const,
+    created_at: nowIso,
+  };
+
+  const { data, error } = await supabase
+    .from('payment_transactions')
+    .upsert(row, { onConflict: 'user_id,provider,provider_reference' })
+    .select()
+    .single();
+
+  if (error) {
+    console.warn('Could not record direct payment in DB:', error.message);
+    return row as any;
+  }
+  return data;
+}
+
 // ── Unified Payment Transactions Functions ──────────────────────────────────
 
 export async function getPaymentTransactions(
