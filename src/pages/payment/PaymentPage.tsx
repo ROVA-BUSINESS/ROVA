@@ -254,6 +254,18 @@ export default function PaymentPage() {
 
   const totalPages = Math.ceil(displayedTransactions.length / pageSize) || 1;
 
+  // Helper: check if provider is connected via server env or local config
+  const isPaystackConfigured = Boolean(
+    import.meta.env.VITE_PAYSTACK_PUBLIC_KEY &&
+    String(import.meta.env.VITE_PAYSTACK_PUBLIC_KEY).trim().startsWith('pk_')
+  );
+
+  function isProviderConnected(provider: PaymentProvider): boolean {
+    if (provider === 'paystack' && isPaystackConfigured) return true;
+    if (providerServerStatus[provider]?.configured) return true;
+    return configs[provider]?.status === 'connected';
+  }
+
   // ── Handlers: Create Payment Link ─────────────────────────────────────────
   async function handleCreateLink(e: FormEvent) {
     e.preventDefault();
@@ -803,7 +815,7 @@ export default function PaymentPage() {
               {(['paystack', 'kuda', 'opay', 'moniepoint'] as PaymentProvider[]).map(provider => {
                 const cap = PROVIDER_CAPABILITIES[provider];
                 const conf = configs[provider];
-                const isConnected = providerServerStatus[provider]?.configured || conf?.status === 'connected';
+                const isConnected = isProviderConnected(provider);
 
                 return (
                   <Card key={provider} style={{ padding: 16, borderLeft: `4px solid ${cap.color}` }}>
@@ -969,7 +981,7 @@ export default function PaymentPage() {
             {(['paystack', 'kuda', 'opay', 'moniepoint'] as PaymentProvider[]).map(provider => {
               const cap = PROVIDER_CAPABILITIES[provider];
               const conf = configs[provider];
-              const isConnected = providerServerStatus[provider]?.configured || conf?.status === 'connected';
+              const isConnected = isProviderConnected(provider);
 
               return (
                 <Card
