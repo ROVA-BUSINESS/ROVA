@@ -32,7 +32,6 @@ import Input from '../../components/ui/Input';
 import {
   PROVIDER_CAPABILITIES,
   getProviderConfigs,
-  upsertProviderConfig,
   getPaymentLinks,
   createPaymentLink,
   getPaymentTransactions,
@@ -78,6 +77,7 @@ export default function PaymentPage() {
     opay: null,
     moniepoint: null,
   });
+  const [providerServerStatus, setProviderServerStatus] = useState<Record<string, { configured: boolean; status: string }>>({});
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -98,7 +98,6 @@ export default function PaymentPage() {
 
   // Modals
   const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
-  const [showConfigureModal, setShowConfigureModal] = useState<PaymentProvider | null>(null);
   const [showDocsModal, setShowDocsModal] = useState<PaymentProvider | null>(null);
   const [showShareModal, setShowShareModal] = useState<PaymentLink | null>(null);
   const [showTxDetailsModal, setShowTxDetailsModal] = useState<PaymentTransaction | null>(null);
@@ -112,17 +111,6 @@ export default function PaymentPage() {
   const [linkCustomAmount, setLinkCustomAmount] = useState(false);
   const [linkProvider, setLinkProvider] = useState<PaymentProvider>('paystack');
   const [creatingLink, setCreatingLink] = useState(false);
-
-  // Form states for provider credentials
-  const [providerForm, setProviderForm] = useState({
-    publicKey: '',
-    secretKey: '',
-    merchantId: '',
-    accountNumber: '',
-    webhookSecret: '',
-    isLive: false,
-  });
-  const [savingConfig, setSavingConfig] = useState(false);
 
   // Reconciliation form
   const [reconcileType, setReconcileType] = useState<'income' | 'expense' | 'transfer' | 'ignored'>('income');
@@ -177,6 +165,20 @@ export default function PaymentPage() {
       });
 
       setConfigs(configMap);
+
+      // Fetch server-side provider connection status (env-var-based)
+      try {
+        const statusRes = await fetch('/api/payment/providers/status');
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          if (statusData.success && statusData.providers) {
+            setProviderServerStatus(statusData.providers);
+          }
+        }
+      } catch {
+        // Server status endpoint not available — fall back to local config data
+      }
+
       setPaymentLinks(linksData);
       setTransactions(txData.transactions);
       setTotalTxCount(txData.totalCount);
@@ -281,46 +283,6 @@ export default function PaymentPage() {
       showNotice('error', err.message || 'Failed to create payment link.');
     } finally {
       setCreatingLink(false);
-    }
-  }
-
-  // ── Handlers: Provider Configuration ──────────────────────────────────────
-  function openConfigureModal(provider: PaymentProvider) {
-    const existing = configs[provider];
-    setProviderForm({
-      publicKey: existing?.public_key || '',
-      secretKey: existing?.secret_key || '',
-      merchantId: existing?.merchant_id || '',
-      accountNumber: existing?.account_number || '',
-      webhookSecret: existing?.webhook_secret || '',
-      isLive: existing?.is_live || false,
-    });
-    setShowConfigureModal(provider);
-  }
-
-  async function handleSaveProviderConfig(e: FormEvent) {
-    e.preventDefault();
-    if (!effectiveUserId || !showConfigureModal) return;
-    setSavingConfig(true);
-
-    try {
-      const updated = await upsertProviderConfig(effectiveUserId, showConfigureModal, {
-        public_key: providerForm.publicKey.trim() || null,
-        secret_key: providerForm.secretKey.trim() || null,
-        merchant_id: providerForm.merchantId.trim() || null,
-        account_number: providerForm.accountNumber.trim() || null,
-        webhook_secret: providerForm.webhookSecret.trim() || null,
-        is_live: providerForm.isLive,
-        status: (providerForm.secretKey || providerForm.merchantId) ? 'connected' : 'not_connected',
-      });
-
-      setConfigs(prev => ({ ...prev, [showConfigureModal]: updated }));
-      setShowConfigureModal(null);
-      showNotice('success', `${PROVIDER_CAPABILITIES[showConfigureModal].displayName} credentials updated.`);
-    } catch (err: any) {
-      showNotice('error', err.message || 'Failed to save configuration.');
-    } finally {
-      setSavingConfig(false);
     }
   }
 
@@ -841,7 +803,7 @@ export default function PaymentPage() {
               {(['paystack', 'kuda', 'opay', 'moniepoint'] as PaymentProvider[]).map(provider => {
                 const cap = PROVIDER_CAPABILITIES[provider];
                 const conf = configs[provider];
-                const isConnected = conf?.status === 'connected';
+                const isConnected = providerServerStatus[provider]?.configured || conf?.status === 'connected';
 
                 return (
                   <Card key={provider} style={{ padding: 16, borderLeft: `4px solid ${cap.color}` }}>
@@ -1007,7 +969,7 @@ export default function PaymentPage() {
             {(['paystack', 'kuda', 'opay', 'moniepoint'] as PaymentProvider[]).map(provider => {
               const cap = PROVIDER_CAPABILITIES[provider];
               const conf = configs[provider];
-              const isConnected = conf?.status === 'connected';
+              const isConnected = providerServerStatus[provider]?.configured || conf?.status === 'connected';
 
               return (
                 <Card
@@ -1098,14 +1060,22 @@ export default function PaymentPage() {
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--bg-border)' }}>
-                    <Button
-                      variant={isConnected ? 'secondary' : 'primary'}
-                      size="sm"
-                      onClick={() => openConfigureModal(provider)}
-                      style={{ flex: 1 }}
+                    <div
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '6px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: isConnected ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                        fontSize: 11,
+                        color: isConnected ? 'var(--success)' : 'var(--warning)',
+                      }}
                     >
-                      {isConnected ? 'Configure Credentials' : 'Connect Account'}
-                    </Button>
+                      {isConnected ? <CheckCircle2 size={12} /> : <Info size={12} />}
+                      {isConnected ? 'Connected via server env' : 'Configure via server environment variables'}
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1842,95 +1812,6 @@ export default function PaymentPage() {
             </Button>
           </div>
         </form>
-      </Modal>
-
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* MODAL: CONFIGURE PROVIDER                                           */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      <Modal
-        open={!!showConfigureModal}
-        onClose={() => setShowConfigureModal(null)}
-        title={showConfigureModal ? `Configure ${PROVIDER_CAPABILITIES[showConfigureModal].displayName}` : 'Configure Provider'}
-        size="md"
-      >
-        {showConfigureModal && (
-          <form onSubmit={handleSaveProviderConfig} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRadius: 'var(--radius-md)',
-                background: PROVIDER_CAPABILITIES[showConfigureModal].bgLight,
-                fontSize: 12,
-                color: 'var(--text-primary)',
-                lineHeight: 1.45,
-              }}
-            >
-              <strong>Setup Instructions:</strong> {PROVIDER_CAPABILITIES[showConfigureModal].webhookHelp}
-            </div>
-
-            <Input
-              label={showConfigureModal === 'kuda' ? 'Client Registered Email (Public Key)' : 'Public Key / Client ID'}
-              placeholder={showConfigureModal === 'paystack' ? 'pk_live_...' : 'Enter public key or email'}
-              value={providerForm.publicKey}
-              onChange={e => setProviderForm(p => ({ ...p, publicKey: e.target.value }))}
-            />
-
-            <Input
-              label={showConfigureModal === 'kuda' ? 'Kuda API Key (Secret Key)' : 'Secret Key / Client Secret'}
-              type="password"
-              placeholder={showConfigureModal === 'paystack' ? 'sk_live_...' : 'Enter secret key'}
-              value={providerForm.secretKey}
-              onChange={e => setProviderForm(p => ({ ...p, secretKey: e.target.value }))}
-            />
-
-            {(showConfigureModal === 'opay' || showConfigureModal === 'moniepoint') && (
-              <Input
-                label="Merchant ID / Business Code"
-                placeholder="Enter Merchant ID provided by provider"
-                value={providerForm.merchantId}
-                onChange={e => setProviderForm(p => ({ ...p, merchantId: e.target.value }))}
-              />
-            )}
-
-            {(showConfigureModal === 'kuda' || showConfigureModal === 'moniepoint') && (
-              <Input
-                label="Settlement / Business Account Number"
-                placeholder="10-digit NUBAN account number"
-                value={providerForm.accountNumber}
-                onChange={e => setProviderForm(p => ({ ...p, accountNumber: e.target.value }))}
-              />
-            )}
-
-            <Input
-              label="Webhook Secret (Optional)"
-              placeholder="Secret used to sign and verify incoming webhook requests"
-              value={providerForm.webhookSecret}
-              onChange={e => setProviderForm(p => ({ ...p, webhookSecret: e.target.value }))}
-            />
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>Live Mode</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Toggle between Test/Sandbox and Live production credentials</div>
-              </div>
-              <input
-                type="checkbox"
-                checked={providerForm.isLive}
-                onChange={e => setProviderForm(p => ({ ...p, isLive: e.target.checked }))}
-                style={{ width: 18, height: 18, cursor: 'pointer' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-              <Button variant="secondary" type="button" onClick={() => setShowConfigureModal(null)}>
-                Cancel
-              </Button>
-              <Button variant="primary" type="submit" loading={savingConfig}>
-                Save Configuration
-              </Button>
-            </div>
-          </form>
-        )}
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────── */}

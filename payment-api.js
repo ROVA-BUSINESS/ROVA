@@ -576,5 +576,38 @@ router.post('/webhook/moniepoint', async (req, res) => {
   }
 });
 
+// ── Provider Status Endpoint (env-var-based, no secrets exposed) ────────────
+router.get('/providers/status', async (req, res) => {
+  try {
+    const providers = {
+      paystack: {
+        configured: !!(process.env.PAYSTACK_SECRET_KEY),
+        envVarsNeeded: ['PAYSTACK_SECRET_KEY'],
+        status: process.env.PAYSTACK_SECRET_KEY ? 'connected' : 'not_connected',
+      },
+      kuda: {
+        configured: !!(process.env.KUDA_API_KEY && process.env.KUDA_CLIENT_EMAIL),
+        envVarsNeeded: ['KUDA_API_KEY', 'KUDA_CLIENT_EMAIL'],
+        status: (process.env.KUDA_API_KEY && process.env.KUDA_CLIENT_EMAIL) ? 'connected' : 'not_connected',
+      },
+      opay: {
+        configured: !!(process.env.OPAY_MERCHANT_ID && process.env.OPAY_PRIVATE_KEY),
+        envVarsNeeded: ['OPAY_MERCHANT_ID', 'OPAY_PRIVATE_KEY'],
+        status: (process.env.OPAY_MERCHANT_ID && process.env.OPAY_PRIVATE_KEY) ? 'connected' : 'not_connected',
+      },
+      moniepoint: {
+        configured: !!(process.env.MONIEPOINT_CLIENT_ID && process.env.MONIEPOINT_CLIENT_SECRET),
+        envVarsNeeded: ['MONIEPOINT_CLIENT_ID', 'MONIEPOINT_CLIENT_SECRET'],
+        status: (process.env.MONIEPOINT_CLIENT_ID && process.env.MONIEPOINT_CLIENT_SECRET) ? 'connected' : 'not_connected',
+      },
+    };
+
+    res.json({ success: true, providers });
+  } catch (err) {
+    console.error('Provider status check error:', err);
+    res.status(500).json({ success: false, error: 'Failed to check provider status.' });
+  }
+});
+
 export default router;
 

@@ -25,7 +25,7 @@ export const PROVIDER_CAPABILITIES: Record<PaymentProvider, ProviderCapabilityIn
     approvalRequirements: [
       'Active Paystack account (Starter or Registered Business).',
       'Bank account verification for settlement payouts.',
-      'API Keys (Public Key & Secret Key) configured in Rova.',
+      'API Keys (Public Key & Secret Key) set as server environment variables (PAYSTACK_SECRET_KEY, VITE_PAYSTACK_PUBLIC_KEY).',
       'Webhook configured on Paystack Dashboard targeting /api/payment/webhook/paystack.',
     ],
     supportedFeatures: {
