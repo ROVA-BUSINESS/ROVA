@@ -23,7 +23,7 @@ const envSchema = z.object({
   
   // Redis / Queue Config
   REDIS_URL: z.string().url().optional(),
-  QUEUE_DRIVER: z.enum(['redis', 'memory', 'auto']).default('auto'),
+  QUEUE_DRIVER: z.enum(['redis', 'memory', 'auto']).default('memory'),
 
   // AI & Processing Config
   DEEPSEEK_API_KEY: z.string().optional(),
