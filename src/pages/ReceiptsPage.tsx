@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, Receipt as ReceiptIcon, Search, Download, Send, Eye,
@@ -8,6 +8,7 @@ import { supabase, type Receipt, type InventoryItem, type Transaction } from '..
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
 import { downloadCSV } from '../lib/export';
+import ShareDocumentModal, { type ShareDocumentData } from '../components/ShareDocumentModal';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -62,6 +63,7 @@ export default function ReceiptsPage() {
   // Modals & Active State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
+  const [shareData, setShareData] = useState<ShareDocumentData | null>(null);
   const [previewImageDataUrl, setPreviewImageDataUrl] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
@@ -305,19 +307,27 @@ export default function ReceiptsPage() {
     window.open(url, '_blank');
   }
 
-  function handleShare(receipt: Receipt) {
-    if (navigator.share) {
-      navigator.share({
-        title: `Receipt ${receipt.receipt_number}`,
-        text: `Payment Receipt ${receipt.receipt_number} for ${receipt.customer_name} - ${formatCurrency(receipt.total)}`,
-        url: window.location.href,
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(
-        `Receipt ${receipt.receipt_number} for ${receipt.customer_name} - ${formatCurrency(receipt.total)}`
-      );
-      alert('Receipt summary copied to clipboard!');
-    }
+    function handleShare(receipt: Receipt) {
+    setShareData({
+      type: 'receipt',
+      documentNumber: receipt.receipt_number,
+      recipientName: receipt.customer_name,
+      recipientPhone: receipt.customer_phone,
+      recipientEmail: receipt.customer_email,
+      amount: receipt.total || receipt.amount,
+      issueDate: receipt.receipt_date,
+      paymentMethod: receipt.payment_method,
+      status: receipt.status,
+      businessName: profile?.business_name || profile?.full_name || 'ROVA Business',
+      notes: receipt.description,
+      onDownloadPDF: () => downloadReceiptPDF(receipt, profile),
+      onDownloadImage: previewImageDataUrl ? () => {
+        const link = document.createElement('a');
+        link.download = `receipt-${receipt.receipt_number}.png`;
+        link.href = previewImageDataUrl;
+        link.click();
+      } : undefined,
+    });
   }
 
   function resetForm() {
@@ -1403,6 +1413,11 @@ export default function ReceiptsPage() {
           </div>
         </Modal>
       )}
+      <ShareDocumentModal
+        open={!!shareData}
+        onClose={() => setShareData(null)}
+        data={shareData}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download, Package } from 'lucide-react';
+import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download, Package, Share2 } from 'lucide-react';
+import ShareDocumentModal, { type ShareDocumentData } from '../components/ShareDocumentModal';
 import { supabase, type Invoice, type InventoryItem } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
@@ -170,6 +171,7 @@ export default function InvoicesPage() {
   const [nextReminderDate, setNextReminderDate] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
+  const [shareData, setShareData] = useState<ShareDocumentData | null>(null);
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -252,6 +254,25 @@ export default function InvoicesPage() {
     const { data: inv } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     const { data: itemsData } = await supabase.from('invoice_items').select('*').eq('invoice_id', id);
     setViewInvoice(inv ? { ...inv, items: itemsData || [] } : null);
+  }
+
+  function openShareInvoice(inv: Invoice) {
+    setShareData({
+      type: 'invoice',
+      documentNumber: inv.invoice_number,
+      recipientName: inv.client_name,
+      recipientPhone: '',
+      recipientEmail: inv.client_email,
+      amount: inv.total,
+      amountPaid: inv.amount_paid || 0,
+      balanceDue: inv.total - (inv.amount_paid || 0),
+      issueDate: inv.issue_date,
+      dueDate: inv.due_date,
+      status: inv.status,
+      businessName,
+      notes: inv.notes,
+      onDownloadPDF: () => downloadInvoicePDF(inv, businessName),
+    });
   }
 
   function calcTotals() {
@@ -611,6 +632,13 @@ export default function InvoicesPage() {
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
                       <button
+                        onClick={() => openShareInvoice(inv)}
+                        title="Share invoice via WhatsApp, Email, etc."
+                        style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: '#25D366', transition: 'all 0.15s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(37, 211, 102, 0.15)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      ><Share2 size={13} /></button>
+                      <button
                         onClick={() => loadInvoiceWithItems(inv.id)}
                         title="View invoice"
                         style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s' }}
@@ -876,6 +904,20 @@ export default function InvoicesPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <Badge variant={statusVariant[viewInvoice.status]}>{viewInvoice.status}</Badge>
                 <button
+                  onClick={() => openShareInvoice(viewInvoice)}
+                  title="Share invoice via WhatsApp, Email, etc."
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
+                    background: 'rgba(37, 211, 102, 0.15)', color: '#25D366',
+                    border: '1px solid rgba(37, 211, 102, 0.35)', borderRadius: 'var(--radius-md)',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(37, 211, 102, 0.25)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(37, 211, 102, 0.15)'; }}
+                >
+                  <Share2 size={13} /> Share
+                </button>
+                <button
                   onClick={() => downloadInvoicePDF(viewInvoice, businessName)}
                   title="Download PDF"
                   style={{
@@ -974,6 +1016,12 @@ export default function InvoicesPage() {
           </div>
         </Modal>
       )}
+
+      <ShareDocumentModal
+        open={!!shareData}
+        onClose={() => setShareData(null)}
+        data={shareData}
+      />
 
       <Modal open={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Record Payment" size="sm">
         <form onSubmit={handleRecordPayment} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
