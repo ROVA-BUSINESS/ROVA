@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { 
-  Mail, MessageSquare, Copy, Check, Download, Share2 
+  Mail, MessageSquare, Copy, Check, Download, Share2, 
+  Send as TelegramIcon, Globe 
 } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -78,7 +79,21 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
     window.open(url, '_blank');
   };
 
-  const handleEmail = () => {
+  const handleTelegram = () => {
+    const encodedText = encodeURIComponent(shareText);
+    const url = `https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodedText}`;
+    window.open(url, '_blank');
+  };
+
+  const handleGmailWeb = () => {
+    const encodedSubject = encodeURIComponent(emailSubject);
+    const encodedBody = encodeURIComponent(shareText);
+    const toParam = email ? encodeURIComponent(email) : '';
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${toParam}&su=${encodedSubject}&body=${encodedBody}`;
+    window.open(url, '_blank');
+  };
+
+  const handleDefaultEmail = () => {
     const encodedSubject = encodeURIComponent(emailSubject);
     const encodedBody = encodeURIComponent(shareText);
     const url = `mailto:${email || ''}?subject=${encodedSubject}&body=${encodedBody}`;
@@ -91,13 +106,18 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
     window.location.href = url;
   };
 
+  const handleTwitter = () => {
+    const shortText = `${docTitle} ${data.documentNumber} for ${data.recipientName} - ${formatCurrency(data.amount)} via ${data.businessName}`;
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shortText)}`;
+    window.open(url, '_blank');
+  };
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      // Fallback
       const ta = document.createElement('textarea');
       ta.value = shareText;
       document.body.appendChild(ta);
@@ -169,7 +189,7 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
           </div>
         </div>
 
-        {/* Editable recipient contact info */}
+        {/* Contact fields for recipient */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>WhatsApp / Phone</label>
@@ -209,13 +229,13 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
           </div>
         </div>
 
-        {/* Primary Sharing Channels */}
+        {/* Sharing Channels Grid */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
             Choose Medium
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
             {/* WhatsApp */}
             <button
               type="button"
@@ -224,14 +244,14 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '12px 14px',
+                padding: '11px 12px',
                 background: 'linear-gradient(135deg, rgba(37, 211, 102, 0.15), rgba(18, 140, 62, 0.15))',
                 border: '1px solid rgba(37, 211, 102, 0.4)',
                 borderRadius: 'var(--radius-md)',
                 color: '#25D366',
                 cursor: 'pointer',
                 fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12.5,
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={e => {
@@ -247,22 +267,84 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
               <span>WhatsApp</span>
             </button>
 
-            {/* Email */}
+            {/* Telegram */}
             <button
               type="button"
-              onClick={handleEmail}
+              onClick={handleTelegram}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '12px 14px',
+                padding: '11px 12px',
+                background: 'rgba(34, 158, 217, 0.12)',
+                border: '1px solid rgba(34, 158, 217, 0.4)',
+                borderRadius: 'var(--radius-md)',
+                color: '#229ED9',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 12.5,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(34, 158, 217, 0.22)';
+                (e.currentTarget as HTMLElement).style.borderColor = '#229ED9';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(34, 158, 217, 0.12)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(34, 158, 217, 0.4)';
+              }}
+            >
+              <TelegramIcon size={17} color="#229ED9" />
+              <span>Telegram</span>
+            </button>
+
+            {/* Gmail Web */}
+            <button
+              type="button"
+              onClick={handleGmailWeb}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '11px 12px',
+                background: 'rgba(234, 67, 53, 0.12)',
+                border: '1px solid rgba(234, 67, 53, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                color: '#EA4335',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 12.5,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(234, 67, 53, 0.22)';
+                (e.currentTarget as HTMLElement).style.borderColor = '#EA4335';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(234, 67, 53, 0.12)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(234, 67, 53, 0.35)';
+              }}
+            >
+              <Mail size={17} color="#EA4335" />
+              <span>Gmail Web</span>
+            </button>
+
+            {/* Email App */}
+            <button
+              type="button"
+              onClick={handleDefaultEmail}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '11px 12px',
                 background: 'rgba(59, 130, 246, 0.12)',
                 border: '1px solid rgba(59, 130, 246, 0.35)',
                 borderRadius: 'var(--radius-md)',
                 color: '#60a5fa',
                 cursor: 'pointer',
                 fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12.5,
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={e => {
@@ -274,39 +356,8 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
                 (e.currentTarget as HTMLElement).style.borderColor = 'rgba(59, 130, 246, 0.35)';
               }}
             >
-              <Mail size={18} />
-              <span>Email</span>
-            </button>
-
-            {/* Device / Apps Share */}
-            <button
-              type="button"
-              onClick={handleDeviceShare}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '12px 14px',
-                background: 'rgba(168, 85, 247, 0.12)',
-                border: '1px solid rgba(168, 85, 247, 0.35)',
-                borderRadius: 'var(--radius-md)',
-                color: '#c084fc',
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: 13,
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(168, 85, 247, 0.22)';
-                (e.currentTarget as HTMLElement).style.borderColor = '#a855f7';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(168, 85, 247, 0.12)';
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(168, 85, 247, 0.35)';
-              }}
-            >
-              <Share2 size={18} />
-              <span>More Apps</span>
+              <Mail size={17} color="#3b82f6" />
+              <span>Email App</span>
             </button>
 
             {/* SMS */}
@@ -317,14 +368,14 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '12px 14px',
+                padding: '11px 12px',
                 background: 'rgba(234, 179, 8, 0.12)',
                 border: '1px solid rgba(234, 179, 8, 0.35)',
                 borderRadius: 'var(--radius-md)',
                 color: '#facc15',
                 cursor: 'pointer',
                 fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12.5,
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={e => {
@@ -336,8 +387,68 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
                 (e.currentTarget as HTMLElement).style.borderColor = 'rgba(234, 179, 8, 0.35)';
               }}
             >
-              <MessageSquare size={18} />
-              <span>SMS</span>
+              <MessageSquare size={17} color="#facc15" />
+              <span>SMS / Text</span>
+            </button>
+
+            {/* X / Twitter */}
+            <button
+              type="button"
+              onClick={handleTwitter}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '11px 12px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 12.5,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.12)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.06)';
+              }}
+            >
+              <Globe size={17} />
+              <span>X (Twitter)</span>
+            </button>
+
+            {/* Device / Apps Share Sheet */}
+            <button
+              type="button"
+              onClick={handleDeviceShare}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '11px 12px',
+                background: 'rgba(168, 85, 247, 0.12)',
+                border: '1px solid rgba(168, 85, 247, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                color: '#c084fc',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 12.5,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(168, 85, 247, 0.22)';
+                (e.currentTarget as HTMLElement).style.borderColor = '#a855f7';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(168, 85, 247, 0.12)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(168, 85, 247, 0.35)';
+              }}
+            >
+              <Share2 size={17} color="#c084fc" />
+              <span>More Apps</span>
             </button>
           </div>
         </div>
@@ -389,7 +500,7 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
           />
         </div>
 
-        {/* Download Buttons Row */}
+        {/* Action Buttons Row */}
         <div
           style={{
             display: 'flex',
