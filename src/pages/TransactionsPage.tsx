@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Check, Brain, Download, Edit2, Receipt } from 'lucide-react';
+﻿import { useEffect, useState, useMemo, type FormEvent } from 'react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowDownLeft, Trash2, Check, Brain, Download, Edit2, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -208,7 +208,7 @@ export default function TransactionsPage() {
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Transactions</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Track all your income and expenses</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Track all your money in and money out</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="secondary" icon={<Download size={14} />} onClick={handleExportCSV}>Export CSV</Button>
@@ -220,8 +220,8 @@ export default function TransactionsPage() {
 
       <div className="mobile-grid-1 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Total Income', value: incomeTotal, color: 'var(--success)' },
-          { label: 'Total Expenses', value: expenseTotal, color: 'var(--error)' },
+          { label: 'Total Money In', value: incomeTotal, color: 'var(--success)' },
+          { label: 'Total Money Out', value: expenseTotal, color: 'var(--error)' },
           { label: 'Net Flow', value: incomeTotal - expenseTotal, color: incomeTotal - expenseTotal >= 0 ? 'var(--success)' : 'var(--error)' },
         ].map(s => (
           <Card key={s.label}>
@@ -262,7 +262,7 @@ export default function TransactionsPage() {
                   transition: 'all 0.15s ease', textTransform: 'capitalize',
                 }}
               >
-                {f}
+                {f === 'all' ? 'All' : f === 'income' ? 'Money In' : 'Money Out'}
               </button>
             ))}
           </div>
@@ -483,28 +483,31 @@ export default function TransactionsPage() {
               }}>
                 <Brain size={12} color="var(--accent-light)" />
                 <span style={{ color: 'var(--text-muted)' }}>Auto-detected:</span>
-                <strong style={{ color: 'var(--accent-light)', textTransform: 'capitalize' }}>{form.type}</strong>
+                <strong style={{ color: 'var(--accent-light)' }}>{form.type === 'income' ? 'Money In' : 'Money Out'}</strong>
                 <span style={{ color: 'var(--text-muted)' }}>·</span>
                 <span style={{ color: 'var(--text-secondary)' }}>{autoSuggestion}</span>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['income', 'expense'] as const).map(t => (
+                        {(['income', 'expense'] as const).map(t => (
               <button
                 key={t}
                 type="button"
                 onClick={() => { setForm(p => ({ ...p, type: t, category_id: '' })); setAutoSuggestion(''); }}
                 style={{
                   flex: 1, padding: '9px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
-                  border: '1px solid',
+                  border: '1px solid', cursor: 'pointer',
                   background: form.type === t ? (t === 'income' ? 'var(--success-dim)' : 'var(--error-dim)') : 'var(--bg-elevated)',
                   color: form.type === t ? (t === 'income' ? 'var(--success)' : 'var(--error)') : 'var(--text-muted)',
                   borderColor: form.type === t ? (t === 'income' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)') : 'var(--bg-border)',
-                  transition: 'all 0.15s', textTransform: 'capitalize',
+                  transition: 'all 0.15s',
                 }}
               >
-                {t === 'income' ? '↑ Income' : '↓ Expense'}
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  {t === 'income' ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
+                  <span>{t === 'income' ? 'Money In' : 'Money Out'}</span>
+                </span>
               </button>
             ))}
           </div>

@@ -260,7 +260,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
               ) : (
                 <>
                   <span style={{ color: 'var(--text-muted)' }}>AI detected:</span>
-                  <strong style={{ color: 'var(--accent-light)', textTransform: 'capitalize' }}>{form.type}</strong>
+                  <strong style={{ color: 'var(--accent-light)' }}>{form.type === 'income' ? 'Money In' : 'Money Out'}</strong>
                   <span style={{ color: 'var(--text-muted)' }}>·</span>
                   <span style={{ color: 'var(--text-secondary)' }}>{autoSuggestion}</span>
                   {aiResult && (
@@ -298,20 +298,23 @@ export default function QuickAddModal({ open, onClose }: Props) {
 
         <div style={{ display: 'flex', gap: 8 }}>
           {(['income', 'expense'] as const).map(t => (
-            <button
+                        <button
               key={t}
               type="button"
               onClick={() => { setForm(p => ({ ...p, type: t, category_id: '' })); setAutoSuggestion(''); }}
               style={{
                 flex: 1, padding: '9px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
-                border: '1px solid',
+                border: '1px solid', cursor: 'pointer',
                 background: form.type === t ? (t === 'income' ? 'var(--success-dim)' : 'var(--error-dim)') : 'var(--bg-elevated)',
                 color: form.type === t ? (t === 'income' ? 'var(--success)' : 'var(--error)') : 'var(--text-muted)',
                 borderColor: form.type === t ? (t === 'income' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)') : 'var(--bg-border)',
-                transition: 'all 0.15s', textTransform: 'capitalize',
+                transition: 'all 0.15s',
               }}
             >
-              {t === 'income' ? '↑ Income' : '↓ Expense'}
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {t === 'income' ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
+                <span>{t === 'income' ? 'Money In' : 'Money Out'}</span>
+              </span>
             </button>
           ))}
         </div>
