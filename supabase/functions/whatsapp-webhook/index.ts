@@ -340,16 +340,33 @@ serve(async (req) => {
             try {
               const formData = new FormData();
               formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
-              formData.append("model", "whisper-large-v3-turbo");
+              formData.append("model", "whisper-large-v3");
               formData.append("language", "en");
 
-              const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+              let groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
                 body: formData,
               });
-              const groqData = await groqRes.json();
-              extractedText = groqData.text || "";
+
+              // Fallback to whisper-large-v3-turbo if needed
+              if (!groqRes.ok) {
+                const retryFormData = new FormData();
+                retryFormData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
+                retryFormData.append("model", "whisper-large-v3-turbo");
+                retryFormData.append("language", "en");
+
+                groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+                  body: retryFormData,
+                });
+              }
+
+              if (groqRes.ok) {
+                const groqData = await groqRes.json();
+                extractedText = groqData.text || "";
+              }
             } catch (err) {
               console.error("Groq Whisper API call failed:", err);
             }

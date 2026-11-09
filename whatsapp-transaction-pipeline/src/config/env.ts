@@ -32,7 +32,7 @@ const envSchema = z.object({
   PADDLE_OCR_URL: z.string().url().optional(),
   WHISPER_SERVICE_URL: z.string().url().optional(),
   OCR_PROVIDER: z.enum(['paddle', 'ocr_space', 'tesseract', 'openai', 'auto']).default('auto'),
-  SPEECH_PROVIDER: z.enum(['whisper_local', 'whisper_service', 'openai_whisper', 'auto']).default('auto'),
+  SPEECH_PROVIDER: z.enum(['groq_whisper', 'whisper_local', 'whisper_service', 'openai_whisper', 'auto']).default('auto'),
   AI_PROVIDER: z.enum(['central_rova', 'deepseek', 'openai']).default('central_rova'),
 });
 

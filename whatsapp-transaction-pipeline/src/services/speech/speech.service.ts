@@ -1,4 +1,5 @@
 import { SpeechToTextProvider, SpeechTranscriptionResult } from '../../types/providers';
+import { GroqWhisperSpeechProvider } from './groq_whisper.provider';
 import { WhisperLocalSpeechProvider } from './whisper_local.provider';
 import { WhisperServiceSpeechProvider } from './whisper_service.provider';
 import { OpenAIWhisperSpeechProvider } from './openai_whisper.provider';
@@ -11,11 +12,13 @@ export class SpeechToTextService {
   private audioConverter = new AudioConverter();
 
   constructor() {
-    // Priority order (Free Speech STT first):
-    // 1. Whisper (Local CLI / python)
-    // 2. Whisper Service / HuggingFace Free Inference API
-    // 3. OpenAI Whisper API (optional paid fallback)
+    // Priority order:
+    // 1. Groq Whisper v3 Large (Ultra-fast cloud STT, high accuracy)
+    // 2. Whisper Local CLI
+    // 3. Whisper Service / HuggingFace Free Inference API
+    // 4. OpenAI Whisper API
     this.providers = [
+      new GroqWhisperSpeechProvider(),
       new WhisperLocalSpeechProvider(),
       new WhisperServiceSpeechProvider(),
       new OpenAIWhisperSpeechProvider(),
@@ -41,7 +44,17 @@ export class SpeechToTextService {
     const configuredProvider = env.SPEECH_PROVIDER;
 
     // Try configured provider if specified
-    if (configuredProvider === 'whisper_local') {
+    if (configuredProvider === 'groq_whisper') {
+      const groq = this.providers.find((p) => p instanceof GroqWhisperSpeechProvider);
+      if (groq && (await groq.isAvailable())) {
+        try {
+          const res = await groq.transcribe(targetAudio, 'audio/wav');
+          return { transcript: res.text, convertedPath: wavPath, confidence: res.confidence };
+        } catch (err: any) {
+          Logger.warn(`Groq Whisper Speech provider failed: ${err.message}. Trying fallback...`);
+        }
+      }
+    } else if (configuredProvider === 'whisper_local') {
       const local = this.providers.find((p) => p instanceof WhisperLocalSpeechProvider);
       if (local && (await local.isAvailable())) {
         try {
