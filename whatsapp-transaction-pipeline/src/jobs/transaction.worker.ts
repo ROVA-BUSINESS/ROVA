@@ -1,8 +1,5 @@
-import { Worker, Job } from 'bullmq';
-import { redis, isRedisAvailable, markRedisUnusable } from '../config/redis';
-import { env } from '../config/env';
-import { inMemoryQueue } from './in_memory.queue';
 import { TransactionJobData, MediaPayload, TextPayload, UnifiedInputPayload } from '../types';
+import { inMemoryQueue } from './in_memory.queue';
 import { AuthService } from '../auth/auth.service';
 import { MediaDownloader } from '../media/media.downloader';
 import { OCRService } from '../services/ocr/ocr.service';
@@ -13,7 +10,7 @@ import { IdempotencyService } from '../utils/idempotency';
 import { Logger } from '../utils/logger';
 
 /**
- * Core Worker orchestrating the multi-modal input processing pipeline.
+ * Core Transaction Worker — 100% In-Memory, no Redis or BullMQ.
  *
  * UNIFIED ROVA AI PIPELINE:
  * Text, Image/Document (OCR), and Voice (Speech-to-Text) inputs are processed into
@@ -29,50 +26,11 @@ export class TransactionWorker {
   private idempotencyService = new IdempotencyService();
 
   start(): void {
-    // Always wire in-memory queue processor as primary or fallback
     inMemoryQueue.setProcessor((data) => this.processJob(data));
-
-    if (env.QUEUE_DRIVER === 'memory' || !redis || !isRedisAvailable()) {
-      Logger.info('⚡ In-Memory Transaction Worker active — running without external Redis limits');
-      return;
-    }
-
-    try {
-      const worker = new Worker<TransactionJobData>(
-        'whatsapp-transactions',
-        async (job: Job<TransactionJobData>) => {
-          await this.processJob(job.data);
-        },
-        {
-          connection: redis,
-          concurrency: 5,
-        }
-      );
-
-      worker.on('completed', (job) => {
-        Logger.info(`Job ${job.id} completed for ${job.data.from}`);
-      });
-
-      worker.on('failed', (job, err) => {
-        Logger.error(`Job ${job?.id} failed for ${job?.data?.from}: ${err.message}`);
-      });
-
-      worker.on('error', (err) => {
-        const msg = err.message || '';
-        if (msg.includes('max requests limit exceeded')) {
-          markRedisUnusable('Upstash quota exceeded in BullMQ worker');
-          worker.close().catch(() => {});
-        }
-      });
-
-      Logger.info('Transaction Worker active (BullMQ) — unified OCR, Speech, and Central AI pipeline online');
-    } catch (err: any) {
-      Logger.warn(`BullMQ worker startup skipped: ${err.message}. Using In-Memory Worker.`);
-    }
+    Logger.info('⚡ In-Memory Transaction Worker active — unified OCR, Speech, and Central AI pipeline online (no Redis)');
   }
 
   public async processJob(data: TransactionJobData): Promise<void> {
-    const startTime = Date.now();
     const { from, messageId, type, payload } = data;
 
     // ── Idempotency Check ─────────────────────────────────────────────────
@@ -83,7 +41,7 @@ export class TransactionWorker {
 
     // ── Step 1: Authenticate sender against ROVA user database ─────────────
     let user = await this.authService.getUserByPhone(from);
-    
+
     // Direct WhatsApp Sign-Up flow check if user is not yet registered
     let rawText = type === 'text' ? ((payload as TextPayload).text || '') : '';
     const registerMatch = rawText.match(/^(?:register|signup|sign up):\s*(.+)/i);
@@ -122,7 +80,7 @@ export class TransactionWorker {
         try {
           downloadedFilePath = await this.mediaDownloader.download(mediaPayload.mediaId, mediaPayload.mimeType);
           const speechResult = await this.speechToTextService.processAudio(downloadedFilePath, mediaPayload.mimeType);
-          
+
           extractedText = speechResult.transcript;
           convertedFilePath = speechResult.convertedPath;
 
@@ -147,7 +105,7 @@ export class TransactionWorker {
         try {
           downloadedFilePath = await this.mediaDownloader.download(mediaPayload.mediaId, mediaPayload.mimeType);
           const ocrResult = await this.ocrService.processImage(downloadedFilePath, mediaPayload.mimeType);
-          
+
           extractedText = ocrResult.text;
           if (mediaPayload.caption) {
             extractedText = `${mediaPayload.caption}\n\n${extractedText}`;
@@ -185,7 +143,7 @@ export class TransactionWorker {
         return;
       }
 
-      // Check if user is asking to perform tax actions via WhatsApp (Item 25 from docx)
+      // Check if user is asking to perform tax actions via WhatsApp
       if (/\b(tax|vat|cit|file tax|taxes|tax return|tax action)\b/i.test(extractedText)) {
         await this.whatsappService.sendTextMessage(
           from,
@@ -227,7 +185,6 @@ export class TransactionWorker {
 
     } finally {
       // ── Cleanup: Security & Privacy Compliance ─────────────────────────
-      // Automatically delete temporary downloaded and converted media files
       if (downloadedFilePath) {
         this.mediaDownloader.deleteFile(downloadedFilePath);
       }
