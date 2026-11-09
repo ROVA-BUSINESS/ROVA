@@ -1,5 +1,7 @@
 import { Worker, Job } from 'bullmq';
-import { redis } from '../config/redis';
+import { redis, isRedisAvailable, markRedisUnusable } from '../config/redis';
+import { env } from '../config/env';
+import { inMemoryQueue } from './in_memory.queue';
 import { TransactionJobData, MediaPayload, TextPayload, UnifiedInputPayload } from '../types';
 import { AuthService } from '../auth/auth.service';
 import { MediaDownloader } from '../media/media.downloader';
@@ -11,7 +13,7 @@ import { IdempotencyService } from '../utils/idempotency';
 import { Logger } from '../utils/logger';
 
 /**
- * Core BullMQ Worker orchestrating the multi-modal input processing pipeline.
+ * Core Worker orchestrating the multi-modal input processing pipeline.
  *
  * UNIFIED ROVA AI PIPELINE:
  * Text, Image/Document (OCR), and Voice (Speech-to-Text) inputs are processed into
@@ -27,29 +29,49 @@ export class TransactionWorker {
   private idempotencyService = new IdempotencyService();
 
   start(): void {
-    const worker = new Worker<TransactionJobData>(
-      'whatsapp-transactions',
-      async (job: Job<TransactionJobData>) => {
-        await this.processJob(job.data);
-      },
-      {
-        connection: redis,
-        concurrency: 5,
-      }
-    );
+    // Always wire in-memory queue processor as primary or fallback
+    inMemoryQueue.setProcessor((data) => this.processJob(data));
 
-    worker.on('completed', (job) => {
-      Logger.info(`Job ${job.id} completed for ${job.data.from}`);
-    });
+    if (env.QUEUE_DRIVER === 'memory' || !redis || !isRedisAvailable()) {
+      Logger.info('⚡ In-Memory Transaction Worker active — running without external Redis limits');
+      return;
+    }
 
-    worker.on('failed', (job, err) => {
-      Logger.error(`Job ${job?.id} failed for ${job?.data?.from}: ${err.message}`);
-    });
+    try {
+      const worker = new Worker<TransactionJobData>(
+        'whatsapp-transactions',
+        async (job: Job<TransactionJobData>) => {
+          await this.processJob(job.data);
+        },
+        {
+          connection: redis,
+          concurrency: 5,
+        }
+      );
 
-    Logger.info('Transaction Worker active — unified OCR, Speech, and Central AI pipeline online');
+      worker.on('completed', (job) => {
+        Logger.info(`Job ${job.id} completed for ${job.data.from}`);
+      });
+
+      worker.on('failed', (job, err) => {
+        Logger.error(`Job ${job?.id} failed for ${job?.data?.from}: ${err.message}`);
+      });
+
+      worker.on('error', (err) => {
+        const msg = err.message || '';
+        if (msg.includes('max requests limit exceeded')) {
+          markRedisUnusable('Upstash quota exceeded in BullMQ worker');
+          worker.close().catch(() => {});
+        }
+      });
+
+      Logger.info('Transaction Worker active (BullMQ) — unified OCR, Speech, and Central AI pipeline online');
+    } catch (err: any) {
+      Logger.warn(`BullMQ worker startup skipped: ${err.message}. Using In-Memory Worker.`);
+    }
   }
 
-  private async processJob(data: TransactionJobData): Promise<void> {
+  public async processJob(data: TransactionJobData): Promise<void> {
     const startTime = Date.now();
     const { from, messageId, type, payload } = data;
 

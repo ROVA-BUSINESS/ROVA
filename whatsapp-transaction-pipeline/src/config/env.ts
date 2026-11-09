@@ -21,8 +21,9 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string(),
   
-  // Redis / BullMQ Config
-  REDIS_URL: z.string().url(),
+  // Redis / Queue Config
+  REDIS_URL: z.string().url().optional(),
+  QUEUE_DRIVER: z.enum(['redis', 'memory', 'auto']).default('auto'),
 
   // AI & Processing Config
   DEEPSEEK_API_KEY: z.string().optional(),
