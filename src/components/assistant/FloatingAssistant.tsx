@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+﻿import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Brain, X, Minus, Send, Mic, MicOff, Maximize2,
@@ -104,6 +104,172 @@ export default function FloatingAssistant() {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [speechError, setSpeechError] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
+
+  // Movable Bubble Position State
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const saved = localStorage.getItem('rova_assistant_bubble_pos');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0,
+  });
+  const hasMovedRef = useRef(false);
+  const bubbleContainerRef = useRef<HTMLDivElement>(null);
+
+  // Keep bubble in bounds on resize
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition(prev => {
+        if (!prev) return null;
+        const size = isMobile ? 48 : 52;
+        const clampedX = Math.max(12, Math.min(window.innerWidth - size - 12, prev.x));
+        const clampedY = Math.max(12, Math.min(window.innerHeight - size - 12, prev.y));
+        return { x: clampedX, y: clampedY };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobile]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    const el = bubbleContainerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: rect.left,
+      initY: rect.top,
+    };
+    isDraggingRef.current = true;
+    hasMovedRef.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    const dx = e.clientX - dragStartRef.current.startX;
+    const dy = e.clientY - dragStartRef.current.startY;
+
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      if (!hasMovedRef.current) {
+        hasMovedRef.current = true;
+        setIsDragging(true);
+      }
+    }
+
+    if (hasMovedRef.current) {
+      const size = isMobile ? 48 : 52;
+      const newX = Math.max(12, Math.min(window.innerWidth - size - 12, dragStartRef.current.initX + dx));
+      const newY = Math.max(12, Math.min(window.innerHeight - size - 12, dragStartRef.current.initY + dy));
+      setPosition({ x: newX, y: newY });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    } catch {}
+
+    if (hasMovedRef.current) {
+      setPosition(cur => {
+        if (cur) {
+          localStorage.setItem('rova_assistant_bubble_pos', JSON.stringify(cur));
+        }
+        return cur;
+      });
+    }
+  };
+
+  const panelStyle = useMemo((): React.CSSProperties => {
+    if (isMobile) {
+      return {
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: isFloatingMinimized ? 60 : '86vh',
+        background: 'var(--bg-surface)',
+        borderTop: '1px solid var(--accent-border)',
+        borderRadius: '20px 20px 0 0',
+        boxShadow: '0 -10px 40px rgba(0,0,0,0.6)',
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        transition: 'height 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+      };
+    }
+
+    const baseDesktop: React.CSSProperties = {
+      position: 'fixed',
+      width: 390,
+      height: isFloatingMinimized ? 52 : 580,
+      maxHeight: 'calc(100vh - 120px)',
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--accent-border)',
+      borderRadius: 'var(--radius-xl)',
+      boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 30px var(--accent-dim)',
+      zIndex: 1000,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      transition: isDragging ? 'none' : 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+      backdropFilter: 'blur(12px)',
+    };
+
+    if (!position) {
+      return {
+        ...baseDesktop,
+        right: 24,
+        bottom: 88,
+      };
+    }
+
+    const panelWidth = 390;
+    let left: number | undefined;
+    let right: number | undefined;
+    if (position.x + panelWidth + 20 <= window.innerWidth) {
+      left = Math.max(16, position.x - (panelWidth - 60));
+      if (left + panelWidth > window.innerWidth - 16) {
+        left = window.innerWidth - panelWidth - 16;
+      }
+      if (left < 16) left = 16;
+    } else {
+      right = Math.max(16, window.innerWidth - position.x - 52);
+    }
+
+    let top: number | undefined;
+    let bottom: number | undefined;
+    if (position.y > window.innerHeight / 2) {
+      bottom = Math.max(16, window.innerHeight - position.y + 12);
+    } else {
+      top = Math.max(16, position.y + 60);
+    }
+
+    return {
+      ...baseDesktop,
+      left,
+      right,
+      top,
+      bottom,
+    };
+  }, [isMobile, isFloatingMinimized, position, isDragging]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -213,46 +379,7 @@ export default function FloatingAssistant() {
       {/* ── Floating Chat Panel ────────────────────────────────────────── */}
       {isFloatingOpen && (
         <div
-          role="dialog"
-          aria-label="ROVA AI Assistant"
-          style={
-            isMobile
-              ? {
-                  position: 'fixed',
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: isFloatingMinimized ? 60 : '86vh',
-                  background: 'var(--bg-surface)',
-                  borderTop: '1px solid var(--accent-border)',
-                  borderRadius: '20px 20px 0 0',
-                  boxShadow: '0 -10px 40px rgba(0,0,0,0.6)',
-                  zIndex: 1000,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  transition: 'height 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                }
-              : {
-                  position: 'fixed',
-                  right: 24,
-                  bottom: isFloatingMinimized ? 88 : 88,
-                  width: 390,
-                  height: isFloatingMinimized ? 52 : 580,
-                  maxHeight: 'calc(100vh - 120px)',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--accent-border)',
-                  borderRadius: 'var(--radius-xl)',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 30px var(--accent-dim)',
-                  zIndex: 1000,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                  backdropFilter: 'blur(12px)',
-                }
-          }
-        >
+          role="dialog" aria-label="ROVA AI Assistant" style={panelStyle}>
           {/* Header */}
           <div
             style={{
@@ -725,16 +852,27 @@ export default function FloatingAssistant() {
         </div>
       )}
 
-      {/* ── Floating Bubble Button (Fixed Bottom-Right) ───────────────── */}
+            {/* ── Floating Bubble Button (Movable) ───────────────── */}
       <div
+        ref={bubbleContainerRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         style={{
           position: 'fixed',
-          right: isMobile ? 18 : 24,
-          bottom: isMobile ? 'calc(78px + env(safe-area-inset-bottom, 0px))' : 36,
-          zIndex: 999,
+          ...(position
+            ? { left: position.x, top: position.y }
+            : {
+                right: isMobile ? 18 : 24,
+                bottom: isMobile ? 'calc(78px + env(safe-area-inset-bottom, 0px))' : 36,
+              }),
+          zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
           gap: 8,
+          touchAction: 'none',
+          userSelect: 'none',
         }}
       >
         {/* Hover Tooltip: "Ask ROVA" */}
@@ -750,19 +888,24 @@ export default function FloatingAssistant() {
             border: '1px solid var(--accent-border)',
             boxShadow: 'var(--shadow-md)',
             pointerEvents: 'none',
-            opacity: showTooltip && !isFloatingOpen ? 1 : 0,
-            transform: showTooltip && !isFloatingOpen ? 'translateX(0)' : 'translateX(6px)',
+            opacity: showTooltip && !isFloatingOpen && !isDragging ? 1 : 0,
+            transform: showTooltip && !isFloatingOpen && !isDragging ? 'translateX(0)' : 'translateX(6px)',
             transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
             whiteSpace: 'nowrap',
+            order: position && position.x < 120 ? 2 : 0,
           }}
         >
-          Ask ROVA
+          {isDragging ? 'Moving…' : 'Ask ROVA'}
         </div>
 
         {/* Circular Bubble */}
         <button
           type="button"
-          onClick={() => {
+          onClick={e => {
+            if (hasMovedRef.current) {
+              e.stopPropagation();
+              return;
+            }
             if (isFloatingOpen && isFloatingMinimized) {
               setIsFloatingMinimized(false);
             } else {
@@ -775,6 +918,7 @@ export default function FloatingAssistant() {
           onFocus={() => setShowTooltip(true)}
           onBlur={() => setShowTooltip(false)}
           aria-label="Ask ROVA AI Assistant"
+          title="Drag to move · Click to open"
           style={{
             width: isMobile ? 48 : 52,
             height: isMobile ? 48 : 52,
@@ -784,13 +928,13 @@ export default function FloatingAssistant() {
             boxShadow: isFloatingOpen
               ? '0 0 0 4px var(--accent-border), 0 8px 30px rgba(102, 45, 145, 0.5)'
               : '0 8px 24px rgba(102, 45, 145, 0.38), 0 2px 8px rgba(0, 0, 0, 0.4)',
-            cursor: 'pointer',
+            cursor: isDragging ? 'grabbing' : 'grab',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-            transform: showTooltip ? 'scale(1.08)' : 'scale(1)',
+            transition: isDragging ? 'none' : 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            transform: showTooltip && !isDragging ? 'scale(1.08)' : 'scale(1)',
           }}
         >
           {/* Subtle glowing ring effect */}
