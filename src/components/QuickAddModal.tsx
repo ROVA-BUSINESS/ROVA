@@ -138,70 +138,88 @@ export default function QuickAddModal({ open, onClose }: Props) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
-      setError('Please enter a valid amount.');
+    const currentUserId = effectiveUserId || user?.id;
+    if (!currentUserId) {
+      setError('User session not found. Please log in again.');
       return;
     }
+
+    const amt = Number(form.amount);
+    if (!form.amount || isNaN(amt) || amt <= 0) {
+      setError('Please enter a valid amount greater than 0.');
+      return;
+    }
+
     setSaving(true);
     setError('');
     const actorText = isStaff ? 'Staff' : 'Admin';
-    const { data: txData, error: err } = await supabase.from('transactions').insert({
-      user_id: effectiveUserId,
-      description: form.description,
-      amount: Number(form.amount),
-      type: form.type,
-      date: form.date,
-      category_id: form.category_id || null,
-      account_id: form.account_id || null,
-      notes: [
-        `[Method: ${paymentMethod.toUpperCase()}]`,
-        isLoan ? `[Loan: ${loanDirection === 'received' ? 'Borrowed' : 'Lent'} | Due: ${loanReminderDate || 'Unspecified'} | Party: ${loanCounterparty || 'N/A'}]` : '',
-        `Performed by: ${actorText}`
-      ].filter(Boolean).join(' | '),
-    }).select().single();
 
-    if (err) {
-      setSaving(false);
-      setError('Failed to save. Please try again.');
-      return;
-    }
+    try {
+      const { data: txData, error: err } = await supabase.from('transactions').insert({
+        user_id: currentUserId,
+        description: form.description.trim() || (form.type === 'income' ? 'Quick Income' : 'Quick Expense'),
+        amount: amt,
+        type: form.type,
+        date: form.date || new Date().toISOString().split('T')[0],
+        category_id: form.category_id || null,
+        account_id: form.account_id || null,
+        notes: [
+          `[Method: ${paymentMethod.toUpperCase()}]`,
+          isLoan ? `[Loan: ${loanDirection === 'received' ? 'Borrowed' : 'Lent'} | Due: ${loanReminderDate || 'Unspecified'} | Party: ${loanCounterparty || 'N/A'}]` : '',
+          `Performed by: ${actorText}`
+        ].filter(Boolean).join(' | '),
+      }).select('id');
 
-    // Apply intents if confirmed
-    if (intentConfirmed && aiResult && txData) {
-      try {
-        if (aiResult.intent === 'inventory_purchase') {
-          const qty = aiResult.quantity || 1;
-          const itemName = aiResult.inventory_item || 'Inventory Item';
-          const unitCost = aiResult.unit_price || (Number(form.amount) / qty);
+      if (err) {
+        console.error('Error inserting transaction:', err);
+        setSaving(false);
+        setError(err.message || 'Failed to save transaction. Please try again.');
+        return;
+      }
 
-          await applyInventoryIntent({
-            userId: effectiveUserId!,
-            itemName,
-            quantity: qty,
-            unitCost,
-            transactionId: txData.id,
-            date: form.date,
-          });
-        } else if (aiResult.intent === 'salary_payment') {
-          const employeeName = aiResult.employee_name || '';
-          if (employeeName) {
-            await applyPayrollIntent({
-              userId: effectiveUserId!,
-              employeeName,
-              amount: Number(form.amount),
-              transactionId: txData.id,
+      const insertedRecord = txData?.[0];
+
+      // Apply intents if confirmed
+      if (intentConfirmed && aiResult && insertedRecord) {
+        try {
+          if (aiResult.intent === 'inventory_purchase') {
+            const qty = aiResult.quantity || 1;
+            const itemName = aiResult.inventory_item || 'Inventory Item';
+            const unitCost = aiResult.unit_price || (amt / qty);
+
+            await applyInventoryIntent({
+              userId: currentUserId,
+              itemName,
+              quantity: qty,
+              unitCost,
+              transactionId: insertedRecord.id,
               date: form.date,
             });
+          } else if (aiResult.intent === 'salary_payment') {
+            const employeeName = aiResult.employee_name || '';
+            if (employeeName) {
+              await applyPayrollIntent({
+                userId: currentUserId,
+                employeeName,
+                amount: amt,
+                transactionId: insertedRecord.id,
+                date: form.date,
+              });
+            }
           }
+        } catch (intentErr) {
+          console.error('Failed to apply intent:', intentErr);
         }
-      } catch (intentErr) {
-        console.error('Failed to apply intent:', intentErr);
       }
-    }
 
-    setSaving(false);
-    setSuccess(true);
-    setTimeout(() => { onClose(); }, 900);
+      setSaving(false);
+      setSuccess(true);
+      setTimeout(() => { onClose(); }, 900);
+    } catch (unexpectedErr: any) {
+      console.error('Unexpected error saving transaction:', unexpectedErr);
+      setSaving(false);
+      setError(unexpectedErr.message || 'An unexpected error occurred.');
+    }
   }
 
   const filteredCats = categories.filter(c => c.type === form.type || c.type === 'both');
@@ -456,9 +474,11 @@ export default function QuickAddModal({ open, onClose }: Props) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8, paddingBottom: 12 }}>
           <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={saving} type="submit">Save Transaction</Button>
+          <Button variant="primary" loading={saving} type="submit" style={{ minWidth: 150, fontWeight: 600 }}>
+            {saving ? 'Saving...' : 'Save Transaction'}
+          </Button>
         </div>
       </form>
     </Modal>
