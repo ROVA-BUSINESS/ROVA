@@ -968,22 +968,6 @@ export default function AssistantPage() {
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: isMobile ? 180 : 350 }}>
                 {conversations.find((c) => c.id === currentConversationId)?.title || 'ROVA AI Assistant'}
               </span>
-              {!isMobile && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: '2px 7px',
-                    borderRadius: 10,
-                    background: 'rgba(99, 102, 241, 0.15)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                    color: 'var(--accent-light)',
-                    fontWeight: 600,
-                    flexShrink: 0,
-                  }}
-                >
-                  ERP Intelligence
-                </span>
-              )}
             </div>
           </div>
 
