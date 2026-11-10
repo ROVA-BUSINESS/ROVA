@@ -46,6 +46,8 @@ import {
   saveIntakeSession,
   saveOpeningBalancesList,
   saveWhtCreditNotesList,
+  type AiConversionReport,
+  type DocumentIdentificationSummary,
   type RawEvidenceRow,
 } from '../../lib/taxIntakeService';
 import { mapExtractedFsJsonToCitState, mapFinancialStatementsToCitState } from '../../lib/fsToCitMapper';
@@ -115,7 +117,13 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
 
   // Branch B state
   const [rawEvidence, setRawEvidence] = useState<RawEvidenceRow[]>([]);
+  const [documentSummaries, setDocumentSummaries] = useState<DocumentIdentificationSummary[]>([]);
   const [intakeEntries, setIntakeEntries] = useState<IntakeAccountingEntry[]>([]);
+  const [aiReport, setAiReport] = useState<Omit<AiConversionReport, 'entries'> | null>(null);
+  const [customInstructions, setCustomInstructions] = useState('');
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
+  const [confirmedForGeneration, setConfirmedForGeneration] = useState(false);
+  const [branchAConfirmed, setBranchAConfirmed] = useState(false);
   const [parsingFiles, setParsingFiles] = useState(false);
   const [convertingAi, setConvertingAi] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -223,8 +231,9 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
     setFsUploading(true);
     setBranchAError('');
     setBranchAFileName(file.name);
+    setBranchAConfirmed(false);
     try {
-      const extracted = await parseUploadedFinancialStatement(file, fiscalYear);
+      const extracted = await parseUploadedFinancialStatement(file, fiscalYear, customInstructions);
       setBranchAExtracted(extracted);
     } catch (err: any) {
       setBranchAError(err?.message || 'Could not parse uploaded financial statement. You can still load from Rova books or enter manually.');
@@ -234,7 +243,7 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
   }
 
   function handleProceedBranchAFromUpload() {
-    if (!fsProfile || !branchAExtracted) return;
+    if (!fsProfile || !branchAExtracted || !branchAConfirmed) return;
     const hydrated = mapExtractedFsJsonToCitState(branchAExtracted, fsProfile);
     onCompleteToWizard(hydrated, fsModel || undefined);
   }
@@ -249,15 +258,19 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
   async function handleBankStatementFiles(files: FileList | null) {
     if (!files || files.length === 0 || !user) return;
     setParsingFiles(true);
-    setStatusMessage('Reading bank statement(s)...');
+    setStatusMessage('Stage 1–3: Identifying and verifying bank statement(s)...');
     try {
       const collected: RawEvidenceRow[] = [];
+      const docInfos: DocumentIdentificationSummary[] = [];
       for (const file of Array.from(files)) {
-        const rows = await parseBankStatementEvidence(file, user.id);
+        const { rows, documentInfo } = await parseBankStatementEvidence(file, user.id);
         collected.push(...rows);
+        docInfos.push(documentInfo);
       }
       setRawEvidence((prev) => [...prev, ...collected]);
-      setStatusMessage(`Extracted ${collected.length} transaction row(s) from bank statement(s).`);
+      setDocumentSummaries((prev) => [...prev, ...docInfos]);
+      setConfirmedForGeneration(false);
+      setStatusMessage(`Stage 1–3 complete: Extracted ${collected.length} transaction row(s) from ${docInfos.length} bank statement(s).`);
     } catch (err: any) {
       setStatusMessage(`Bank statement parse notice: ${err?.message || 'Please check file format'}`);
     } finally {
@@ -268,14 +281,30 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
   async function handleReceiptFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setParsingFiles(true);
-    setStatusMessage('Running OCR on receipt / invoice image(s)...');
+    setStatusMessage('Stage 1–2: Running OCR on receipt / invoice image(s)...');
     try {
       const collected: RawEvidenceRow[] = [];
+      const docInfos: DocumentIdentificationSummary[] = [];
       for (const file of Array.from(files)) {
         const row = await parseReceiptEvidence(file);
         collected.push(row);
+        docInfos.push({
+          fileName: file.name,
+          documentType: 'Receipt / Invoice',
+          reportingPeriod: row.date,
+          rowCount: 1,
+          openingBalance: null,
+          closingBalance: null,
+          totalCredits: row.direction === 'income' ? row.amount : 0,
+          totalDebits: row.direction === 'expense' ? row.amount : 0,
+          reconciles: null,
+          discrepancyAmount: 0,
+          warnings: row.amount <= 0 ? ['Could not read total amount cleanly — please verify or clarify.'] : [],
+        });
       }
       setRawEvidence((prev) => [...prev, ...collected]);
+      setDocumentSummaries((prev) => [...prev, ...docInfos]);
+      setConfirmedForGeneration(false);
       setStatusMessage(`Extracted ${collected.length} receipt / invoice record(s).`);
     } catch (err: any) {
       setStatusMessage(`OCR notice: ${err?.message || 'Some images could not be read cleanly'}`);
@@ -284,16 +313,25 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
     }
   }
 
-  async function handleConvertToEntries() {
+  async function handleConvertToEntries(overrideAnswers?: Record<string, string>) {
     if (!fsProfile || !user) return;
     setConvertingAi(true);
-    setStatusMessage('DeepSeek AI is converting your records into double-entry accounting entries...');
+    setConfirmedForGeneration(false);
+    setStatusMessage('Stages 4–9: DeepSeek AI is auditing and converting your records into double-entry accounting entries...');
     try {
-      const { entries, usedFallback } = await convertEvidenceToAccountingEntries(
+      const report = await convertEvidenceToAccountingEntries(
         rawEvidence,
         `${fsProfile.company_legal_name} (${fsProfile.nature_of_business || fsProfile.sector})`,
-        '1020'
+        '1020',
+        {
+          customInstructions,
+          clarificationAnswers: overrideAnswers ?? clarificationAnswers,
+          documentSummaries,
+        }
       );
+
+      const { entries, usedFallback, ...auditMeta } = report;
+      setAiReport({ ...auditMeta, usedFallback });
 
       // Include Rova live transactions mapped to COA if enabled and not already converted
       const rovaMapped = includeRovaBooks
@@ -438,6 +476,32 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
     const a = document.createElement('a');
     a.href = url;
     a.download = `ROVA_Financial_Statements_${fiscalYear}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleDownloadDeepSeekJson() {
+    if (!fsModel) return;
+    const payload = {
+      fiscalYear,
+      profile: fsModel.profile,
+      documentIdentification: documentSummaries,
+      classifiedEntries: intakeEntries,
+      financialStatements: {
+        incomeStatement: fsModel.incomeStatement,
+        balanceSheet: fsModel.balanceSheet,
+        changesInEquity: fsModel.changesInEquity,
+        cashFlowIndirect: fsModel.cashFlowIndirect,
+      },
+      taxComputation: fsModel.taxComputation,
+      auditChecks: fsModel.auditChecks,
+      aiQualityControl: aiReport,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ROVA_DeepSeek_FS_${fiscalYear}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -690,14 +754,14 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
       {/* ── BRANCH A: HAS FINANCIAL STATEMENTS ────────────────────────────────── */}
       {step === 'branch_a' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18 }}>
-          {/* Card 1: Upload FS */}
+          {/* Card 1: Upload FS or DeepSeek JSON */}
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Upload size={20} color="var(--accent-light)" />
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Upload Prepared Financial Statement</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Upload Financial Statement or JSON</h3>
             </div>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              Upload Excel (`.xlsx`), CSV, PDF, or Image of your P&amp;L and Balance Sheet. DeepSeek AI extracts the figures directly into the NRS CIT Wizard.
+              Upload Excel (`.xlsx`), CSV, PDF, Image, or a **DeepSeek JSON** file. Rova extracts &amp; verifies the figures before filling the CIT template.
             </p>
             <label
               style={{
@@ -711,38 +775,49 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
             >
               <input
                 type="file"
-                accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg"
+                accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.json"
                 style={{ display: 'none' }}
                 onChange={(e) => e.target.files?.[0] && handleUploadFsFile(e.target.files[0])}
               />
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                {fsUploading ? 'Extracting Financial Statements via DeepSeek...' : branchAFileName || 'Click to choose Financial Statement file'}
+                {fsUploading ? 'Extracting Financial Statements via DeepSeek...' : branchAFileName || 'Click to choose Financial Statement or JSON'}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>XLSX, CSV, PDF, PNG, JPG</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>XLSX, CSV, PDF, PNG, JPG, JSON</div>
             </label>
             {branchAError && <div style={{ fontSize: 12, color: 'var(--error)' }}>{branchAError}</div>}
             {branchAExtracted && (
-              <div style={{ padding: 12, background: 'var(--success-dim)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
-                <strong>Extracted:</strong> Revenue ₦{Number(branchAExtracted.revenue || 0).toLocaleString()} · PPE ₦{Number(branchAExtracted.balanceSheet?.ppe || 0).toLocaleString()}
+              <div style={{ padding: 12, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <strong style={{ color: 'var(--accent-light)' }}>Pre-Generation Summary</strong>
+                <div>Revenue: <strong>₦{Number(branchAExtracted.revenue || 0).toLocaleString()}</strong> · PPE: <strong>₦{Number(branchAExtracted.balanceSheet?.ppe || 0).toLocaleString()}</strong></div>
+                <div>Net Assets/Equity: <strong>₦{(Number(branchAExtracted.balanceSheet?.shareCapital || 0) + Number(branchAExtracted.balanceSheet?.retainedEarnings || 0)).toLocaleString()}</strong></div>
+                {Array.isArray(branchAExtracted.questionsForUser) && branchAExtracted.questionsForUser.length > 0 && (
+                  <div style={{ color: 'var(--warning)' }}>
+                    <strong>AI Questions:</strong> {branchAExtracted.questionsForUser.join(' · ')}
+                  </div>
+                )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, cursor: 'pointer', fontWeight: 600 }}>
+                  <input type="checkbox" checked={branchAConfirmed} onChange={(e) => setBranchAConfirmed(e.target.checked)} />
+                  I confirm this summary is accurate to fill the CIT Wizard
+                </label>
               </div>
             )}
             <button
               type="button"
-              disabled={!branchAExtracted || fsUploading}
+              disabled={!branchAExtracted || fsUploading || !branchAConfirmed}
               onClick={handleProceedBranchAFromUpload}
               style={{
                 marginTop: 'auto',
                 padding: '10px 18px',
-                background: branchAExtracted ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))' : 'var(--bg-border)',
+                background: branchAExtracted && branchAConfirmed ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))' : 'var(--bg-border)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
                 fontWeight: 700,
                 fontSize: 13,
-                cursor: branchAExtracted ? 'pointer' : 'not-allowed',
+                cursor: branchAExtracted && branchAConfirmed ? 'pointer' : 'not-allowed',
               }}
             >
-              Auto-Fill CIT Wizard from Upload →
+              Confirm &amp; Auto-Fill CIT Wizard →
             </button>
           </div>
 
@@ -753,7 +828,7 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Use ROVA Live Financial Statements</h3>
             </div>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              Found <strong>{periodTransactions.length}</strong> bookkeeping transaction(s) in {fiscalYear}. Generate the ROVA Financial Statements &amp; transfer straight to the CIT Wizard.
+              Found <strong>{periodTransactions.length}</strong> bookkeeping transaction(s) in {fiscalYear}. Review the summary below before generating files or entering the CIT Wizard.
             </p>
             {fsModel && (
               <div style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -761,32 +836,38 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Profit Before Tax:</span><strong>₦{fsModel.incomeStatement.profitBeforeTax.toLocaleString()}</strong></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Total Assets:</span><strong>₦{fsModel.balanceSheet.totalAssets.toLocaleString()}</strong></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Audit Integrity:</span><strong>{passCount}/11 PASS</strong></div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, cursor: 'pointer', fontWeight: 600 }}>
+                  <input type="checkbox" checked={confirmedForGeneration} onChange={(e) => setConfirmedForGeneration(e.target.checked)} />
+                  I confirm this summary to generate documents
+                </label>
               </div>
             )}
             <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
               <button
                 type="button"
+                disabled={!confirmedForGeneration}
                 onClick={handleDownloadFinancialWorkbook}
-                style={{ padding: '10px 14px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                style={{ padding: '10px 14px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 600, cursor: confirmedForGeneration ? 'pointer' : 'not-allowed', opacity: confirmedForGeneration ? 1 : 0.5 }}
               >
                 Download FS (.xlsx)
               </button>
               <button
                 type="button"
+                disabled={!confirmedForGeneration}
                 onClick={handleProceedFromModel}
                 style={{
                   flex: 1,
                   padding: '10px 18px',
-                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
+                  background: confirmedForGeneration ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))' : 'var(--bg-border)',
                   color: '#fff',
                   border: 'none',
                   borderRadius: 'var(--radius-md)',
                   fontWeight: 700,
                   fontSize: 13,
-                  cursor: 'pointer',
+                  cursor: confirmedForGeneration ? 'pointer' : 'not-allowed',
                 }}
               >
-                Auto-Fill CIT Wizard →
+                Confirm &amp; Auto-Fill CIT Wizard →
               </button>
             </div>
           </div>
@@ -925,9 +1006,51 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
             </div>
           )}
 
+          {/* Special Filing Instructions for DeepSeek AI (Optional) */}
+          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', padding: 16 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--text-primary)' }}>
+              Special Filing Instructions for ROVA AI (Optional)
+            </label>
+            <textarea
+              rows={2}
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              placeholder='e.g. "All transfers to ABC Logistics are Freight/COGS (5030). Personal transfers from John should go to Director Loan (2520)."'
+              style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--bg-border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12, resize: 'vertical', boxSizing: 'border-box' }}
+            />
+          </div>
+
           {statusMessage && (
             <div style={{ padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', fontSize: 13 }}>
               {statusMessage}
+            </div>
+          )}
+
+          {/* Stage 1-3 Document Identification & Reconciliation */}
+          {documentSummaries.length > 0 && (
+            <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
+                Stage 1–3 Document Identification &amp; Reconciliation ({documentSummaries.length} document(s))
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {documentSummaries.map((doc, idx) => (
+                  <div key={`${doc.fileName}_${idx}`} style={{ padding: '8px 12px', background: 'var(--bg-base)', borderRadius: 6, fontSize: 12, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <strong>{doc.fileName}</strong> · {doc.documentType} ({doc.rowCount} row(s){doc.reportingPeriod ? `, ${doc.reportingPeriod}` : ''})
+                      {doc.warnings.length > 0 && <div style={{ color: 'var(--warning)', fontSize: 11 }}>{doc.warnings.join(' · ')}</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <span style={{ color: 'var(--success)' }}>Credits: ₦{doc.totalCredits.toLocaleString()}</span>
+                      <span style={{ color: 'var(--error)' }}>Debits: ₦{doc.totalDebits.toLocaleString()}</span>
+                      {doc.reconciles !== null && (
+                        <span style={{ fontWeight: 700, color: doc.reconciles ? 'var(--success)' : 'var(--warning)' }}>
+                          {doc.reconciles ? 'Reconciled' : `Diff: ₦${doc.discrepancyAmount.toLocaleString()}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -964,7 +1087,7 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
             <button
               type="button"
               disabled={parsingFiles || convertingAi || (rawEvidence.length === 0 && periodTransactions.length === 0)}
-              onClick={handleConvertToEntries}
+              onClick={() => handleConvertToEntries()}
               style={{
                 padding: '11px 22px',
                 background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
@@ -980,90 +1103,130 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
               }}
             >
               <Sparkles size={16} />
-              {convertingAi ? 'Converting with DeepSeek AI...' : 'Convert to Accounting Entries & Financial Statements →'}
+              {convertingAi ? 'Auditing & Converting with DeepSeek AI...' : 'Analyze, Classify & Show Pre-Generation Summary →'}
             </button>
           </div>
         </div>
       )}
 
-      {/* ── BRANCH B REVIEW: FINANCIAL STATEMENTS + UNCLASSIFIED 9999 + CIT SYNC ── */}
+      {/* ── BRANCH B REVIEW: CLARIFICATION QUESTIONS + PRE-GENERATION SUMMARY & CONFIRMATION ── */}
       {step === 'branch_b_review' && fsModel && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Unclassified / Account 9999 Panel */}
-          {fsModel.suspenseLog.length > 0 && (
+          {/* Clarification Questions & Account 9999 Panel */}
+          {(fsModel.suspenseLog.length > 0 || (aiReport?.questionsForUser && aiReport.questionsForUser.length > 0)) && (
             <div style={{ padding: 18, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 'var(--radius-lg)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--warning)', marginBottom: 8 }}>
-                <AlertTriangle size={18} />
-                {fsModel.suspenseLog.length} Unclassified Transaction(s) Held in Account 9999
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--warning)' }}>
+                  <AlertTriangle size={18} />
+                  Clarification Needed ({fsModel.suspenseLog.length} Unclassified in Account 9999)
+                </div>
+                {Object.keys(clarificationAnswers).length > 0 && rawEvidence.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={convertingAi}
+                    onClick={() => handleConvertToEntries(clarificationAnswers)}
+                    style={{ padding: '6px 12px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    {convertingAi ? 'Re-classifying...' : 'Apply Answers & Re-verify with DeepSeek'}
+                  </button>
+                )}
               </div>
               <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-secondary)' }}>
-                Per Section 2.3, incomplete transactions are temporarily parked in Account 9999 and excluded from revenue, expenses, and tax deductions. Clarify them below or leave them in 9999.
+                Where classification was uncertain, transactions were safely placed in Account 9999 (excluded from revenue, expenses &amp; tax deductions). Answer below or pick the exact account:
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {fsModel.suspenseLog.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 10, background: 'var(--bg-elevated)', borderRadius: 8, flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: 12 }}>
-                      <div style={{ fontWeight: 600 }}>{item.description} — ₦{item.amount.toLocaleString()}</div>
-                      {item.clarificationQuestion && <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{item.clarificationQuestion}</div>}
+                  <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 12, background: 'var(--bg-elevated)', borderRadius: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 12 }}>
+                        <div style={{ fontWeight: 600 }}>{item.date} · {item.description} — ₦{item.amount.toLocaleString()}</div>
+                        {item.clarificationQuestion && <div style={{ color: 'var(--warning)', fontSize: 11, marginTop: 2 }}>{item.clarificationQuestion}</div>}
+                      </div>
+                      <select
+                        defaultValue="9999"
+                        onChange={(e) => handleReclassifyEntry(item.id, e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--bg-border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12 }}
+                      >
+                        <option value="9999">Keep in 9999 (Unclassified)</option>
+                        {STANDARD_NIGERIA_COA.filter((a) => a.code !== '9999').map((a) => (
+                          <option key={a.code} value={a.code}>{a.code} — {a.name}</option>
+                        ))}
+                      </select>
                     </div>
-                    <select
-                      defaultValue="9999"
-                      onChange={(e) => handleReclassifyEntry(item.id, e.target.value)}
-                      style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--bg-border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12 }}
-                    >
-                      <option value="9999">Keep in 9999 (Unclassified)</option>
-                      {STANDARD_NIGERIA_COA.filter((a) => a.code !== '9999').map((a) => (
-                        <option key={a.code} value={a.code}>{a.code} — {a.name}</option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      placeholder="Or type an explanation for DeepSeek AI (e.g. 'Diesel purchase for office generator')"
+                      value={clarificationAnswers[item.id] || ''}
+                      onChange={(e) => setClarificationAnswers((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--bg-border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12 }}
+                    />
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Summary Financial Statements & NTA 2025 Tax Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <div style={{ padding: 16, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Turnover (P&amp;L)</div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>₦{fsModel.incomeStatement.revenue.toLocaleString()}</div>
+          {/* Stage 6-10 Pre-Generation Summary & Quality Control Report */}
+          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Pre-Generation Summary &amp; Quality Control Review (Stages 6–10)
             </div>
-            <div style={{ padding: 16, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Profit Before Tax</div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>₦{fsModel.incomeStatement.profitBeforeTax.toLocaleString()}</div>
-            </div>
-            <div style={{ padding: 16, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Assets (BS)</div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>₦{fsModel.balanceSheet.totalAssets.toLocaleString()}</div>
-            </div>
-            <div style={{ padding: 16, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>NTA 2025 Tax Payable</div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4, color: 'var(--accent-light)' }}>
-                ₦{fsModel.taxComputation.netCurrentTaxPayable.toLocaleString()}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {fsModel.taxComputation.qualifiesSmallCompanyExemption ? 'Small Company (0% CIT)' : 'Standard (27.5% CIT + 4% Dev Levy)'}
-              </div>
-            </div>
-          </div>
 
-          {/* 11 Audit Integrity Checks (CHK-01..CHK-11) */}
-          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14 }}>
-                <ShieldCheck size={17} color="var(--success)" /> Master Integrity &amp; Audit Control Checks ({passCount}/11 PASS)
+            {/* Summary Financial Statements & NTA 2025 Tax Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+              <div style={{ padding: 14, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Turnover (P&amp;L)</div>
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>₦{fsModel.incomeStatement.revenue.toLocaleString()}</div>
+              </div>
+              <div style={{ padding: 14, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Profit Before Tax</div>
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>₦{fsModel.incomeStatement.profitBeforeTax.toLocaleString()}</div>
+              </div>
+              <div style={{ padding: 14, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Assets / Closing Cash</div>
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>₦{fsModel.balanceSheet.totalAssets.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cash: ₦{fsModel.balanceSheet.cashAndCashEquivalents.toLocaleString()}</div>
+              </div>
+              <div style={{ padding: 14, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>NTA 2025 Net Tax Payable</div>
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 4, color: 'var(--accent-light)' }}>
+                  ₦{fsModel.taxComputation.netCurrentTaxPayable.toLocaleString()}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {fsModel.taxComputation.qualifiesSmallCompanyExemption ? 'Small Company (0% CIT)' : 'Standard (27.5% CIT + 4% Dev Levy)'}
+                </div>
+              </div>
+            </div>
+
+            {/* AI Quality Control Findings (Duplicates, Missing Info, Adjustments) */}
+            {aiReport && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10, fontSize: 12 }}>
+                {aiReport.qualityControlSummary && (
+                  <div style={{ padding: 10, background: 'var(--bg-base)', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+                    <strong>Quality Control Reviews A &amp; B:</strong>
+                    <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>{aiReport.qualityControlSummary.extractionReview}</div>
+                    <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>{aiReport.qualityControlSummary.accountingReview}</div>
+                  </div>
+                )}
+                {(aiReport.missingDocuments.length > 0 || aiReport.duplicatesDetected.length > 0 || aiReport.adjustmentsIdentified.length > 0) && (
+                  <div style={{ padding: 10, background: 'var(--bg-base)', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+                    {aiReport.adjustmentsIdentified.length > 0 && <div><strong>Adjustments:</strong> {aiReport.adjustmentsIdentified.join('; ')}</div>}
+                    {aiReport.missingDocuments.length > 0 && <div style={{ color: 'var(--warning)', marginTop: 4 }}><strong>Missing Info:</strong> {aiReport.missingDocuments.join('; ')}</div>}
+                    {aiReport.duplicatesDetected.length > 0 && <div style={{ color: 'var(--warning)', marginTop: 4 }}><strong>Potential Duplicates:</strong> {aiReport.duplicatesDetected.join('; ')}</div>}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 11 Audit Integrity Checks (CHK-01..CHK-11) */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13 }}>
+                <ShieldCheck size={16} color="var(--success)" /> Mathematical &amp; Integrity Checks ({passCount}/11 PASS)
               </span>
-              <button
-                type="button"
-                onClick={handleDownloadFinancialWorkbook}
-                style={{ padding: '7px 12px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <FileSpreadsheet size={14} /> Download 8-Tab Financial Statements (.xlsx)
-              </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 8 }}>
               {fsModel.auditChecks.map((chk) => (
-                <div key={chk.testNo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 6, fontSize: 12 }}>
+                <div key={chk.testNo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--bg-base)', borderRadius: 6, fontSize: 12 }}>
                   <span><strong>{chk.testNo}:</strong> {chk.testName}</span>
                   <span style={{ fontWeight: 700, color: chk.status === 'PASS' ? 'var(--success)' : 'var(--error)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <CheckCircle2 size={13} /> {chk.status}
@@ -1071,31 +1234,60 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
                 </div>
               ))}
             </div>
+
+            {/* Confirmation Gate before any document is generated */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: confirmedForGeneration ? 'var(--success-dim)' : 'var(--bg-base)', border: `1px solid ${confirmedForGeneration ? 'var(--success)' : 'var(--accent-border)'}`, borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={confirmedForGeneration}
+                onChange={(e) => setConfirmedForGeneration(e.target.checked)}
+              />
+              I confirm this Pre-Generation Summary is accurate and authorize Rova to generate the Financial Statements, JSON, and NRS CIT Template.
+            </label>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
             <button type="button" onClick={() => setStep('branch_b_collect')} style={{ padding: '10px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer' }}>
               ← Add More Records
             </button>
-            <button
-              type="button"
-              onClick={handleProceedFromModel}
-              style={{
-                padding: '12px 24px',
-                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              Auto-Fill NRS CIT Filing Wizard &amp; Generate Tax Template <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                disabled={!confirmedForGeneration}
+                onClick={handleDownloadDeepSeekJson}
+                style={{ padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 600, cursor: confirmedForGeneration ? 'pointer' : 'not-allowed', opacity: confirmedForGeneration ? 1 : 0.45 }}
+              >
+                Download DeepSeek JSON
+              </button>
+              <button
+                type="button"
+                disabled={!confirmedForGeneration}
+                onClick={handleDownloadFinancialWorkbook}
+                style={{ padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 600, cursor: confirmedForGeneration ? 'pointer' : 'not-allowed', opacity: confirmedForGeneration ? 1 : 0.45, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <FileSpreadsheet size={14} /> Download Financial Statements (.xlsx)
+              </button>
+              <button
+                type="button"
+                disabled={!confirmedForGeneration}
+                onClick={handleProceedFromModel}
+                style={{
+                  padding: '12px 24px',
+                  background: confirmedForGeneration ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))' : 'var(--bg-border)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: confirmedForGeneration ? 'pointer' : 'not-allowed',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                Auto-Fill NRS CIT Filing Wizard &amp; Generate Tax Template <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}

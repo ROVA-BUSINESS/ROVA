@@ -6,6 +6,53 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * GLOBAL FIXED RULES:
+ * Professional Accounting and Financial Statement Preparation AI (Stages 1–10 + Absolute Rules)
+ */
+const GLOBAL_ACCOUNTING_SYSTEM_RULES = `
+ROLE: PROFESSIONAL ACCOUNTING AND FINANCIAL STATEMENT PREPARATION AI
+You are an accounting document-processing and financial statement preparation system.
+Your responsibility is to transform all documents, records, receipts, invoices, bank statements, spreadsheets and other financial information submitted by a business into accurate, properly classified and tax-ready financial statements.
+Your priority is ACCURACY, not speed. You must follow every stage below in order. Never skip a stage.
+
+STAGE 1: DOCUMENT COLLECTION AND IDENTIFICATION
+- Identify every document type (Bank statements, Sales records, Purchase records, Sales invoices, Purchase invoices, Receipts, Expense records, Payroll records, Loan documents, Asset purchase records, Inventory records, Previous financial statements, Tax documents, Other financial records).
+- Check whether documents are duplicated, incomplete, unreadable or inconsistent.
+- Identify missing months, missing pages and missing reporting periods.
+
+STAGE 2: DATA EXTRACTION
+- Extract exact Date, Description, Amount, Transaction type, Debit or credit, Payment method, Customer/Supplier (where identifiable), Source document, Reference.
+- Never change original transaction amount, never invent transaction dates, never remove unusual transactions, preserve original descriptions.
+- Do not count the same transaction twice. Distinguish between actual transactions and balances carried forward.
+- Do not interpret bank transfers between the company's own accounts as revenue or expenses.
+- Flag transactions with unclear descriptions.
+
+STAGE 3: DATA VERIFICATION
+- Compare extracted totals against totals shown in original documents.
+- For bank statements, verify: Opening Balance + Total Credits - Total Debits = Closing Balance.
+- Identify duplicate transactions, missing transactions, and inconsistencies. Never silently correct discrepancies.
+
+STAGE 4: TRANSACTION CLASSIFICATION
+- Classify into Income (Sales, Service, Other operating, Non-operating), Expenses (COS, Salaries & wages, Rent, Electricity, Transportation, Internet & comms, Repairs & maintenance, Marketing & advertising, Professional fees, Bank charges, Depreciation, Other operating), Assets (Cash, Bank, Inventory, Trade receivables, Prepayments, PPE, Other), Liabilities (Trade payables, Loans, Accrued expenses, Tax liabilities, Other), Equity (Share capital, Retained earnings, Drawings, Other), Other (Owner contributions, Loan proceeds/repayments, Capex, Transfers, Dividends).
+- IMPORTANT: Money received is not automatically revenue. Money paid is not automatically an expense. Loan proceeds != revenue. Loan principal repayments != expense. Asset purchases != ordinary expense. Transfers between own accounts != income/expense. Owner contributions != revenue. Drawings/dividends != operating expenses.
+- Where classification is uncertain, flag for clarification (Account 9999) and ask a specific question.
+
+STAGE 5: ACCOUNTING ADJUSTMENTS
+- Identify accrued income/expenses, prepaid expenses, depreciation, inventory adjustments, bad debts/ECL, opening/closing balances. Do not invent adjustment figures.
+
+STAGE 6–9: RECONCILIATION, TAX-READINESS & QUALITY CONTROL
+- Do not treat accounting profit automatically as taxable profit; apply Nigerian tax legislation (NTA 2025 & NTAA 2025). Do not invent tax deductions, exemptions, or reliefs.
+- Perform independent extraction, accounting, and mathematical reviews. Flag all discrepancies and missing documents.
+
+ABSOLUTE RULES
+1. NEVER fabricate financial information or assume missing figures.
+2. NEVER silently discard transactions or double-count transactions.
+3. NEVER classify transactions solely based on descriptions when the accounting treatment is uncertain — ask the customer specific questions.
+4. NEVER manipulate figures to make the balance sheet balance.
+5. NEVER mark an unverified figure as verified or submit incomplete statements as final.
+`;
+
 const VALID_COA_LIST = `
 1010 Cash on Hand | 1020 Zenith Bank Current Account | 1030 GTBank Operating Account | 1040 Short-Term Call Placements
 1110 Trade Accounts Receivable | 1120 Allowance for ECL | 1130 Other Receivables | 1140 WHT Credit Notes
@@ -69,7 +116,7 @@ async function callDeepSeek(apiKey: string, systemPrompt: string, userPrompt: st
 }
 
 function deterministicFallbackConvert(items: any[], defaultBankCode = "1020") {
-  return items.map((item, idx) => {
+  const entries = items.map((item, idx) => {
     const desc = String(item.description || "").toLowerCase();
     const amt = Math.abs(Number(item.amount) || 0);
     const dir = item.direction === "income" ? "income" : item.direction === "transfer" ? "transfer" : "expense";
@@ -82,7 +129,12 @@ function deterministicFallbackConvert(items: any[], defaultBankCode = "1020") {
     let assetClass: string | undefined;
     let confidence = 0.45;
 
-    if (dir === "income") {
+    if (dir === "transfer") {
+      coa = "1030";
+      nrsSection = "none";
+      taxTreatment = "capital";
+      confidence = 0.90;
+    } else if (dir === "income") {
       if (desc.includes("interest")) {
         coa = "7020"; nrsSection = "other_income"; nrsLabel = "Interest Income"; taxTreatment = "allowable"; confidence = 0.88;
       } else if (desc.includes("loan")) {
@@ -135,11 +187,34 @@ function deterministicFallbackConvert(items: any[], defaultBankCode = "1020") {
       isFixedAssetCandidate,
       assetClass,
       confidence,
-      clarificationQuestion: isSuspense ? `What is "${item.description}" (₦${amt.toLocaleString()}) for?` : null,
+      clarificationQuestion: isSuspense ? `Uncertain accounting treatment for "${item.description}" (₦${amt.toLocaleString()}). Is this business revenue, operating expense, loan/equity, or personal transfer?` : null,
       resolutionStatus: isSuspense ? "Unresolved" : "Resolved",
       source: item.source || "bank_statement",
+      sourceRef: item.sourceFileName || "",
     };
   });
+
+  const questionsForUser = entries
+    .filter((e) => e.resolutionStatus === "Unresolved")
+    .map((e) => ({
+      entryId: e.id,
+      question: e.clarificationQuestion,
+      amount: e.amount,
+      date: e.date,
+    }));
+
+  return {
+    entries,
+    questionsForUser,
+    duplicatesDetected: [],
+    missingDocuments: [],
+    adjustmentsIdentified: [],
+    qualityControlSummary: {
+      extractionReview: "Exact amounts and dates preserved from submitted records.",
+      accountingReview: `${entries.length - questionsForUser.length} of ${entries.length} entries classified; ${questionsForUser.length} routed to Account 9999 for clarification.`,
+      discrepancies: [],
+    },
+  };
 }
 
 serve(async (req) => {
@@ -151,7 +226,7 @@ serve(async (req) => {
     const { mode } = body;
 
     if (mode === "extract_bank_statement_rows") {
-      const { rawText } = body;
+      const { rawText, fileName } = body;
       if (!rawText) throw new Error("rawText is required");
 
       if (!DEEPSEEK_API_KEY) {
@@ -160,26 +235,52 @@ serve(async (req) => {
         });
       }
 
-      const systemPrompt = `You extract bank statement transactions from OCR or PDF text for Nigerian businesses.
+      const systemPrompt = `${GLOBAL_ACCOUNTING_SYSTEM_RULES}
+
+TASK — STAGES 1, 2 & 3 (BANK STATEMENT EXTRACTION & VERIFICATION):
+Extract every actual transaction row from the bank statement text for "${fileName || "Bank Statement"}".
+Verify: Opening Balance + Total Credits - Total Debits = Closing Balance.
 Return strictly JSON:
 {
+  "documentIdentification": {
+    "documentType": "Bank statement",
+    "reportingPeriod": "string or null",
+    "openingBalance": number | null,
+    "closingBalance": number | null,
+    "totalCredits": number,
+    "totalDebits": number,
+    "reconciles": boolean,
+    "discrepancyAmount": number,
+    "missingPeriodsOrWarnings": ["string"]
+  },
   "rows": [
-    { "date": "YYYY-MM-DD", "description": "string", "amount": number, "direction": "income" | "expense" | "transfer", "reference": "string" }
+    {
+      "date": "YYYY-MM-DD",
+      "description": "exact original description",
+      "amount": number,
+      "direction": "income" | "expense" | "transfer",
+      "reference": "string",
+      "counterparty": "string or null"
+    }
   ]
 }
 Rules:
+- Never include Opening Balance / Closing Balance / Brought Forward lines as transactions.
 - Credit/Inflow/Deposit -> direction: "income", Debit/Outflow/Withdrawal -> direction: "expense".
-- Parse amounts as positive numbers (strip commas and ₦/NGN).
-- Skip opening/closing balance summary lines and headers.`;
+- Strip commas and ₦/NGN so amount is a positive number.`;
 
-      const parsed = await callDeepSeek(DEEPSEEK_API_KEY, systemPrompt, `Extract all transaction rows from:\n${String(rawText).slice(0, 24000)}`);
-      return new Response(JSON.stringify({ rows: parsed.rows || [] }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const parsed = await callDeepSeek(DEEPSEEK_API_KEY, systemPrompt, `Extract and verify bank statement:\n${String(rawText).slice(0, 26000)}`);
+      return new Response(
+        JSON.stringify({
+          rows: parsed.rows || [],
+          documentIdentification: parsed.documentIdentification || null,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     if (mode === "parse_financial_statement") {
-      const { rawText, fiscalYear } = body;
+      const { rawText, fiscalYear, customInstructions } = body;
       if (!rawText) throw new Error("rawText is required");
 
       if (!DEEPSEEK_API_KEY) {
@@ -188,8 +289,11 @@ Rules:
         });
       }
 
-      const systemPrompt = `You are a Nigerian Chartered Accountant AI. Extract figures from an existing Financial Statement (P&L, Balance Sheet, Notes, Fixed Assets) into strict JSON for the NRS CIT Filing Wizard (FY ${fiscalYear || 2026}).
+      const systemPrompt = `${GLOBAL_ACCOUNTING_SYSTEM_RULES}
+
+TASK — EXTRACT PREPARED FINANCIAL STATEMENTS INTO STRUCTURED JSON (FY ${fiscalYear || 2026}):
 Valid admin expense keys: ${JSON.stringify(NRS_ADMIN_LABELS)}.
+Never invent missing figures; set missing figures to 0 and list them in missingInformation.
 Return strictly JSON:
 {
   "companyProfile": { "company_legal_name": "", "rc_number": "", "tin": "", "sector": "" },
@@ -204,49 +308,62 @@ Return strictly JSON:
     "shareCapital": number, "retainedEarnings": number
   },
   "taxAdjustments": { "depreciationAddBack": number, "finesAndPenalties": number, "exemptIncome": number, "capitalAllowances": number, "whtCredits": number },
+  "questionsForUser": ["specific questions if figures are missing or Assets != Equity + Liabilities"],
+  "missingInformation": ["string"],
+  "discrepancies": ["string"],
   "confidence": number
 }`;
 
-      const parsed = await callDeepSeek(DEEPSEEK_API_KEY, systemPrompt, `Extract financial statement data:\n${String(rawText).slice(0, 28000)}`);
+      const userPrompt = `${customInstructions ? `<custom_filing_instructions>\n${String(customInstructions).slice(0, 2000)}\n</custom_filing_instructions>\n\n` : ""}Extract financial statement data:\n${String(rawText).slice(0, 28000)}`;
+      const parsed = await callDeepSeek(DEEPSEEK_API_KEY, systemPrompt, userPrompt);
       return new Response(JSON.stringify({ extracted: parsed }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (mode === "convert_evidence_to_entries") {
-      const { items = [], businessContext = "", defaultBankCode = "1020" } = body;
+      const {
+        items = [],
+        businessContext = "",
+        defaultBankCode = "1020",
+        customInstructions = "",
+        clarificationAnswers = {},
+        documentSummaries = [],
+      } = body;
+
       if (!Array.isArray(items) || items.length === 0) {
-        return new Response(JSON.stringify({ entries: [] }), {
+        return new Response(JSON.stringify({ entries: [], questionsForUser: [] }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       if (!DEEPSEEK_API_KEY) {
-        const entries = deterministicFallbackConvert(items, defaultBankCode);
-        return new Response(JSON.stringify({ entries, fallback: true }), {
+        const fallback = deterministicFallbackConvert(items, defaultBankCode);
+        return new Response(JSON.stringify({ ...fallback, fallback: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const systemPrompt = `You are ROVA AI, a Nigerian IFRS & NTA 2025 Chartered Accountant engine.
-Convert each raw transaction / receipt / bank statement line into a double-entry accounting entry using ONLY the allowed Chart of Accounts codes below.
+      const systemPrompt = `${GLOBAL_ACCOUNTING_SYSTEM_RULES}
 
-ALLOWED COA CODES:
+ALLOWED CHART OF ACCOUNTS (USE ONLY THESE 4-DIGIT CODES):
 ${VALID_COA_LIST}
 
 VALID NRS ADMIN EXPENSE LABELS (for 6010–6140, 7010):
 ${JSON.stringify(NRS_ADMIN_LABELS)}
 
-VALID STATUTORY ASSET CLASSES (if capital asset):
+VALID STATUTORY ASSET CLASSES (if capital expenditure):
 ["Leasehold Land & Buildings", "Plant & Heavy Machinery", "Commercial Motor Vehicles", "Office Furniture & Equipment", "Computer & IT Infrastructure"]
 
-CRITICAL RULES:
-1. Never invent amounts. Keep exact input amount.
-2. For income: debitCode = "${defaultBankCode}" (or 1010/1030/1040), creditCode = revenue/equity/liability/9999 code.
-3. For expense: debitCode = expense/asset/9999 code, creditCode = "${defaultBankCode}" (or 1010/1030).
-4. Fixed asset purchases (laptops, vehicles, machinery, furniture, buildings) MUST go to 1510–1550 with isFixedAssetCandidate=true and assetClass set, NOT operating expenses.
-5. Fines and penalties go to 6070 with nrsLabel="Fines" and taxTreatment="non_deductible_addback".
-6. UNCLASSIFIED / SUSPENSE RULE (Account 9999): If narration is vague, incomplete, or confidence < 0.80 (e.g., "NIP TRF TO JOHN", "POS WITHDRAWAL", unclear transfer), set the category side code to "9999", taxTreatment="suspense", resolutionStatus="Unresolved", and write one concise clarificationQuestion.
+CRITICAL CLASSIFICATION & CLARIFICATION RULES:
+1. Keep exact input amounts and dates. Never alter numbers.
+2. For income/inflows: debitCode = "${defaultBankCode}" (or 1010/1030/1040), creditCode = revenue (4010/4020), AR collection (1110), customer advance (2080), loan proceeds (2510/2520), owner capital (3030), or 9999.
+3. For expense/outflows: debitCode = expense/COS/asset/liability/9999 code, creditCode = "${defaultBankCode}" (or 1010/1030).
+4. Fixed asset purchases MUST go to 1510–1550 with isFixedAssetCandidate=true and assetClass set.
+5. Own-account bank transfers MUST use debitCode="1030" and creditCode="1020" (never P&L).
+6. Fines/penalties -> 6070, nrsLabel="Fines", taxTreatment="non_deductible_addback".
+7. WHENEVER UNSURE (confidence < 0.80, vague narration like POS/NIP transfer without purpose, unknown party, or unclear capital vs expense): route the category side to "9999", set taxTreatment="suspense", resolutionStatus="Unresolved", and write a SPECIFIC clarificationQuestion for the customer.
+8. If the user already provided an answer in clarificationAnswers for an item ID, apply that answer cleanly and mark resolutionStatus="Resolved".
 
 Business context: ${businessContext || "Nigerian SME"}
 
@@ -254,9 +371,9 @@ Return strictly JSON:
 {
   "entries": [
     {
-      "id": "string (same as input id)",
+      "id": "string (exact input id)",
       "date": "YYYY-MM-DD",
-      "description": "string",
+      "description": "exact original description",
       "amount": number,
       "direction": "income" | "expense" | "transfer",
       "debitCode": "4-digit COA code",
@@ -266,12 +383,25 @@ Return strictly JSON:
       "taxTreatment": "allowable" | "non_deductible_addback" | "exempt_income" | "capital" | "suspense",
       "isFixedAssetCandidate": boolean,
       "assetClass": "string or null",
+      "counterparty": "string or null",
       "confidence": number,
       "clarificationQuestion": "string or null",
       "resolutionStatus": "Resolved" | "Unresolved",
-      "source": "string"
+      "source": "string",
+      "sourceRef": "string"
     }
-  ]
+  ],
+  "questionsForUser": [
+    { "entryId": "string", "question": "specific question to classify uncertain transaction or missing adjustment", "amount": number, "date": "string" }
+  ],
+  "duplicatesDetected": ["description of potential duplicate transactions if any"],
+  "missingDocuments": ["e.g. missing months, opening balances, asset invoices, WHT credit notes"],
+  "adjustmentsIdentified": ["e.g. accrued expenses, prepayments, depreciation on fixed assets"],
+  "qualityControlSummary": {
+    "extractionReview": "string",
+    "accountingReview": "string",
+    "discrepancies": ["string"]
+  }
 }`;
 
       const compactItems = items.slice(0, 60).map((it: any, idx: number) => ({
@@ -281,17 +411,33 @@ Return strictly JSON:
         amount: it.amount,
         direction: it.direction,
         source: it.source || "bank_statement",
+        sourceFileName: it.sourceFileName || "",
       }));
 
+      const userPayload = {
+        customInstructions: customInstructions ? String(customInstructions).slice(0, 2000) : undefined,
+        clarificationAnswers,
+        documentSummaries,
+        items: compactItems,
+      };
+
       try {
-        const parsed = await callDeepSeek(DEEPSEEK_API_KEY, systemPrompt, JSON.stringify({ items: compactItems }));
-        return new Response(JSON.stringify({ entries: parsed.entries || [] }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        const parsed = await callDeepSeek(DEEPSEEK_API_KEY, systemPrompt, JSON.stringify(userPayload));
+        return new Response(
+          JSON.stringify({
+            entries: parsed.entries || [],
+            questionsForUser: parsed.questionsForUser || [],
+            duplicatesDetected: parsed.duplicatesDetected || [],
+            missingDocuments: parsed.missingDocuments || [],
+            adjustmentsIdentified: parsed.adjustmentsIdentified || [],
+            qualityControlSummary: parsed.qualityControlSummary || null,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       } catch (err) {
         console.error("DeepSeek conversion failed, using deterministic fallback:", err);
-        const entries = deterministicFallbackConvert(compactItems, defaultBankCode);
-        return new Response(JSON.stringify({ entries, fallback: true }), {
+        const fallback = deterministicFallbackConvert(compactItems, defaultBankCode);
+        return new Response(JSON.stringify({ ...fallback, fallback: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

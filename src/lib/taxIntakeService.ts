@@ -25,6 +25,34 @@ export type RawEvidenceRow = {
   sourceFileName?: string;
 };
 
+export type DocumentIdentificationSummary = {
+  fileName: string;
+  documentType: string;
+  reportingPeriod: string | null;
+  rowCount: number;
+  openingBalance: number | null;
+  closingBalance: number | null;
+  totalCredits: number;
+  totalDebits: number;
+  reconciles: boolean | null;
+  discrepancyAmount: number;
+  warnings: string[];
+};
+
+export type AiConversionReport = {
+  entries: IntakeAccountingEntry[];
+  questionsForUser: { entryId: string; question: string; amount: number; date: string }[];
+  duplicatesDetected: string[];
+  missingDocuments: string[];
+  adjustmentsIdentified: string[];
+  qualityControlSummary: {
+    extractionReview: string;
+    accountingReview: string;
+    discrepancies: string[];
+  } | null;
+  usedFallback: boolean;
+};
+
 /** Parse Excel (.xlsx / .xls) or CSV into raw text (for Financial Statements) or normalized bank rows */
 export async function readSpreadsheetFile(file: File): Promise<{
   csvRows: Record<string, string>[];
@@ -96,20 +124,37 @@ export async function extractDocumentText(file: File): Promise<{
   }
 }
 
-/** Parse a Bank Statement file (CSV, XLSX, PDF, or Image) into RawEvidenceRow[] */
+/** Parse a Bank Statement file (CSV, XLSX, PDF, or Image) into RawEvidenceRow[] + Stage 1-3 Document Summary */
 export async function parseBankStatementEvidence(
   file: File,
   userId?: string
-): Promise<RawEvidenceRow[]> {
+): Promise<{ rows: RawEvidenceRow[]; documentInfo: DocumentIdentificationSummary }> {
   const lower = file.name.toLowerCase();
 
   // 1. Structured CSV / Excel path
   if (lower.endsWith('.csv') || lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
     const { headers, csvRows } = await readSpreadsheetFile(file);
-    if (csvRows.length === 0) return [];
+    if (csvRows.length === 0) {
+      return {
+        rows: [],
+        documentInfo: {
+          fileName: file.name,
+          documentType: 'Bank statement (Spreadsheet)',
+          reportingPeriod: null,
+          rowCount: 0,
+          openingBalance: null,
+          closingBalance: null,
+          totalCredits: 0,
+          totalDebits: 0,
+          reconciles: null,
+          discrepancyAmount: 0,
+          warnings: ['No rows detected in spreadsheet.'],
+        },
+      };
+    }
     const mapping = autoDetectMapping(headers);
     const validated = mapAndValidateRows(csvRows, mapping, []);
-    return validated
+    const rows: RawEvidenceRow[] = validated
       .filter((r) => !r.validationError && r.amount > 0)
       .map((r, i) => ({
         id: `bs_${file.name}_${i}_${Date.now()}`,
@@ -120,16 +165,35 @@ export async function parseBankStatementEvidence(
         source: 'bank_statement',
         sourceFileName: file.name,
       }));
+    const totalCredits = rows.filter((r) => r.direction === 'income').reduce((s, r) => s + r.amount, 0);
+    const totalDebits = rows.filter((r) => r.direction === 'expense').reduce((s, r) => s + r.amount, 0);
+    const dates = rows.map((r) => r.date).filter(Boolean).sort();
+    return {
+      rows,
+      documentInfo: {
+        fileName: file.name,
+        documentType: 'Bank statement (CSV/Excel)',
+        reportingPeriod: dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : null,
+        rowCount: rows.length,
+        openingBalance: null,
+        closingBalance: null,
+        totalCredits,
+        totalDebits,
+        reconciles: null,
+        discrepancyAmount: 0,
+        warnings: [],
+      },
+    };
   }
 
   // 2. PDF / Image bank statement -> OCR + DeepSeek row extraction
   const { text } = await extractDocumentText(file);
   const { data, error } = await supabase.functions.invoke('ai-tax-intake', {
-    body: { mode: 'extract_bank_statement_rows', rawText: text, userId },
+    body: { mode: 'extract_bank_statement_rows', rawText: text, fileName: file.name, userId },
   });
 
   if (!error && Array.isArray(data?.rows) && data.rows.length > 0) {
-    return data.rows.map((r: any, i: number) => ({
+    const rows: RawEvidenceRow[] = data.rows.map((r: any, i: number) => ({
       id: `bs_pdf_${i}_${Date.now()}`,
       date: r.date || new Date().toISOString().split('T')[0],
       description: r.description || 'Bank statement transaction',
@@ -138,6 +202,23 @@ export async function parseBankStatementEvidence(
       source: 'bank_statement',
       sourceFileName: file.name,
     }));
+    const docId = data.documentIdentification || {};
+    return {
+      rows,
+      documentInfo: {
+        fileName: file.name,
+        documentType: docId.documentType || 'Bank statement (PDF/Image)',
+        reportingPeriod: docId.reportingPeriod || null,
+        rowCount: rows.length,
+        openingBalance: docId.openingBalance ?? null,
+        closingBalance: docId.closingBalance ?? null,
+        totalCredits: docId.totalCredits ?? rows.filter((r) => r.direction === 'income').reduce((s, r) => s + r.amount, 0),
+        totalDebits: docId.totalDebits ?? rows.filter((r) => r.direction === 'expense').reduce((s, r) => s + r.amount, 0),
+        reconciles: docId.reconciles ?? null,
+        discrepancyAmount: docId.discrepancyAmount ?? 0,
+        warnings: docId.missingPeriodsOrWarnings || [],
+      },
+    };
   }
 
   // Lightweight regex fallback if edge function unreachable
@@ -160,7 +241,22 @@ export async function parseBankStatementEvidence(
     });
   });
 
-  return fallbackRows;
+  return {
+    rows: fallbackRows,
+    documentInfo: {
+      fileName: file.name,
+      documentType: 'Bank statement (OCR Fallback)',
+      reportingPeriod: null,
+      rowCount: fallbackRows.length,
+      openingBalance: null,
+      closingBalance: null,
+      totalCredits: fallbackRows.filter((r) => r.direction === 'income').reduce((s, r) => s + r.amount, 0),
+      totalDebits: fallbackRows.filter((r) => r.direction === 'expense').reduce((s, r) => s + r.amount, 0),
+      reconciles: null,
+      discrepancyAmount: 0,
+      warnings: ['Extracted using fallback text parser; please verify balances against original PDF/image.'],
+    },
+  };
 }
 
 /** Parse a Receipt / Invoice Image or PDF into RawEvidenceRow */
@@ -222,16 +318,36 @@ function clientFallbackConvert(items: RawEvidenceRow[], defaultBankCode = '1020'
   });
 }
 
-/** Batch-convert raw evidence rows into double-entry accounting entries via DeepSeek Edge Function */
+/** Batch-convert raw evidence rows into double-entry accounting entries + Stage 1-10 Audit Report via DeepSeek Edge Function */
 export async function convertEvidenceToAccountingEntries(
   items: RawEvidenceRow[],
   businessContext: string,
-  defaultBankCode = '1020'
-): Promise<{ entries: IntakeAccountingEntry[]; usedFallback: boolean }> {
-  if (items.length === 0) return { entries: [], usedFallback: false };
+  defaultBankCode = '1020',
+  options: {
+    customInstructions?: string;
+    clarificationAnswers?: Record<string, string>;
+    documentSummaries?: DocumentIdentificationSummary[];
+  } = {}
+): Promise<AiConversionReport> {
+  if (items.length === 0) {
+    return {
+      entries: [],
+      questionsForUser: [],
+      duplicatesDetected: [],
+      missingDocuments: [],
+      adjustmentsIdentified: [],
+      qualityControlSummary: null,
+      usedFallback: false,
+    };
+  }
 
   const chunkSize = 50;
   const allEntries: IntakeAccountingEntry[] = [];
+  const allQuestions: { entryId: string; question: string; amount: number; date: string }[] = [];
+  const duplicatesDetected: string[] = [];
+  const missingDocuments: string[] = [];
+  const adjustmentsIdentified: string[] = [];
+  let qcSummary: AiConversionReport['qualityControlSummary'] = null;
   let usedFallback = false;
 
   for (let i = 0; i < items.length; i += chunkSize) {
@@ -243,29 +359,57 @@ export async function convertEvidenceToAccountingEntries(
           items: chunk,
           businessContext,
           defaultBankCode,
+          customInstructions: options.customInstructions,
+          clarificationAnswers: options.clarificationAnswers,
+          documentSummaries: options.documentSummaries,
         },
       });
       if (error || !Array.isArray(data?.entries) || data.entries.length === 0) {
         usedFallback = true;
-        allEntries.push(...clientFallbackConvert(chunk, defaultBankCode));
+        const fb = clientFallbackConvert(chunk, defaultBankCode);
+        allEntries.push(...fb);
+        fb.filter((e) => e.resolutionStatus === 'Unresolved' && e.clarificationQuestion).forEach((e) => {
+          allQuestions.push({ entryId: e.id, question: e.clarificationQuestion!, amount: e.amount, date: e.date });
+        });
       } else {
         if (data.fallback) usedFallback = true;
         allEntries.push(...data.entries);
+        if (Array.isArray(data.questionsForUser)) allQuestions.push(...data.questionsForUser);
+        if (Array.isArray(data.duplicatesDetected)) duplicatesDetected.push(...data.duplicatesDetected);
+        if (Array.isArray(data.missingDocuments)) missingDocuments.push(...data.missingDocuments);
+        if (Array.isArray(data.adjustmentsIdentified)) adjustmentsIdentified.push(...data.adjustmentsIdentified);
+        if (data.qualityControlSummary) qcSummary = data.qualityControlSummary;
       }
     } catch {
       usedFallback = true;
-      allEntries.push(...clientFallbackConvert(chunk, defaultBankCode));
+      const fb = clientFallbackConvert(chunk, defaultBankCode);
+      allEntries.push(...fb);
+      fb.filter((e) => e.resolutionStatus === 'Unresolved' && e.clarificationQuestion).forEach((e) => {
+        allQuestions.push({ entryId: e.id, question: e.clarificationQuestion!, amount: e.amount, date: e.date });
+      });
     }
   }
 
-  return { entries: allEntries, usedFallback };
+  return {
+    entries: allEntries,
+    questionsForUser: allQuestions,
+    duplicatesDetected: Array.from(new Set(duplicatesDetected)),
+    missingDocuments: Array.from(new Set(missingDocuments)),
+    adjustmentsIdentified: Array.from(new Set(adjustmentsIdentified)),
+    qualityControlSummary: qcSummary,
+    usedFallback,
+  };
 }
 
 /** Branch A: Parse uploaded Financial Statement file via DeepSeek */
-export async function parseUploadedFinancialStatement(file: File, fiscalYear: number) {
+export async function parseUploadedFinancialStatement(file: File, fiscalYear: number, customInstructions?: string) {
+  if (file.name.toLowerCase().endsWith('.json')) {
+    const rawJson = await file.text();
+    return JSON.parse(rawJson);
+  }
   const { text } = await extractDocumentText(file);
   const { data, error } = await supabase.functions.invoke('ai-tax-intake', {
-    body: { mode: 'parse_financial_statement', rawText: text, fiscalYear },
+    body: { mode: 'parse_financial_statement', rawText: text, fiscalYear, customInstructions },
   });
   if (error) throw new Error(error.message);
   return data?.extracted || {};
