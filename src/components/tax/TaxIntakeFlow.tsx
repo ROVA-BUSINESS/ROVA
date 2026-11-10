@@ -156,12 +156,38 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
   });
 
   useEffect(() => {
-    if (user) loadAll();
-  }, [user, fiscalYear]);
+    if (user?.id) loadAll();
+  }, [user?.id, fiscalYear]);
+
+  // Persist in-progress intake draft in sessionStorage so switching tabs or auth refreshes never clear user input
+  useEffect(() => {
+    if (!user?.id || !fsProfile) return;
+    try {
+      const draftKey = `rova_tax_intake_draft_${user.id}_${fiscalYear}`;
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          step,
+          hasPreparedFs,
+          fsProfile,
+          customInstructions,
+          rawEvidence,
+          documentSummaries,
+          intakeEntries,
+          aiReport,
+          clarificationAnswers,
+          branchAExtracted,
+          branchAFileName,
+        })
+      );
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [user?.id, fiscalYear, step, hasPreparedFs, fsProfile, customInstructions, rawEvidence, documentSummaries, intakeEntries, aiReport, clarificationAnswers, branchAExtracted, branchAFileName]);
 
   async function loadAll() {
     if (!user) return;
-    setLoading(true);
+    if (!fsProfile) setLoading(true);
     try {
       const [wsData, txRes, accRes, invRes, billRes, itemRes, empRes] = await Promise.all([
         loadTaxWorkspaceData(user.id, fiscalYear),
@@ -181,7 +207,34 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
         sector: wsData.profile.sector || 'WHOLESALE AND RETAIL TRADE',
       };
 
-      setFsProfile(mergedProfile);
+      // Restore any unsaved session draft so user entries are never overwritten
+      let restoredDraft: any = null;
+      try {
+        const rawDraft = sessionStorage.getItem(`rova_tax_intake_draft_${user.id}_${fiscalYear}`);
+        if (rawDraft) restoredDraft = JSON.parse(rawDraft);
+      } catch {
+        restoredDraft = null;
+      }
+
+      if (restoredDraft?.fsProfile) {
+        setFsProfile(restoredDraft.fsProfile);
+        if (restoredDraft.step) setStep(restoredDraft.step);
+        if (restoredDraft.hasPreparedFs !== undefined) setHasPreparedFs(restoredDraft.hasPreparedFs);
+        if (restoredDraft.customInstructions) setCustomInstructions(restoredDraft.customInstructions);
+        if (Array.isArray(restoredDraft.rawEvidence)) setRawEvidence(restoredDraft.rawEvidence);
+        if (Array.isArray(restoredDraft.documentSummaries)) setDocumentSummaries(restoredDraft.documentSummaries);
+        if (Array.isArray(restoredDraft.intakeEntries)) setIntakeEntries(restoredDraft.intakeEntries);
+        if (restoredDraft.aiReport) setAiReport(restoredDraft.aiReport);
+        if (restoredDraft.clarificationAnswers) setClarificationAnswers(restoredDraft.clarificationAnswers);
+        if (restoredDraft.branchAExtracted) setBranchAExtracted(restoredDraft.branchAExtracted);
+        if (restoredDraft.branchAFileName) setBranchAFileName(restoredDraft.branchAFileName);
+      } else {
+        setFsProfile(mergedProfile);
+        if (wsData.intakeSession?.extracted_entries?.length) {
+          setIntakeEntries(wsData.intakeSession.extracted_entries);
+        }
+      }
+
       setOpeningBalances(wsData.openingBalances);
       setFixedAssets(wsData.fixedAssets);
       setWhtNotes(wsData.whtCreditNotes);
@@ -191,10 +244,6 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
       setBills(billRes.data || []);
       setInventoryItems(itemRes.data || []);
       setEmployees(empRes.data || []);
-
-      if (wsData.intakeSession?.extracted_entries?.length) {
-        setIntakeEntries(wsData.intakeSession.extracted_entries);
-      }
     } finally {
       setLoading(false);
     }

@@ -49,7 +49,7 @@ export default function AppLayout() {
   const [setupError, setSetupError] = useState('');
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     loadUnread();
 
     const handleUpdateEvent = () => {
@@ -89,7 +89,7 @@ export default function AppLayout() {
       window.removeEventListener('unread-notifications-updated', handleUpdateEvent);
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user?.id]);
 
   async function loadUnread() {
     try {
@@ -140,7 +140,7 @@ export default function AppLayout() {
   async function handleNotificationClick() {
     navigate('/app/notifications');
     setUnreadCount(0);
-    if (!user) return;
+    if (!user?.id) return;
 
     try {
       await supabase

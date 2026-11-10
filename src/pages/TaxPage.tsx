@@ -146,8 +146,8 @@ export default function TaxPage() {
   });
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (user?.id) loadData();
+  }, [user?.id]);
 
   async function loadData() {
     setLoading(true);

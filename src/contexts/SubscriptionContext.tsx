@@ -59,7 +59,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!subscription) setLoading(true);
 
     const [subRes, svcRes, histRes] = await Promise.all([
       supabase

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle, FileSpreadsheet, Edit2, CheckCircle2, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -132,11 +132,42 @@ export default function NrsCitWizardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { state, computed, updateState, hydrateState, exportForFiling } = useRovaTaxFlow();
-  const [showIntake, setShowIntake] = useState(true);
+  const [showIntake, setShowIntake] = useState<boolean>(() => {
+    try {
+      const saved = sessionStorage.getItem('rova_cit_wizard_meta');
+      if (saved) return JSON.parse(saved).showIntake ?? true;
+    } catch {}
+    return true;
+  });
   const [fsModel, setFsModel] = useState<FinancialStatementModel | null>(null);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    try {
+      const saved = sessionStorage.getItem('rova_cit_wizard_meta');
+      if (saved) return JSON.parse(saved).currentStep ?? 0;
+    } catch {}
+    return 0;
+  });
   const [exportFileName, setExportFileName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('rova_cit_wizard_meta', JSON.stringify({ showIntake, currentStep }));
+      sessionStorage.setItem('rova_cit_wizard_state', JSON.stringify(state));
+    } catch {}
+  }, [showIntake, currentStep, state]);
+
+  useEffect(() => {
+    try {
+      const savedState = sessionStorage.getItem('rova_cit_wizard_state');
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        if (parsed && (parsed.revenue || parsed.assets?.length || parsed.sector)) {
+          hydrateState(parsed);
+        }
+      }
+    } catch {}
+  }, [hydrateState]);
 
   const stage = STAGES[currentStep];
 

@@ -33,18 +33,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      setUser(prev => {
+        const nextUser = session?.user ?? null;
+        return prev?.id === nextUser?.id && prev?.email === nextUser?.email ? prev : nextUser;
+      });
       if (session?.user?.email) loadProfile(session.user.id, session.user.email);
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      setUser(prev => {
+        const nextUser = session?.user ?? null;
+        return prev?.id === nextUser?.id && prev?.email === nextUser?.email ? prev : nextUser;
+      });
       if (session?.user?.email) {
+        if (event !== 'TOKEN_REFRESHED') {
         (async () => {
           await loadProfile(session.user.id, session.user.email!);
         })();
+        }
       } else {
         setProfile(null);
         setStaffData(null);
