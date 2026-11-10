@@ -6,7 +6,9 @@
    Typography: Instrument Sans + Geist + Inter
    ========================================================================== */
 
-.rva-page {
+.rva-page,
+[data-theme="dark"] .rva-page,
+[data-theme="light"] .rva-page {
   --white: #ffffff;
   --soft: #f5f5f7;
   --tile: #f4f4f6;
@@ -23,6 +25,13 @@
 
   --border-light: #e4e4e7;
   --border-dark: rgba(255, 255, 255, 0.14);
+
+  /* Isolate from global ThemeContext dark/light variables */
+  --bg-base: #ffffff;
+  --text-primary: #111113;
+  --text-secondary: #5e616b;
+  --text-muted: #868994;
+  color-scheme: light;
 
   min-height: 100vh;
   background: var(--white);
@@ -277,9 +286,9 @@
 }
 
 /* ── Headings ── */
-.rva-h1 {
+.rva-page .rva-h1 {
   font-family: 'Instrument Sans', 'Geist', sans-serif;
-  font-size: clamp(34px, 4.4vw, 52px);
+  font-size: clamp(32px, 4.4vw, 52px) !important;
   font-weight: 500;
   line-height: 1.09;
   letter-spacing: -0.032em;
