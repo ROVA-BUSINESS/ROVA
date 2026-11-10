@@ -20,6 +20,7 @@ import {
   type Account,
   type Bill,
   type CoaOpeningBalance,
+  type Employee,
   type FinancialStatementProfile,
   type FixedAssetRecord,
   type InventoryItem,
@@ -52,6 +53,8 @@ import {
 } from '../../lib/taxIntakeService';
 import { mapExtractedFsJsonToCitState, mapFinancialStatementsToCitState } from '../../lib/fsToCitMapper';
 import { generateFinancialStatementsWorkbookBytes } from '../../lib/financialWorkbookExport';
+import { runTaxSavingsFinder } from '../../lib/taxSavingsFinder';
+import { TaxSavingsFinderPanel } from './TaxSavingsFinderPanel';
 import type { RovaTaxState, Sector } from '../../types/rovaTaxFlow';
 
 const SECTORS: Sector[] = [
@@ -101,6 +104,7 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [bills, setBills] = useState<Bill[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [includeRovaBooks, setIncludeRovaBooks] = useState(true);
 
   // Structured FS & Tax records
@@ -159,13 +163,14 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
     if (!user) return;
     setLoading(true);
     try {
-      const [wsData, txRes, accRes, invRes, billRes, itemRes] = await Promise.all([
+      const [wsData, txRes, accRes, invRes, billRes, itemRes, empRes] = await Promise.all([
         loadTaxWorkspaceData(user.id, fiscalYear),
         supabase.from('transactions').select('*, category:categories(*), account:accounts(*)').eq('user_id', user.id).order('date', { ascending: true }),
         supabase.from('accounts').select('*').eq('user_id', user.id).eq('is_active', true),
         supabase.from('invoices').select('*').eq('user_id', user.id),
         supabase.from('bills').select('*').eq('user_id', user.id),
         supabase.from('inventory_items').select('*').eq('user_id', user.id),
+        supabase.from('employees').select('*').eq('user_id', user.id),
       ]);
 
       const mergedProfile: FinancialStatementProfile = {
@@ -185,6 +190,7 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
       setInvoices(invRes.data || []);
       setBills(billRes.data || []);
       setInventoryItems(itemRes.data || []);
+      setEmployees(empRes.data || []);
 
       if (wsData.intakeSession?.extracted_entries?.length) {
         setIntakeEntries(wsData.intakeSession.extracted_entries);
@@ -215,6 +221,22 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
       inventoryItems,
     });
   }, [fsProfile, openingBalances, includeRovaBooks, periodTransactions, intakeEntries, accounts, fixedAssets, whtNotes, invoices, bills, inventoryItems]);
+
+  const taxSavingsReport = useMemo(() => {
+    return runTaxSavingsFinder({
+      transactions: includeRovaBooks ? periodTransactions : [],
+      intakeEntries,
+      invoices,
+      employees,
+      fixedAssets,
+      whtCreditNotes: whtNotes,
+      fsModel,
+      sector: fsProfile?.sector,
+      turnover: branchAExtracted ? Number(branchAExtracted.revenue || 0) : undefined,
+      grossFixedAssets: branchAExtracted ? Number(branchAExtracted.balanceSheet?.ppe || 0) : undefined,
+      professionalServicesFlag: fsProfile?.professional_services_flag,
+    });
+  }, [includeRovaBooks, periodTransactions, intakeEntries, invoices, employees, fixedAssets, whtNotes, fsModel, fsProfile, branchAExtracted]);
 
   async function handleQuestionnaireNext() {
     if (!fsProfile || hasPreparedFs === null) return;
@@ -871,6 +893,14 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
               </button>
             </div>
           </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <TaxSavingsFinderPanel
+              report={taxSavingsReport}
+              onApplyConfirmed={(confirmedIds) => {
+                setStatusMessage(`Applied ${confirmedIds.length} confirmed exemption/deduction item(s) — remember to review with your accountant before filing.`);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -1165,6 +1195,14 @@ export function TaxIntakeFlow({ onCompleteToWizard, onSkipToManualWizard }: TaxI
               </div>
             </div>
           )}
+
+          {/* Rova Tax Savings Finder (NTA 2025 Exemptions & Deductions) */}
+          <TaxSavingsFinderPanel
+            report={taxSavingsReport}
+            onApplyConfirmed={(confirmedIds) => {
+              setStatusMessage(`Confirmed ${confirmedIds.length} eligible exemption/deduction item(s) for review with your accountant.`);
+            }}
+          />
 
           {/* Stage 6-10 Pre-Generation Summary & Quality Control Report */}
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-lg)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>

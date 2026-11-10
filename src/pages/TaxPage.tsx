@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download } from 'lucide-react';
-import { supabase, type TaxRecord, type Transaction } from '../lib/supabase';
+import { supabase, type Employee, type FixedAssetRecord, type Invoice, type TaxRecord, type Transaction, type WhtCreditNoteRecord } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
 import { downloadCSV } from '../lib/export';
@@ -11,6 +11,8 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import { useMobile } from '../hooks/useMobile';
+import { runTaxSavingsFinder } from '../lib/taxSavingsFinder';
+import { TaxSavingsFinderPanel } from '../components/tax/TaxSavingsFinderPanel';
 
 const NGN_TAX_TYPES = [
   {
@@ -123,6 +125,11 @@ export default function TaxPage() {
   const { user } = useAuth();
   const [records, setRecords] = useState<TaxRecord[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [fixedAssets, setFixedAssets] = useState<FixedAssetRecord[]>([]);
+  const [whtNotes, setWhtNotes] = useState<WhtCreditNoteRecord[]>([]);
+  const [showSavingsFinder, setShowSavingsFinder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -144,12 +151,20 @@ export default function TaxPage() {
 
   async function loadData() {
     setLoading(true);
-    const [taxRes, txRes] = await Promise.all([
+    const [taxRes, txRes, invRes, empRes, faRes, whtRes] = await Promise.all([
       supabase.from('tax_records').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }),
-      supabase.from('transactions').select('*').eq('user_id', user!.id),
+      supabase.from('transactions').select('*, category:categories(*)').eq('user_id', user!.id),
+      supabase.from('invoices').select('*').eq('user_id', user!.id),
+      supabase.from('employees').select('*').eq('user_id', user!.id),
+      supabase.from('fixed_assets').select('*').eq('user_id', user!.id),
+      supabase.from('wht_credit_notes').select('*').eq('user_id', user!.id),
     ]);
     setRecords(taxRes.data || []);
     setTransactions(txRes.data || []);
+    setInvoices(invRes.data || []);
+    setEmployees(empRes.data || []);
+    setFixedAssets(faRes.data || []);
+    setWhtNotes(whtRes.data || []);
     setLoading(false);
   }
 
@@ -158,6 +173,19 @@ export default function TaxPage() {
   const netProfit = totalIncome - totalExpense;
   const estimatedCIT = calcCIT(Math.max(0, netProfit), totalIncome);
   const outstandingLiability = records.filter(r => r.status === 'pending' || r.status === 'overdue').reduce((s, r) => s + r.calculated_tax - r.paid_tax, 0);
+
+  const taxSavingsReport = useMemo(() => {
+    return runTaxSavingsFinder({
+      transactions,
+      invoices,
+      employees,
+      fixedAssets,
+      whtCreditNotes: whtNotes,
+      turnover: totalIncome,
+      grossFixedAssets: fixedAssets.reduce((s, a) => s + (Number(a.historical_cost) || 0), 0),
+      pbt: netProfit,
+    });
+  }, [transactions, invoices, employees, fixedAssets, whtNotes, totalIncome, netProfit]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -259,11 +287,22 @@ export default function TaxPage() {
               </p>
             </div>
           </div>
-          <Button variant="primary" icon={<FileText size={16} />} onClick={() => navigate('/app/tax/cit/new')} style={{ minWidth: 'fit-content' }}>
-            Start NRS CIT Filing
-          </Button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button variant="primary" icon={<FileText size={16} />} onClick={() => navigate('/app/tax/cit/new')} style={{ minWidth: 'fit-content' }}>
+              Start NRS CIT Filing
+            </Button>
+            <Button variant="secondary" onClick={() => setShowSavingsFinder(v => !v)} style={{ minWidth: 'fit-content' }}>
+              {showSavingsFinder ? 'Hide Tax Savings Finder' : `Tax Savings Finder (${taxSavingsReport.opportunities.length})`}
+            </Button>
+          </div>
         </div>
       </Card>
+
+      {showSavingsFinder && (
+        <div style={{ marginBottom: 20 }}>
+          <TaxSavingsFinderPanel report={taxSavingsReport} />
+        </div>
+      )}
 
       <Card style={{ marginBottom: 20, padding: '14px 16px', border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />

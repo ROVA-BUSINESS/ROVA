@@ -3,6 +3,7 @@ import { STANDARD_NIGERIA_COA } from '../src/lib/standardCoa.ts';
 import { computeFinancialStatementsModel } from '../src/lib/financialStatementEngine.ts';
 import { mapFinancialStatementsToCitState } from '../src/lib/fsToCitMapper.ts';
 import { generateFinancialStatementsWorkbookBytes } from '../src/lib/financialWorkbookExport.ts';
+import { runTaxSavingsFinder } from '../src/lib/taxSavingsFinder.ts';
 
 console.log('Testing ROVA Bookkeeping -> Financial Statements -> CIT Pipeline...');
 
@@ -149,6 +150,18 @@ assert.equal(citState.nta2025?.whtCreditsUtilized, 2_000_000);
 // 5. Test 8-Tab Financial Statements Excel export
 const xlsxBytes = await generateFinancialStatementsWorkbookBytes(largeModel);
 assert.ok(xlsxBytes.length > 5000, 'Generated XLSX workbook should be non-empty');
+
+// 6. Test Rova Tax Savings Finder (NTA 2025)
+const savingsReport = runTaxSavingsFinder({
+  fsModel: largeModel,
+  transactions: [
+    { id: 's1', date: '2026-03-01', amount: 2_000_000, type: 'expense', description: 'Staff Pension PenCom remittance' },
+    { id: 's2', date: '2026-04-01', amount: 1_000_000, type: 'expense', description: 'Regulatory penalty fine' },
+  ],
+});
+assert.ok(savingsReport.opportunities.some((o) => o.id === 'opp_staff_pension'), 'Should trigger Staff Pension deduction');
+assert.ok(savingsReport.opportunities.some((o) => o.id === 'opp_wht_credit'), 'Should trigger WHT credit');
+assert.ok(savingsReport.disallowedAlerts.some((a) => a.id === 'disallow_penalties'), 'Should flag Penalties as Do Not Claim');
 
 console.log('ALL PIPELINE TESTS PASSED ✅');
 console.log(`- Small company tax: ₦${smallModel.taxComputation.netCurrentTaxPayable}`);
