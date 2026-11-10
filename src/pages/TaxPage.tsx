@@ -19,7 +19,7 @@ const NGN_TAX_TYPES = [
     short: 'VAT — 7.5%',
     description: 'Charged on goods and services supplied in Nigeria. Businesses with annual turnover ≥ ₦25M must register for VAT. File monthly returns by 21st of the following month.',
     rate: '7.5%',
-    authority: 'FIRS',
+    authority: 'NRS',
     deadline: '21st of following month',
   },
   {
@@ -34,10 +34,10 @@ const NGN_TAX_TYPES = [
   {
     value: 'CIT',
     name: 'Company Income Tax',
-    short: 'CIT — 0% / 20% / 30%',
-    description: 'Tax on company profits. Small companies (turnover < ₦25M) pay 0%. Medium (₦25M–₦100M) pay 20%. Large (> ₦100M) pay 30%. File annually within 6 months of year-end.',
-    rate: '0% / 20% / 30% (tiered)',
-    authority: 'FIRS',
+    short: 'CIT — 0% / 27.5% + 4% Dev Levy',
+    description: 'Tax on company profits under NTA 2025. Qualifying small companies (turnover ≤ ₦100M and gross fixed assets ≤ ₦250M, excluding professional firms) pay 0%. Standard companies pay 27.5% CIT + 4% Harmonized Development Levy. File annually within 6 months of year-end.',
+    rate: '0% / 27.5% + 4% Levy',
+    authority: 'NRS',
     deadline: '6 months after year-end',
   },
   {
@@ -55,7 +55,7 @@ const NGN_TAX_TYPES = [
     short: 'CGT — 10%',
     description: 'Charged at 10% on gains from disposal of capital assets including land, buildings, and shares. File and pay within 30 days of asset disposal.',
     rate: '10%',
-    authority: 'FIRS',
+    authority: 'NRS',
     deadline: '30 days after disposal',
   },
   {
@@ -90,16 +90,16 @@ function calcPIT(income: number): number {
   return tax;
 }
 
-function calcCIT(income: number): number {
-  if (income < 25_000_000) return 0;
-  if (income < 100_000_000) return income * 0.20;
-  return income * 0.30;
+function calcCIT(taxableProfit: number, turnover?: number): number {
+  if ((turnover ?? taxableProfit) <= 100_000_000) return 0;
+  return Math.max(0, taxableProfit) * 0.275 + Math.max(0, taxableProfit) * 0.04;
+  // Standard NTA 2025 rate applied above
 }
 
 function citLabel(income: number): string {
-  if (income < 25_000_000) return 'Small Company (0%)';
-  if (income < 100_000_000) return 'Medium Company (20%)';
-  return 'Large Company (30%)';
+  if (income <= 100_000_000) return 'Small Company (0% · NTA 2025)';
+  return 'Standard (27.5% CIT + 4% Dev Levy)';
+  // NTA 2025 label
 }
 
 function computeTax(grossIncome: number, deductions: number, taxType: TaxRecord['tax_type']): { taxable: number; tax: number } {
@@ -156,7 +156,7 @@ export default function TaxPage() {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const netProfit = totalIncome - totalExpense;
-  const estimatedCIT = calcCIT(totalIncome);
+  const estimatedCIT = calcCIT(Math.max(0, netProfit), totalIncome);
   const outstandingLiability = records.filter(r => r.status === 'pending' || r.status === 'overdue').reduce((s, r) => s + r.calculated_tax - r.paid_tax, 0);
 
   async function handleSubmit(e: FormEvent) {
@@ -255,7 +255,7 @@ export default function TaxPage() {
             <div>
               <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>NRS Companies Income Tax (CIT) Return Generator</h3>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                Data-driven minimal question flow — answer only what's required for your business, generate instant NRS schedules.
+                Data-driven questionnaire: upload existing Financial Statements or convert bank statements, receipts &amp; Rova books into Financial Statements and auto-fill your NRS CIT return.
               </p>
             </div>
           </div>
@@ -270,7 +270,7 @@ export default function TaxPage() {
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--warning)', marginBottom: 2 }}>Disclaimer</div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Tax estimates are for planning purposes only, based on FIRS guidelines and Finance Act 2021. Always consult a qualified tax professional or FIRS-accredited accountant for official filings.
+            Tax estimates are based on the Nigeria Tax Act 2025 (NTA 2025) &amp; NTAA 2025 guidelines for the Nigeria Revenue Service (NRS). Always consult a qualified tax professional for official filings.
           </div>
         </div>
       </Card>

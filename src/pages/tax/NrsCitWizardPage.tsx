@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle, FileSpreadsheet, Edit2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AlertTriangle, HelpCircle, FileSpreadsheet, Edit2, CheckCircle2, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { useRovaTaxFlow } from './useRovaTaxFlow';
+import { TaxIntakeFlow } from '../../components/tax/TaxIntakeFlow';
+import type { FinancialStatementModel } from '../../lib/financialStatementEngine';
+import { generateFinancialStatementsWorkbookBytes } from '../../lib/financialWorkbookExport';
 import { AssetEntryCard } from '../../components/tax/AssetEntryCard';
 import { ChipSelect } from '../../components/tax/ChipSelect';
 import { ChipSelectAmount } from '../../components/tax/ChipSelectAmount';
@@ -125,9 +130,13 @@ const OTHER_INCOME_OPTIONS = [
 
 export default function NrsCitWizardPage() {
   const navigate = useNavigate();
-  const { state, computed, updateState, exportForFiling } = useRovaTaxFlow();
+  const { user } = useAuth();
+  const { state, computed, updateState, hydrateState, exportForFiling } = useRovaTaxFlow();
+  const [showIntake, setShowIntake] = useState(true);
+  const [fsModel, setFsModel] = useState<FinancialStatementModel | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [exportFileName, setExportFileName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const stage = STAGES[currentStep];
 
@@ -1019,6 +1028,38 @@ export default function NrsCitWizardPage() {
                 📄 Download Filing Data (JSON)
               </button>
 
+              {/* Download 8-Tab ROVA Financial Statements Workbook */}
+              {fsModel && (
+                <button
+                  onClick={async () => {
+                    const bytes = await generateFinancialStatementsWorkbookBytes(fsModel);
+                    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ROVA_Financial_Statements_${state.yearOfAssessment || '2026'}.xlsx`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  style={{
+                    padding: '12px 20px',
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--accent-border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: 'var(--accent-light)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <FileSpreadsheet size={16} />
+                  Download ROVA Financial Statements (.xlsx)
+                </button>
+              )}
+
               {/* Download Filled NRS CIT Excel */}
               <button
                 onClick={async () => {
@@ -1093,20 +1134,69 @@ export default function NrsCitWizardPage() {
             {/* Divider */}
             <hr style={{ border: 'none', borderTop: '1px solid var(--bg-border)', maxWidth: 420, margin: '0 auto 24px' }} />
 
+            {/* Statutory Filing Package Checklist (Section 8.1) */}
+            {fsModel && (
+              <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)', maxWidth: 540, margin: '0 auto 24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                    NRS Statutory Filing Package ({fsModel.filingReadiness.readinessScore}% Ready)
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 600 }}>
+                    Due: {fsModel.filingReadiness.dueDate} ({fsModel.filingReadiness.daysRemaining}d)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {fsModel.filingChecklist.map(doc => (
+                    <div key={doc.docNo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--bg-border)' }}>
+                      <span><strong>{doc.docNo}:</strong> {doc.component}</span>
+                      <span style={{ fontWeight: 700, color: doc.status === 'Ready' ? 'var(--success)' : doc.status === 'N/A' ? 'var(--text-muted)' : 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {doc.status === 'Ready' && <CheckCircle2 size={12} />} {doc.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Original submit */}
             <div style={{ textAlign: 'center' }}>
               <button
-                onClick={() => {
-                  alert("Tax filed successfully in ROVA! (Note: backend integration to tax authority API is planned for a future update).");
-                  navigate('/app/tax');
+                disabled={submitting}
+                onClick={async () => {
+                  setSubmitting(true);
+                  try {
+                    const fy = state.yearOfAssessment || String(new Date().getFullYear());
+                    if (user) {
+                      await supabase.from('tax_records').insert({
+                        user_id: user.id,
+                        tax_type: 'CIT',
+                        period_start: `${fy}-01-01`,
+                        period_end: `${fy}-12-31`,
+                        gross_income: computed.revenue,
+                        deductions: computed.directCost + computed.adminExpensesTotal + computed.capitalAllowanceClaimed,
+                        taxable_income: computed.taxableProfit,
+                        calculated_tax: computed.netTaxPayable,
+                        paid_tax: computed.advanceCitPaid,
+                        due_date: fsModel?.filingReadiness.dueDate || `${Number(fy) + 1}-06-30`,
+                        notes: `NRS CIT Return (NTA 2025) — ${computed.qualifiesSmallCompanyExemption ? 'Small Company 0% CIT' : '27.5% CIT + 4% Dev Levy'}`,
+                        status: 'filed',
+                      });
+                    }
+                    alert(`CIT Return for ${fy} recorded as filed in ROVA! Upload your downloaded CIT Excel + Financial Statements on the NRS portal.`);
+                    navigate('/app/tax');
+                  } catch (err: any) {
+                    alert(`Could not save filing record: ${err?.message || err}`);
+                  } finally {
+                    setSubmitting(false);
+                  }
                 }}
                 style={{
                   padding: '12px 32px', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-light))',
                   color: '#fff', border: 'none', borderRadius: 'var(--radius-lg)', fontSize: 16, fontWeight: 700,
-                  cursor: 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.25)'
+                  cursor: submitting ? 'wait' : 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.25)'
                 }}
               >
-                Sign and submit
+                {submitting ? 'Saving Return...' : 'Sign and submit'}
               </button>
             </div>
           </div>
@@ -1117,24 +1207,83 @@ export default function NrsCitWizardPage() {
     }
   };
 
+  if (showIntake) {
+    return (
+      <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <button
+            onClick={() => navigate('/app/tax')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+          >
+            <ArrowLeft size={16} /> Exit to Tax Hub
+          </button>
+        </div>
+        <TaxIntakeFlow
+          onCompleteToWizard={(hydrated, model) => {
+            hydrateState(hydrated);
+            setFsModel(model || null);
+            setShowIntake(false);
+            setCurrentStep(STAGES.length - 1);
+          }}
+          onSkipToManualWizard={() => setShowIntake(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
       
       {/* Header & Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 10 }}>
         <button
           onClick={() => navigate('/app/tax')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
         >
           <ArrowLeft size={16} /> Exit to Tax Hub
         </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {state.nta2025?.syncedFromFinancialStatements && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 6, background: 'var(--success-dim)', color: 'var(--success)' }}>
+              <Sparkles size={13} /> Auto-filled from Financial Statements
+            </span>
+          )}
+          <button
+            onClick={() => setShowIntake(true)}
+            style={{ padding: '6px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Re-run Intake / Upload Records
+          </button>
+        </div>
       </div>
 
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)' }}>NRS Company Income Tax (CIT) Filing Wizard</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>ROVA unified tax filing flow</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>ROVA unified tax filing flow (Nigeria Tax Act 2025)</p>
 
-        <div style={{ marginTop: 20 }}>
+        {/* Clickable Stage Jump Bar */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14 }}>
+          {STAGES.map((st, idx) => (
+            <button
+              key={st.id}
+              onClick={() => setCurrentStep(idx)}
+              style={{
+                padding: '5px 10px',
+                borderRadius: 6,
+                border: `1px solid ${currentStep === idx ? 'var(--accent-primary)' : 'var(--bg-border)'}`,
+                background: currentStep === idx ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                color: currentStep === idx ? 'var(--accent-light)' : 'var(--text-muted)',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {idx + 1}. {st.title}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: 'var(--accent-light)', marginBottom: 8 }}>
             <span>Step {currentStep + 1} of {STAGES.length}: {stage.label}</span>
             <span>{Math.round(((currentStep + 1) / STAGES.length) * 100)}%</span>

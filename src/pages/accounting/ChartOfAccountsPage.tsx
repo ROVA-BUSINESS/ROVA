@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Plus, Pencil, Trash2, Layers } from 'lucide-react';
 import { supabase, type ChartOfAccount } from '../../lib/supabase';
+import { STANDARD_NIGERIA_COA } from '../../lib/standardCoa';
 import { useAuth } from '../../contexts/AuthContext';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -13,16 +14,19 @@ const TYPE_COLORS: Record<ChartOfAccount['account_type'], 'default' | 'success' 
   asset: 'success', liability: 'error', equity: 'warning', income: 'info', expense: 'default',
 };
 
-const DEFAULTS: Omit<ChartOfAccount, 'id' | 'user_id' | 'created_at'>[] = [
-  { code: '1000', name: 'Cash & Bank', account_type: 'asset', normal_balance: 'debit', description: 'Cash on hand and bank accounts', is_system: false, is_active: true, parent_id: null },
-  { code: '1100', name: 'Accounts Receivable', account_type: 'asset', normal_balance: 'debit', description: 'Amounts owed by customers', is_system: false, is_active: true, parent_id: null },
-  { code: '1200', name: 'Inventory', account_type: 'asset', normal_balance: 'debit', description: 'Goods held for sale', is_system: false, is_active: true, parent_id: null },
-  { code: '2000', name: 'Accounts Payable', account_type: 'liability', normal_balance: 'credit', description: 'Amounts owed to suppliers', is_system: false, is_active: true, parent_id: null },
-  { code: '2100', name: 'Loans Payable', account_type: 'liability', normal_balance: 'credit', description: 'Outstanding loan balances', is_system: false, is_active: true, parent_id: null },
-  { code: '3000', name: "Owner's Equity", account_type: 'equity', normal_balance: 'credit', description: 'Owner investment and retained earnings', is_system: false, is_active: true, parent_id: null },
-  { code: '4000', name: 'Revenue', account_type: 'income', normal_balance: 'credit', description: 'Primary business revenue', is_system: false, is_active: true, parent_id: null },
-  { code: '5000', name: 'Operating Expenses', account_type: 'expense', normal_balance: 'debit', description: 'General business expenses', is_system: false, is_active: true, parent_id: null },
-];
+const DEFAULTS: Omit<ChartOfAccount, 'id' | 'user_id' | 'created_at'>[] = STANDARD_NIGERIA_COA.map(a => ({
+  code: a.code,
+  name: a.name,
+  account_type: a.accountType,
+  normal_balance: a.normalBalance,
+  description: a.statementLineMapping,
+  is_system: false,
+  is_active: true,
+  parent_id: null,
+  statement_line_mapping: a.statementLineMapping,
+  current_classification: a.currentClassification,
+  cash_flow_category: a.cashFlowCategory,
+}));
 
 export default function ChartOfAccountsPage() {
   const { user } = useAuth();
@@ -48,7 +52,11 @@ export default function ChartOfAccountsPage() {
 
   async function seedDefaults() {
     setSeeding(true);
-    await supabase.from('chart_of_accounts').insert(DEFAULTS.map(d => ({ ...d, user_id: user!.id })));
+    const existingCodes = new Set(accounts.map(a => a.code));
+    const missing = DEFAULTS.filter(d => !existingCodes.has(d.code));
+    if (missing.length > 0) {
+      await supabase.from('chart_of_accounts').insert(missing.map(d => ({ ...d, user_id: user!.id })));
+    }
     loadAccounts();
     setSeeding(false);
   }
@@ -99,11 +107,13 @@ export default function ChartOfAccountsPage() {
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Chart of Accounts</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Customizable account structure for your books</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Standard Nigeria SME account structure (1010–9999)</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {accounts.length === 0 && (
-            <Button variant="secondary" loading={seeding} onClick={seedDefaults}>Load Defaults</Button>
+          {accounts.length < STANDARD_NIGERIA_COA.length && (
+            <Button variant="secondary" loading={seeding} onClick={seedDefaults}>
+              {accounts.length === 0 ? 'Load Nigeria SME COA' : 'Sync Standard COA'}
+            </Button>
           )}
           <Button variant="primary" icon={<Plus size={14} />} onClick={openNew}>Add Account</Button>
         </div>
@@ -116,8 +126,8 @@ export default function ChartOfAccountsPage() {
           <div style={{ textAlign: 'center', padding: '48px 20px' }}>
             <Layers size={36} color="var(--text-disabled)" style={{ margin: '0 auto 12px' }} />
             <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 4 }}>No accounts set up yet</p>
-            <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginBottom: 16 }}>Load defaults to get started quickly</p>
-            <Button variant="primary" loading={seeding} onClick={seedDefaults}>Load Default Accounts</Button>
+            <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginBottom: 16 }}>Load the Nigeria SME Chart of Accounts (1010–9999) to get started</p>
+            <Button variant="primary" loading={seeding} onClick={seedDefaults}>Load Nigeria SME COA</Button>
           </div>
         </Card>
       ) : (
@@ -136,7 +146,7 @@ export default function ChartOfAccountsPage() {
                         { label: 'Code' },
                         { label: 'Name' },
                         { label: 'Normal Balance', hideMobile: true },
-                        { label: 'Description', hideMobile: true },
+                        { label: 'Statement Mapping', hideMobile: true },
                         { label: '', className: 'mobile-actions' }
                       ].map(h => (
                         <th key={h.label} className={`${h.hideMobile ? 'mobile-hide' : ''} ${h.className || ''}`} style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h.label}</th>
@@ -152,14 +162,14 @@ export default function ChartOfAccountsPage() {
                       >
                         <td className="mobile-tight-td" style={{ padding: '10px 16px', fontSize: 12, fontWeight: 600, color: 'var(--accent-light)', fontFamily: 'Space Grotesk, sans-serif' }}>{acc.code}</td>
                         <td className="mobile-tight-td" style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
-                           <div className="mobile-desc-text" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>{acc.name}</div>
+                           <div className="mobile-desc-text" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '220px' }}>{acc.name}</div>
                         </td>
                         <td className="mobile-hide" style={{ padding: '10px 16px' }}>
                           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: acc.normal_balance === 'debit' ? 'var(--success)' : 'var(--error)' }}>
                             {acc.normal_balance}
                           </span>
                         </td>
-                        <td className="mobile-hide" style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-muted)' }}>{acc.description || '—'}</td>
+                        <td className="mobile-hide" style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-muted)' }}>{acc.statement_line_mapping || acc.description || '—'}</td>
                         <td className="mobile-tight-td mobile-actions" style={{ padding: '10px 16px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                             <button onClick={() => openEdit(acc)}
@@ -189,8 +199,8 @@ export default function ChartOfAccountsPage() {
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditing(null); resetForm(); }} title={editing ? 'Edit Account' : 'Add Account'}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: 10 }}>
-            <Input label="Code" placeholder="1000" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} required />
-            <Input label="Account Name" placeholder="Cash & Bank" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
+            <Input label="Code" placeholder="1010" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} required />
+            <Input label="Account Name" placeholder="Cash on Hand" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

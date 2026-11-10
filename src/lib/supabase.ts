@@ -200,6 +200,9 @@ export type ChartOfAccount = {
   is_system: boolean;
   is_active: boolean;
   parent_id: string | null;
+  statement_line_mapping?: string;
+  current_classification?: string;
+  cash_flow_category?: string;
   created_at: string;
 };
 
@@ -626,4 +629,126 @@ export type BusinessNote = {
   tags: string[];
   created_at: string;
   updated_at: string;
+};
+
+export type StatutoryAssetClass =
+  | 'Leasehold Land & Buildings'
+  | 'Plant & Heavy Machinery'
+  | 'Commercial Motor Vehicles'
+  | 'Office Furniture & Equipment'
+  | 'Computer & IT Infrastructure';
+
+export type FinancialStatementProfile = {
+  id?: string;
+  user_id: string;
+  fiscal_year: number;
+  company_legal_name: string;
+  rc_number: string;
+  tin: string;
+  fy_start_date: string;
+  fy_end_date: string;
+  prior_year_end_date?: string | null;
+  reporting_currency: string;
+  currency_symbol: string;
+  nature_of_business: string;
+  sector: string;
+  accounting_framework: 'IFRS' | 'IFRS for SMEs';
+  tax_regime: string;
+  tax_authority: string;
+  audit_status: 'Audited' | 'Exempt under CAMA 2020' | 'Unaudited';
+  auditor_firm: string;
+  auditor_partner: string;
+  auditor_frc: string;
+  audit_opinion: string;
+  director_1: string;
+  director_2: string;
+  cfo_name: string;
+  cfo_frc: string;
+  approval_date?: string | null;
+  small_turnover_threshold: number;
+  small_asset_threshold: number;
+  professional_services_flag: boolean;
+  cit_rate_small: number;
+  cit_rate_standard: number;
+  dev_levy_rate: number;
+  vat_rate: number;
+  wht_rate_supplies: number;
+  wht_rate_services: number;
+  ca_restriction_cap: number;
+  notes_config?: Record<string, any>;
+};
+
+export type CoaOpeningBalance = {
+  id?: string;
+  user_id: string;
+  fiscal_year: number;
+  account_code: string;
+  opening_debit: number;
+  opening_credit: number;
+};
+
+export type FixedAssetRecord = {
+  id: string;
+  user_id: string;
+  asset_code: string;
+  description: string;
+  asset_class: StatutoryAssetClass;
+  date_acquired: string;
+  historical_cost: number;
+  prior_accum_depr: number;
+  opening_twdv: number;
+  status: 'Active' | 'Disposed';
+  source_transaction_id?: string | null;
+};
+
+export type FixedAssetDisposalRecord = {
+  id: string;
+  user_id: string;
+  fixed_asset_id?: string | null;
+  asset_code: string;
+  disposal_date: string;
+  original_cost: number;
+  accum_depr_at_disposal: number;
+  disposal_proceeds: number;
+  remarks: string;
+};
+
+export type WhtCreditNoteRecord = {
+  id: string;
+  user_id: string;
+  fiscal_year: number;
+  client_name: string;
+  credit_note_no: string;
+  deduction_date: string;
+  nature_of_supply: string;
+  gross_amount: number;
+  wht_rate: number;
+  wht_deducted: number;
+  verification_status: 'Pending Verification' | 'Verified' | 'Rejected';
+  amount_utilized: number;
+};
+
+export type TaxCarryforwardRecord = {
+  id?: string;
+  user_id: string;
+  fiscal_year: number;
+  opening_unrelieved_losses: number;
+  opening_unutilized_ca: number;
+  advance_cit_paid: number;
+  non_allowable_fines: number;
+  franked_investment_income: number;
+};
+
+export type TaxIntakeSession = {
+  id?: string;
+  user_id: string;
+  fiscal_year: number;
+  has_prepared_fs: boolean | null;
+  intake_status: 'questionnaire' | 'collecting_evidence' | 'reviewing_entries' | 'ready_for_wizard' | 'completed';
+  uploaded_files: any[];
+  extracted_entries: any[];
+  suspense_resolutions: Record<string, any>;
+  checklist_status: Record<string, string>;
+  wizard_state: Record<string, any>;
+  fs_snapshot: Record<string, any>;
 };

@@ -21,6 +21,10 @@ export interface FixedAsset {
   cost: number;
   description: string;
   category: AssetCategory | '';
+  /** Statutory initial + annual capital allowance overrides when hydrated from ROVA FAR */
+  statutoryClass?: string;
+  initialAllowanceRate?: number;
+  annualAllowanceRate?: number;
 }
 
 export type Sector =
@@ -89,4 +93,21 @@ export interface RovaTaxState {
   };
   otherIncome: Record<string, number>;
   adminExpense: Record<string, number>;
+  /** NTA 2025 & Financial Statement Hydration Metadata */
+  nta2025?: {
+    professionalServicesFlag: boolean;
+    grossFixedAssets: number;
+    whtCreditsUtilized: number;
+    advanceCitPaid: number;
+    openingUnutilizedCa: number;
+    openingUnrelievedLosses: number;
+    financeIncome?: number;
+    financeCosts?: number;
+    syncedFromFinancialStatements?: boolean;
+    companyLegalName?: string;
+    rcNumber?: string;
+    tin?: string;
+    suspenseCount?: number;
+    auditPassCount?: number;
+  };
 }

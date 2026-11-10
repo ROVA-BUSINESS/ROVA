@@ -10,6 +10,14 @@ interface LiveLedgerSidebarProps {
     addbacksTotal: number;
     deductionsTotal: number;
     totalCapitalAllowance: number;
+    capitalAllowanceClaimed?: number;
+    assessableProfit?: number;
+    taxableProfit?: number;
+    qualifiesSmallCompanyExemption?: boolean;
+    citCharged?: number;
+    developmentLevy?: number;
+    whtCreditsUtilized?: number;
+    netTaxPayable?: number;
   };
   mneCfcFlagged: boolean;
 }
@@ -27,7 +35,12 @@ export function LiveLedgerSidebar({ computed, mneCfcFlagged }: LiveLedgerSidebar
       flexDirection: 'column',
       gap: 16
     }}>
-      <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Live Ledger</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Live Ledger</h3>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 4, background: 'var(--accent-dim)', color: 'var(--accent-light)' }}>
+          NTA 2025
+        </span>
+      </div>
       
       {mneCfcFlagged && (
         <div style={{
@@ -42,10 +55,10 @@ export function LiveLedgerSidebar({ computed, mneCfcFlagged }: LiveLedgerSidebar
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <LedgerRow label="Revenue" value={computed.revenue} />
         <LedgerRow label="Direct Cost" value={computed.directCost} isNegative />
-        <div style={{ height: 1, background: 'var(--bg-border)', margin: '4px 0' }} />
+        <div style={{ height: 1, background: 'var(--bg-border)', margin: '2px 0' }} />
         <LedgerRow label="Gross Profit" value={computed.grossProfit} bold />
         {computed.otherIncomeTotal ? (
           <LedgerRow label="Other Income" value={computed.otherIncomeTotal} />
@@ -53,7 +66,26 @@ export function LiveLedgerSidebar({ computed, mneCfcFlagged }: LiveLedgerSidebar
         <LedgerRow label="Admin Expenses" value={computed.adminExpensesTotal} isNegative />
         <LedgerRow label="Add-backs" value={computed.addbacksTotal} />
         <LedgerRow label="Deductions" value={computed.deductionsTotal} isNegative />
-        <LedgerRow label="Capital Allowance" value={computed.totalCapitalAllowance} isNegative />
+        <LedgerRow
+          label="Capital Allowance (Claimed)"
+          value={computed.capitalAllowanceClaimed ?? computed.totalCapitalAllowance}
+          isNegative
+        />
+        <div style={{ height: 1, background: 'var(--bg-border)', margin: '2px 0' }} />
+        <LedgerRow label="Taxable Profit" value={computed.taxableProfit ?? 0} bold />
+        <LedgerRow
+          label={computed.qualifiesSmallCompanyExemption ? 'CIT (0% Small Co.)' : 'CIT (27.5%)'}
+          value={computed.citCharged ?? 0}
+        />
+        <LedgerRow
+          label={computed.qualifiesSmallCompanyExemption ? 'Dev Levy (Exempt)' : 'Dev Levy (4.0%)'}
+          value={computed.developmentLevy ?? 0}
+        />
+        {(computed.whtCreditsUtilized ?? 0) > 0 && (
+          <LedgerRow label="Less: WHT Credits" value={computed.whtCreditsUtilized ?? 0} isNegative />
+        )}
+        <div style={{ height: 1, background: 'var(--bg-border)', margin: '2px 0' }} />
+        <LedgerRow label="Net Tax Payable" value={computed.netTaxPayable ?? 0} bold />
       </div>
     </div>
   );
@@ -64,9 +96,9 @@ function LedgerRow({ label, value, isNegative, bold }: { label: string, value: n
   
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontSize: 13, color: bold ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: bold ? 600 : 400 }}>{label}</span>
+      <span style={{ fontSize: 12, color: bold ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: bold ? 600 : 400 }}>{label}</span>
       <span style={{ 
-        fontSize: 13, 
+        fontSize: 12, 
         fontWeight: bold ? 700 : 500, 
         color: bold ? 'var(--text-primary)' : (isNegative && value > 0 ? 'var(--error)' : 'var(--text-primary)') 
       }}>
