@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download, Landmark } from 'lucide-react';
-import { PIT_JURISDICTION_LIST } from '../config/pitJurisdictions';
 import { supabase, type Employee, type FixedAssetRecord, type Invoice, type TaxRecord, type Transaction, type WhtCreditNoteRecord } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
@@ -282,9 +281,9 @@ export default function TaxPage() {
               <FileText size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>NRS Companies Income Tax (CIT) Return Generator</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>Companies Income Tax (CIT)</h3>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                Data-driven questionnaire: upload existing Financial Statements or convert bank statements, receipts &amp; Rova books into Financial Statements and auto-fill your NRS CIT return.
+                Corporate income tax filing for Limited Liability Companies (NRS).
               </p>
             </div>
           </div>
@@ -299,17 +298,17 @@ export default function TaxPage() {
         </div>
       </Card>
 
-      {/* Unified Four-State Personal Income Tax (PIT) Filing Section */}
+      {/* Unified Personal Income Tax (PIT) Filing Section */}
       <Card style={{ marginBottom: 20, padding: 20, border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--info-dim)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Landmark size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>Personal Income Tax (PIT) Filing — Four Supported States</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>Personal Income Tax (PIT)</h3>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                One shared PIT preparation &amp; self-filing workflow for Individuals and CAC Business Names (LLCs use CIT above). Select any state below to start:
+                For individuals &amp; registered business names (Lagos, Kano, Abuja FCT &amp; Rivers).
               </p>
             </div>
           </div>
@@ -318,36 +317,9 @@ export default function TaxPage() {
               Start PIT Filing
             </Button>
             <Button variant="secondary" onClick={() => navigate('/app/tax/pit/admin')} style={{ minWidth: 'fit-content' }}>
-              PIT Jurisdictions Admin
+              Jurisdiction Admin
             </Button>
           </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
-          {PIT_JURISDICTION_LIST.map((j) => (
-            <button
-              key={j.stateCode}
-              type="button"
-              onClick={() => navigate(`/app/tax/pit/new?state=${j.stateCode}`)}
-              style={{
-                textAlign: 'left',
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--bg-border)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontWeight: 700, fontSize: 13 }}>{j.stateLabel}</span>
-                <Badge variant="info">{j.authorityCode}</Badge>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                {j.portalName} • Due Mar 31
-              </div>
-            </button>
-          ))}
         </div>
       </Card>
 
