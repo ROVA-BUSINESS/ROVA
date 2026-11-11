@@ -10,6 +10,8 @@ import TransactionsPage from './pages/TransactionsPage';
 import ReportsPage from './pages/ReportsPage';
 import TaxPage from './pages/TaxPage';
 import NrsCitWizardPage from './pages/tax/NrsCitWizardPage';
+import PitWizardPage from './pages/tax/PitWizardPage';
+import PitAdminDashboardPage from './pages/tax/PitAdminDashboardPage';
 import InvoicesPage from './pages/InvoicesPage';
 import ReceiptsPage from './pages/ReceiptsPage';
 import SettingsPage from './pages/SettingsPage';
@@ -183,6 +185,8 @@ export default function App() {
             <Route path="tax" element={<SubscriptionRoute><AdminRoute><TaxPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="tax/cit/new" element={<SubscriptionRoute><AdminRoute><NrsCitWizardPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="tax/cit/:filingId" element={<SubscriptionRoute><AdminRoute><NrsCitWizardPage /></AdminRoute></SubscriptionRoute>} />
+            <Route path="tax/pit/new" element={<SubscriptionRoute><AdminRoute><PitWizardPage /></AdminRoute></SubscriptionRoute>} />
+            <Route path="tax/pit/admin" element={<SubscriptionRoute><AdminRoute><PitAdminDashboardPage /></AdminRoute></SubscriptionRoute>} />
 
             {/* Business plan only */}
             <Route path="payroll" element={<SubscriptionRoute><AdminRoute><BusinessRoute><PayrollPage /></BusinessRoute></AdminRoute></SubscriptionRoute>} />

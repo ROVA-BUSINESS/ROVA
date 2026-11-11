@@ -177,6 +177,28 @@ export type TaxRecord = {
   created_at: string;
 };
 
+export type PitFilingRecord = {
+  id: string;
+  user_id: string;
+  tax_year: number;
+  taxpayer_classification: 'individual' | 'business_name';
+  state_code: 'LAGOS' | 'KANO' | 'FCT' | 'RIVERS';
+  authority_code: 'LIRS' | 'KIRS' | 'FCT-IRS' | 'RIRS';
+  tax_id_value: string;
+  taxpayer_profile: Record<string, unknown>;
+  income_data: Record<string, unknown>;
+  deductions_data: Record<string, unknown>;
+  supporting_docs: Array<Record<string, unknown>>;
+  computation_result: Record<string, unknown>;
+  status: 'draft' | 'ready_for_submission' | 'submitted' | 'acknowledged';
+  verified_by_taxpayer: boolean;
+  acknowledgement_ref: string;
+  acknowledgement_url: string;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Budget = {
   id: string;
   user_id: string;
