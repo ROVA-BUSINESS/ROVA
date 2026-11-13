@@ -274,54 +274,60 @@ export default function TaxPage() {
         </Card>
       </div>
 
-      <Card style={{ marginBottom: 20, padding: 20, border: '1px solid var(--accent-border)', background: 'linear-gradient(135deg, var(--accent-dim), var(--bg-elevated))' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <FileText size={22} />
+      {/* Filing Gateways: CIT & PIT side-by-side */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
+        {/* CIT Card */}
+        <Card style={{ padding: 18, border: '1px solid var(--accent-border)', background: 'linear-gradient(135deg, var(--accent-dim), var(--bg-elevated))', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FileText size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Companies Income Tax (CIT)</h3>
+                <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 500 }}>Limited Liability Companies (NRS)</span>
+              </div>
             </div>
-            <div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>Companies Income Tax (CIT)</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                Corporate income tax filing for Limited Liability Companies (NRS).
-              </p>
-            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Prepare and self-file company annual tax returns, deductions, and tax computations under NTA 2025.
+            </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="primary" icon={<FileText size={16} />} onClick={() => navigate('/app/tax/cit/new')} style={{ minWidth: 'fit-content' }}>
-              Start NRS CIT Filing
+            <Button variant="primary" icon={<FileText size={15} />} onClick={() => navigate('/app/tax/cit/new')} style={{ flex: 1, minWidth: 'fit-content', justifyContent: 'center' }}>
+              Start CIT Filing
             </Button>
             <Button variant="secondary" onClick={() => setShowSavingsFinder(v => !v)} style={{ minWidth: 'fit-content' }}>
-              {showSavingsFinder ? 'Hide Tax Savings Finder' : `Tax Savings Finder (${taxSavingsReport.opportunities.length})`}
+              {showSavingsFinder ? 'Hide Savings' : `Tax Savings (${taxSavingsReport.opportunities.length})`}
             </Button>
           </div>
-        </div>
-      </Card>
+        </Card>
 
-      {/* Unified Personal Income Tax (PIT) Filing Section */}
-      <Card style={{ marginBottom: 20, padding: 20, border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--info-dim)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Landmark size={22} />
+        {/* PIT Card */}
+        <Card style={{ padding: 18, border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--info-dim)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Landmark size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Personal Income Tax (PIT)</h3>
+                <span style={{ fontSize: 11, color: 'var(--info)', fontWeight: 500 }}>Individuals &amp; CAC Business Names</span>
+              </div>
             </div>
-            <div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', color: 'var(--text-primary)' }}>Personal Income Tax (PIT)</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                For individuals &amp; registered business names (Lagos, Kano, Abuja FCT &amp; Rivers).
-              </p>
-            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              State tax filing for individuals and sole proprietors (Lagos, Kano, FCT Abuja &amp; Rivers State).
+            </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="primary" onClick={() => navigate('/app/tax/pit/new')} style={{ minWidth: 'fit-content' }}>
+            <Button variant="primary" icon={<Landmark size={15} />} onClick={() => navigate('/app/tax/pit/new')} style={{ flex: 1, minWidth: 'fit-content', justifyContent: 'center' }}>
               Start PIT Filing
             </Button>
             <Button variant="secondary" onClick={() => navigate('/app/tax/pit/admin')} style={{ minWidth: 'fit-content' }}>
-              Jurisdiction Admin
+              Jurisdictions
             </Button>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       {showSavingsFinder && (
         <div style={{ marginBottom: 20 }}>
