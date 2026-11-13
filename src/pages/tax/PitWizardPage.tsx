@@ -48,6 +48,7 @@ import {
   type PitIncomeInput,
 } from '../../lib/pitEngine';
 import { downloadPitFilingWorkbook, printPitFilingSummary } from '../../lib/pitPackageExport';
+import CustomerFilingBrowser from '../../components/tax/CustomerFilingBrowser';
 
 const INDIVIDUAL_ACTIVITIES: Array<{ id: IndividualActivityType; label: string; hint: string }> = [
   { id: 'employed', label: 'Employed (I work for a company)', hint: 'You earn a salary, allowances, or employer benefits.' },
@@ -130,6 +131,8 @@ export default function PitWizardPage() {
     lga: '',
     taxYear: initialYearParam === 2026 ? 2026 : 2025,
   });
+
+  const [showAutomationBrowser, setShowAutomationBrowser] = useState(false);
 
   // Journey A: Individual states
   const [activities, setActivities] = useState<IndividualActivityType[]>(['employed']);
@@ -773,6 +776,14 @@ export default function PitWizardPage() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button
+              variant="primary"
+              icon={<Sparkles size={16} />}
+              onClick={() => setShowAutomationBrowser((prev) => !prev)}
+              style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+            >
+              {showAutomationBrowser ? 'Hide Filing Browser' : `Auto-File with ${jurisdiction.authorityCode}`}
+            </Button>
             <Button variant="secondary" icon={<FileSpreadsheet size={16} />} onClick={() => downloadPitFilingWorkbook(exportOpts)}>
               Download Package (.xlsx)
             </Button>
@@ -801,6 +812,24 @@ export default function PitWizardPage() {
           </div>
         </div>
       </Card>
+
+      {showAutomationBrowser && (
+        <CustomerFilingBrowser
+          sessionId={`lirs-filing-${personal.taxYear}-${user?.id || 'guest'}`}
+          authorityCode={jurisdiction.authorityCode}
+          authorityName={jurisdiction.authorityName}
+          portalUrl={jurisdiction.portalUrl}
+          taxData={{
+            userId: user?.id,
+            tradeIncome: computation.businessNetProfit || computation.totalAssessableIncome,
+            salary: employment.annualSalary,
+            commission: otherIndividualIncome.commissions,
+            address: personal.residentialAddress,
+            pension: employment.pensionDeductions,
+          }}
+          onCancel={() => setShowAutomationBrowser(false)}
+        />
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: 16 }}>
         <Card>
