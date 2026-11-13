@@ -1,4 +1,4 @@
-import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported, scheduleServiceWorkerBackgroundNotification } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -977,11 +977,10 @@ export default function SettingsPage() {
                         size="sm"
                         disabled={!!serverTestStatus}
                         onClick={async () => {
-                          if (!user) return;
                           setServerTestStatus('Pinging in 10s! Close tab now...');
-                          const res = await triggerServerBackgroundTestPush(user.id, 10);
+                          const res = await scheduleServiceWorkerBackgroundNotification(10);
                           if (!res.success) {
-                            setServerTestStatus(res.message || 'Failed to ping');
+                            setServerTestStatus(res.message || 'Permission required');
                             setTimeout(() => setServerTestStatus(null), 4000);
                           } else {
                             setTimeout(() => setServerTestStatus(null), 12000);

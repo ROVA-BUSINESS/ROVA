@@ -66,35 +66,35 @@ export function getBrowserNotificationPermission(): NotificationPermission | 'un
   return Notification.permission;
 }
 
-export function playReminderSound() {
+export async function playReminderSound() {
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
     
-    // Pleasant two-tone chime
+    // Clear, audible 3-tone chime (F#5 - A5 - D6)
     const now = ctx.currentTime;
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(587.33, now); // D5
-    gain1.gain.setValueAtTime(0.15, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.35);
+    const tones = [
+      { freq: 739.99, start: 0, duration: 0.22, gain: 0.35 },
+      { freq: 880.00, start: 0.12, duration: 0.25, gain: 0.4 },
+      { freq: 1174.66, start: 0.24, duration: 0.55, gain: 0.45 },
+    ];
 
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(880, now + 0.12); // A5
-    gain2.gain.setValueAtTime(0.2, now + 0.12);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(now + 0.12);
-    osc2.stop(now + 0.55);
+    for (const t of tones) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(t.freq, now + t.start);
+      gain.gain.setValueAtTime(t.gain, now + t.start);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + t.start + t.duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + t.start);
+      osc.stop(now + t.start + t.duration);
+    }
   } catch (err) {
     console.warn('Could not play reminder sound:', err);
   }
@@ -169,7 +169,7 @@ export async function fireReminderAlert(params: {
 
   // 1. Play sound if enabled
   if (config.sound) {
-    playReminderSound();
+    await playReminderSound();
   }
 
   // 2. Web Push & Lock-Screen notification via Service Worker

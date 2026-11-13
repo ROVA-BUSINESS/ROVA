@@ -1,4 +1,4 @@
-import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported, scheduleServiceWorkerBackgroundNotification } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { Clock, Bell, Volume2, Check, Sparkles, X } from 'lucide-react';
 import Button from './ui/Button';
@@ -72,9 +72,9 @@ export default function TransactionReminderModal({
 
   async function handleTestClosedSitePush() {
     setServerTestStatus('Pinging in 10s! Close tab now...');
-    const res = await triggerServerBackgroundTestPush(userId, 10);
+    const res = await scheduleServiceWorkerBackgroundNotification(10);
     if (!res.success) {
-      setServerTestStatus(res.message || 'Failed to ping');
+      setServerTestStatus(res.message || 'Permission required');
       setTimeout(() => setServerTestStatus(null), 4000);
     } else {
       setTimeout(() => setServerTestStatus(null), 12000);
@@ -92,6 +92,12 @@ export default function TransactionReminderModal({
 
   async function handleTestAlert() {
     setTestSent(true);
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      try {
+        const perm = await Notification.requestPermission();
+        setBrowserPermission(perm);
+      } catch {}
+    }
     await fireReminderAlert({
       userId,
       config,

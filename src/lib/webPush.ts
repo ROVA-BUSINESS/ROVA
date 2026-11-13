@@ -213,28 +213,23 @@ export async function showServiceWorkerNotification(params: {
 
   if (typeof window === 'undefined') return false;
 
-  // 1. Try via active Service Worker registration
-  if ('serviceWorker' in navigator) {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      if (registration && (registration as any).showNotification) {
-        await (registration as any).showNotification(title, {
-          body: body || "Don't forget to record today's transactions.",
-          icon: '/rova.png',
-          badge: '/favicon.svg',
-          vibrate: [200, 100, 200],
-          tag,
-          renotify: true,
-          data: { url, dateOfArrival: Date.now() },
-        });
-        return true;
+  // 1. If permission is not yet granted, prompt user immediately
+  if ('Notification' in window) {
+    if (Notification.permission === 'default') {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return false;
+      } catch {
+        return false;
       }
-    } catch (swErr) {
-      console.warn('Service Worker showNotification failed:', swErr);
+    } else if (Notification.permission === 'denied') {
+      return false;
     }
   }
 
-  // 2. Fallback to standard Window Notification if permission is granted
+  let shown = false;
+
+  // 2. Immediate window notification
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
       const notif = new Notification(title, {
@@ -246,13 +241,108 @@ export async function showServiceWorkerNotification(params: {
         window.focus();
         window.location.href = url;
       };
-      return true;
+      shown = true;
     } catch (notifErr) {
-      console.warn('Window Notification fallback failed:', notifErr);
+      console.warn('Window Notification error:', notifErr);
     }
   }
 
-  return false;
+  // 3. Service worker notification (for mobile/lock screen)
+  if ('serviceWorker' in navigator) {
+    try {
+      const readyReg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((r) => setTimeout(() => r(null), 800)),
+      ]);
+      const reg = readyReg || (await navigator.serviceWorker.getRegistration());
+      if (reg && (reg as any).showNotification) {
+        await (reg as any).showNotification(title, {
+          body: body || "Don't forget to record today's transactions.",
+          icon: '/rova.png',
+          badge: '/favicon.svg',
+          vibrate: [250, 100, 250],
+          tag,
+          renotify: true,
+          requireInteraction: true,
+          data: { url, dateOfArrival: Date.now() },
+        });
+        shown = true;
+      }
+    } catch (swErr) {
+      console.warn('Service Worker showNotification failed:', swErr);
+    }
+  }
+
+  return shown;
+}
+
+/**
+ * Schedules a background notification directly via the Service Worker.
+ * When you close the browser tab, the Service Worker thread stays alive
+ * for the delay (via event.waitUntil) and rings on the lock screen!
+ */
+export async function scheduleServiceWorkerBackgroundNotification(
+  delaySeconds: number = 10,
+  title?: string,
+  body?: string
+): Promise<{ success: boolean; message?: string }> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return { success: false, message: 'Service Worker not supported on this device.' };
+  }
+
+  // Ensure notification permission
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      return { success: false, message: 'Notification permission denied in browser.' };
+    }
+  }
+
+  try {
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    }
+
+    const readyReg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((r) => setTimeout(() => r(null), 1200)),
+    ]);
+
+    const targetReg = readyReg || reg;
+    const worker = targetReg?.active || navigator.serviceWorker.controller;
+
+    if (worker) {
+      worker.postMessage({
+        type: 'ROVA_SCHEDULE_NOTIFICATION',
+        delayMs: delaySeconds * 1000,
+        title: title || 'ROVA Daily Reminder (Closed-Site Alert)',
+        body: body || 'Success! Alert received while your browser was completely closed.',
+        url: '/app/transactions',
+      });
+      return {
+        success: true,
+        message: `Pinging in ${delaySeconds}s! Close this browser tab now to test lock-screen alert.`,
+      };
+    } else {
+      // Fallback: direct registration showNotification timeout
+      setTimeout(() => {
+        if (targetReg && targetReg.showNotification) {
+          targetReg.showNotification(title || 'ROVA Daily Reminder', {
+            body: body || 'Success! Alert received.',
+            icon: '/rova.png',
+            badge: '/favicon.svg',
+          });
+        }
+      }, delaySeconds * 1000);
+      return {
+        success: true,
+        message: `Pinging in ${delaySeconds}s! Close tab now...`,
+      };
+    }
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Failed to schedule.' };
+  }
 }
 
 /**
