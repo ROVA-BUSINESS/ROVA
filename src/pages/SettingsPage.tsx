@@ -1,3 +1,4 @@
+import { subscribeToPush, getExistingPushSubscription, isPushSupported } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,7 +22,6 @@ import {
   saveReminderConfig,
   formatTimeDisplay,
   getBrowserNotificationPermission,
-  requestBrowserNotificationPermission,
   fireReminderAlert,
 } from '../lib/transactionReminder';
 
@@ -49,11 +49,18 @@ export default function SettingsPage() {
   const [reminderPermission, setReminderPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [testReminderSent, setTestReminderSent] = useState(false);
   const [reminderSaved, setReminderSaved] = useState(false);
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false);
+  const [isPushSubscribing, setIsPushSubscribing] = useState(false);
 
   useEffect(() => {
     if (user) {
       setReminderConfig(getReminderConfig(user.id));
       setReminderPermission(getBrowserNotificationPermission());
+      if (isPushSupported()) {
+        getExistingPushSubscription().then((sub) => {
+          setIsPushSubscribed(!!sub);
+        });
+      }
     }
   }, [user]);
 
@@ -859,50 +866,71 @@ export default function SettingsPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                      padding: '12px 14px', borderRadius: 'var(--radius-md)',
                       background: 'var(--bg-surface)', border: '1px solid var(--bg-border)'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Bell size={18} color="var(--accent-light)" />
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8,
+                          background: 'var(--accent-dim)', color: 'var(--accent-light)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                        }}>
+                          <Bell size={16} />
+                        </div>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            Desktop &amp; Mobile Browser Push
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                              Web Push Notifications (Service Worker)
+                            </span>
+                            <span style={{
+                              fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                              background: 'rgba(34,197,94,0.15)', color: 'var(--success)', fontWeight: 700
+                            }}>
+                              100% FREE ($0)
+                            </span>
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            Alerts your phone or laptop screen even if ROVA is minimized
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Sends lock-screen alerts to your phone or desktop even when ROVA is closed
                           </div>
                         </div>
                       </div>
 
-                      {reminderPermission === 'granted' ? (
-                        <div style={{
-                          padding: '3px 10px', borderRadius: 'var(--radius-full)',
-                          background: 'var(--success-dim)', color: 'var(--success)',
-                          fontSize: 11, fontWeight: 600
-                        }}>
-                          Allowed
-                        </div>
-                      ) : reminderPermission === 'denied' ? (
+                      {reminderPermission === 'denied' ? (
                         <div style={{
                           padding: '3px 10px', borderRadius: 'var(--radius-full)',
                           background: 'var(--error-dim)', color: 'var(--error)',
                           fontSize: 11, fontWeight: 600
                         }}>
-                          Blocked in browser
+                          Blocked
+                        </div>
+                      ) : isPushSubscribed ? (
+                        <div style={{
+                          padding: '3px 10px', borderRadius: 'var(--radius-full)',
+                          background: 'var(--success-dim)', color: 'var(--success)',
+                          fontSize: 11, fontWeight: 600
+                        }}>
+                          Active on Device
                         </div>
                       ) : (
                         <Button
-                          variant="secondary"
+                          variant="primary"
                           size="sm"
+                          disabled={isPushSubscribing}
                           onClick={async () => {
-                            const res = await requestBrowserNotificationPermission();
-                            setReminderPermission(res);
-                            if (res === 'granted') {
+                            if (!user?.id) return;
+                            setIsPushSubscribing(true);
+                            const res = await subscribeToPush(user.id);
+                            setIsPushSubscribing(false);
+                            if (res.success) {
+                              setIsPushSubscribed(true);
+                              setReminderPermission('granted');
                               setReminderConfig(prev => ({ ...prev, notifyBrowser: true }));
+                            } else {
+                              setReminderPermission(getBrowserNotificationPermission());
                             }
                           }}
                         >
-                          Enable Browser Alerts
+                          {isPushSubscribing ? 'Connecting...' : 'Enable Lock-Screen Alerts'}
                         </Button>
                       )}
                     </div>

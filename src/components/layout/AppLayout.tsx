@@ -1,3 +1,4 @@
+import { registerServiceWorker } from '../../lib/webPush.ts';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Bell, Search, ArrowLeft, Sun, Moon, Home, ArrowLeftRight, Receipt, Package, LayoutGrid, Clock, X } from 'lucide-react';
@@ -92,6 +93,11 @@ export default function AppLayout() {
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
+
+  // Register Web Push Service Worker
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return;

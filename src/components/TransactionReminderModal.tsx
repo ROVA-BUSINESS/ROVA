@@ -1,3 +1,4 @@
+import { subscribeToPush, getExistingPushSubscription, isPushSupported } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { Clock, Bell, Volume2, Check, Sparkles, X } from 'lucide-react';
 import Button from './ui/Button';
@@ -8,7 +9,6 @@ import {
   saveReminderConfig,
   formatTimeDisplay,
   getBrowserNotificationPermission,
-  requestBrowserNotificationPermission,
   fireReminderAlert,
 } from '../lib/transactionReminder';
 
@@ -37,6 +37,8 @@ export default function TransactionReminderModal({
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [testSent, setTestSent] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
     if (isOpen && userId) {
@@ -44,16 +46,26 @@ export default function TransactionReminderModal({
       setBrowserPermission(getBrowserNotificationPermission());
       setTestSent(false);
       setSavedSuccess(false);
+      if (isPushSupported()) {
+        getExistingPushSubscription().then((sub) => {
+          setIsSubscribed(!!sub);
+        });
+      }
     }
   }, [isOpen, userId]);
 
   if (!isOpen) return null;
 
-  async function handleRequestPermission() {
-    const res = await requestBrowserNotificationPermission();
-    setBrowserPermission(res);
-    if (res === 'granted') {
+  async function handleEnableWebPush() {
+    setSubscribing(true);
+    const res = await subscribeToPush(userId);
+    setSubscribing(false);
+    if (res.success) {
+      setIsSubscribed(true);
+      setBrowserPermission('granted');
       setConfig((prev) => ({ ...prev, notifyBrowser: true }));
+    } else {
+      setBrowserPermission(getBrowserNotificationPermission());
     }
   }
 
@@ -329,10 +341,10 @@ export default function TransactionReminderModal({
               Notification Channels
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Browser notification check */}
+              {/* Web Push (Service Worker) notification check */}
               <div
                 style={{
-                  padding: '10px 12px',
+                  padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
                   background: 'var(--bg-surface)',
                   border: '1px solid var(--bg-border)',
@@ -342,25 +354,58 @@ export default function TransactionReminderModal({
                   gap: 10,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Bell size={16} color="var(--accent-light)" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: 'var(--accent-dim)',
+                      color: 'var(--accent-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Bell size={16} />
+                  </div>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Browser Desktop &amp; Mobile Push
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Web Push (Lock-Screen Alerts)
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          background: 'rgba(34,197,94,0.15)',
+                          color: 'var(--success)',
+                          fontWeight: 700,
+                        }}
+                      >
+                        100% FREE ($0)
+                      </span>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      Alerts you even when ROVA is in another tab
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Alerts your phone or desktop screen even when ROVA is closed
                     </div>
                   </div>
                 </div>
 
-                {browserPermission === 'granted' ? (
-                  <Badge variant="success">Enabled</Badge>
-                ) : browserPermission === 'denied' ? (
-                  <Badge variant="error">Blocked in browser</Badge>
+                {browserPermission === 'denied' ? (
+                  <Badge variant="error">Blocked</Badge>
+                ) : isSubscribed ? (
+                  <Badge variant="success">Active on Device</Badge>
                 ) : (
-                  <Button variant="secondary" size="sm" onClick={handleRequestPermission}>
-                    Allow Alerts
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleEnableWebPush}
+                    disabled={subscribing}
+                  >
+                    {subscribing ? 'Connecting...' : 'Enable Alerts'}
                   </Button>
                 )}
               </div>

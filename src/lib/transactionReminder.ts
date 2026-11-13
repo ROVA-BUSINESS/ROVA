@@ -1,3 +1,4 @@
+import { showServiceWorkerNotification } from './webPush.ts';
 import { supabase } from './supabase.ts';
 
 export interface TransactionReminderConfig {
@@ -170,20 +171,17 @@ export async function fireReminderAlert(params: {
     playReminderSound();
   }
 
-  // 2. Browser push notification
-  if (config.notifyBrowser && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+  // 2. Web Push & Lock-Screen notification via Service Worker
+  if (config.notifyBrowser && typeof window !== 'undefined') {
     try {
-      const notif = new Notification(title, {
+      await showServiceWorkerNotification({
+        title,
         body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
+        url: '/app/transactions',
+        tag: 'rova-transaction-reminder',
       });
-      notif.onclick = () => {
-        window.focus();
-        window.location.href = '/app/transactions';
-      };
     } catch (err) {
-      console.warn('Browser notification error:', err);
+      console.warn('Browser push notification error:', err);
     }
   }
 
