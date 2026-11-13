@@ -393,6 +393,40 @@ export async function triggerServerBackgroundTestPush(
   delaySeconds: number = 0
 ): Promise<{ success: boolean; message?: string }> {
   if (!userId) return { success: false, message: 'Missing userId' };
+
+  // 1. Ensure user has a registered push subscription saved to database
+  try {
+    const sub = await subscribeToPush(userId);
+    if (!sub.success && !sub.subscription) {
+      console.warn('Subscription check before push:', sub.error);
+    }
+  } catch (subErr) {
+    console.warn('Subscription check error:', subErr);
+  }
+
+  // 2. Try Vercel Serverless Endpoint (/api/reminder-push)
+  try {
+    const res = await fetch('/api/reminder-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'test_push',
+        userId,
+        delaySeconds,
+        title: 'ROVA Daily Reminder (Site Closed)',
+        body: 'Success! Web push notification arrived while your browser was closed.',
+      }),
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      return { success: json.success ?? true, message: json.message };
+    }
+  } catch {
+    // Vercel endpoint unavailable (e.g. running vite local dev), fallback to Supabase
+  }
+
+  // 3. Fallback to Supabase Functions
   try {
     const { data, error } = await supabase.functions.invoke('send-reminder-push', {
       body: {
@@ -404,11 +438,17 @@ export async function triggerServerBackgroundTestPush(
       },
     });
 
-    if (error) {
-      return { success: false, message: error.message || 'Server error' };
+    if (!error && data) {
+      return { success: data?.success ?? true, message: data?.message };
     }
-    return { success: data?.success ?? true, message: data?.message };
-  } catch (err: any) {
-    return { success: false, message: err.message || 'Request failed' };
+  } catch {
+    // Supabase function not yet deployed
   }
+
+  // 4. Client-side Service Worker scheduling fallback
+  return await scheduleServiceWorkerBackgroundNotification(
+    delaySeconds,
+    'ROVA Daily Reminder (Site Closed)',
+    'Success! Web push notification arrived while your browser was closed.'
+  );
 }

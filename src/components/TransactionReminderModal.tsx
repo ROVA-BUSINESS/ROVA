@@ -1,4 +1,4 @@
-import { subscribeToPush, getExistingPushSubscription, isPushSupported, scheduleServiceWorkerBackgroundNotification } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { Clock, Bell, Volume2, Check, Sparkles, X } from 'lucide-react';
 import Button from './ui/Button';
@@ -72,7 +72,7 @@ export default function TransactionReminderModal({
 
   async function handleTestClosedSitePush() {
     setServerTestStatus('Pinging in 10s! Close tab now...');
-    const res = await scheduleServiceWorkerBackgroundNotification(10);
+    const res = await triggerServerBackgroundTestPush(userId, 10);
     if (!res.success) {
       setServerTestStatus(res.message || 'Permission required');
       setTimeout(() => setServerTestStatus(null), 4000);

@@ -1,4 +1,4 @@
-import { subscribeToPush, getExistingPushSubscription, isPushSupported, scheduleServiceWorkerBackgroundNotification } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -978,7 +978,7 @@ export default function SettingsPage() {
                         disabled={!!serverTestStatus}
                         onClick={async () => {
                           setServerTestStatus('Pinging in 10s! Close tab now...');
-                          const res = await scheduleServiceWorkerBackgroundNotification(10);
+                          const res = await triggerServerBackgroundTestPush(user ? user.id : '', 10);
                           if (!res.success) {
                             setServerTestStatus(res.message || 'Permission required');
                             setTimeout(() => setServerTestStatus(null), 4000);
