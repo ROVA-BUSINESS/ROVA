@@ -230,7 +230,7 @@ export default function LandingPage() {
       {/* Subtle Top Black Bar */}
       <div className="rva-top-strip">
         ROVA brings bookkeeping, invoicing, bank sync, payroll, and 2026 tax readiness into one OS.
-        <Link to="/signup">Start now</Link>
+        <Link to="/signup">Get started</Link>
       </div>
 
       {/* ── Sticky White Navigation ── */}
@@ -255,11 +255,11 @@ export default function LandingPage() {
           </div>
 
           <div className="rva-nav-actions">
-            <Link to="/login" className="rva-btn rva-btn-outline rva-nav-desktop">
-              Sign in
+            <Link to="/signup" className="rva-btn rva-btn-outline rva-nav-desktop">
+              Sign up
             </Link>
-            <Link to="/signup" className="rva-btn rva-btn-black">
-              Start now
+            <Link to="/login" className="rva-btn rva-btn-black">
+              Log in
             </Link>
             <button
               type="button"
@@ -295,8 +295,11 @@ export default function LandingPage() {
             <a href="#pricing" onClick={() => setMobileOpen(false)} style={{ color: '#111113', textDecoration: 'none' }}>
               Pricing
             </a>
+            <Link to="/signup" onClick={() => setMobileOpen(false)} style={{ color: '#111113', textDecoration: 'none', fontWeight: 600 }}>
+              Sign up
+            </Link>
             <Link to="/login" onClick={() => setMobileOpen(false)} style={{ color: '#5e616b', textDecoration: 'none' }}>
-              Sign in
+              Log in
             </Link>
           </div>
         )}
