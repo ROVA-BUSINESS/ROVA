@@ -5,7 +5,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
-  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap, Upload, AlertTriangle
+  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap, Upload, AlertTriangle,
+  Clock, Bell, Volume2, Sparkles
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
@@ -13,9 +14,18 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
+import {
+  type TransactionReminderConfig,
+  DEFAULT_REMINDER_CONFIG,
+  getReminderConfig,
+  saveReminderConfig,
+  formatTimeDisplay,
+  getBrowserNotificationPermission,
+  requestBrowserNotificationPermission,
+  fireReminderAlert,
+} from '../lib/transactionReminder';
 
-
-type Section = 'profile' | 'whatsapp' | 'accounts' | 'security' | 'appearance';
+type Section = 'profile' | 'whatsapp' | 'accounts' | 'reminders' | 'security' | 'appearance';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -31,6 +41,21 @@ export default function SettingsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  // Daily Transaction Reminder state
+  const [reminderConfig, setReminderConfig] = useState<TransactionReminderConfig>(() =>
+    user ? getReminderConfig(user.id) : DEFAULT_REMINDER_CONFIG
+  );
+  const [reminderPermission, setReminderPermission] = useState<NotificationPermission | 'unsupported'>('default');
+  const [testReminderSent, setTestReminderSent] = useState(false);
+  const [reminderSaved, setReminderSaved] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setReminderConfig(getReminderConfig(user.id));
+      setReminderPermission(getBrowserNotificationPermission());
+    }
+  }, [user]);
 
   const [profileForm, setProfileForm] = useState({
     full_name: '',
@@ -190,6 +215,7 @@ export default function SettingsPage() {
           { id: 'profile', label: 'Profile' },
           { id: 'whatsapp', label: 'WhatsApp Bot' },
           { id: 'accounts', label: 'Linked Accounts' },
+          { id: 'reminders', label: 'Daily Reminders' },
           { id: 'security', label: 'Security' },
           { id: 'appearance', label: 'Appearance' }
         ].map(item => (
@@ -213,6 +239,7 @@ export default function SettingsPage() {
             { id: 'profile', label: 'Business Profile', icon: <Building size={18} /> },
             { id: 'whatsapp', label: 'WhatsApp Bot', icon: <MessageSquare size={18} /> },
             { id: 'accounts', label: 'Linked Accounts', icon: <CreditCard size={18} /> },
+            { id: 'reminders', label: 'Daily Reminders', icon: <Clock size={18} /> },
             { id: 'security', label: 'Security', icon: <Shield size={18} /> },
             { id: 'appearance', label: 'Appearance', icon: <Sun size={18} /> }
           ].map(item => (
@@ -667,6 +694,267 @@ export default function SettingsPage() {
                   ))}
                 </div>
               )}
+            </Card>
+          )}
+
+          {section === 'reminders' && (
+            <Card>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                    background: 'var(--accent-dim)', color: 'var(--accent-light)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Clock size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                      Daily Transaction &amp; Categorisation Reminder
+                    </h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                      Choose what time ROVA alerts you every day to record sales, expenses, and categorise your transactions.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Master toggle */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 16px', borderRadius: 'var(--radius-md)',
+                  background: reminderConfig.enabled ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                  border: `1px solid ${reminderConfig.enabled ? 'var(--accent-border)' : 'var(--bg-border)'}`,
+                  transition: 'all 0.2s'
+                }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Daily Reminder Status
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {reminderConfig.enabled
+                        ? `Active daily at ${formatTimeDisplay(reminderConfig.time)}`
+                        : 'Daily reminders are currently paused'}
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: 46, height: 26, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={reminderConfig.enabled}
+                      onChange={e => setReminderConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute', inset: 0, borderRadius: 26,
+                      background: reminderConfig.enabled ? 'var(--accent-primary)' : 'var(--bg-border)',
+                      transition: '0.2s'
+                    }}>
+                      <span style={{
+                        position: 'absolute', height: 20, width: 20,
+                        left: reminderConfig.enabled ? 23 : 3, bottom: 3,
+                        borderRadius: '50%', background: 'white', transition: '0.2s'
+                      }} />
+                    </span>
+                  </label>
+                </div>
+
+                {/* Reminder Time Picker */}
+                <div style={{
+                  padding: '16px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)'
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    Reminder Time
+                  </div>
+                  <div className="mobile-col" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                    <input
+                      type="time"
+                      value={reminderConfig.time}
+                      onChange={e => setReminderConfig(prev => ({ ...prev, time: e.target.value }))}
+                      style={{
+                        padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-surface)', border: '1px solid var(--bg-border)',
+                        color: 'var(--text-primary)', fontSize: 16, fontWeight: 700,
+                        fontFamily: 'Space Grotesk, sans-serif', width: 160
+                      }}
+                    />
+                    <div style={{
+                      padding: '10px 18px', borderRadius: 'var(--radius-md)',
+                      background: 'var(--bg-surface)', border: '1px solid var(--bg-border)',
+                      color: 'var(--accent-light)', fontSize: 15, fontWeight: 700
+                    }}>
+                      Alerts at {formatTimeDisplay(reminderConfig.time)}
+                    </div>
+                  </div>
+
+                  {/* Preset Pills */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                      { label: '6:00 PM', time: '18:00' },
+                      { label: '7:00 PM', time: '19:00' },
+                      { label: '8:00 PM', time: '20:00' },
+                      { label: '9:00 PM', time: '21:00' },
+                      { label: '10:00 PM', time: '22:00' },
+                    ].map(p => {
+                      const isSel = reminderConfig.time === p.time;
+                      return (
+                        <button
+                          key={p.time}
+                          type="button"
+                          onClick={() => setReminderConfig(prev => ({ ...prev, time: p.time }))}
+                          style={{
+                            padding: '6px 14px', borderRadius: 'var(--radius-sm)',
+                            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            border: `1px solid ${isSel ? 'var(--accent-primary)' : 'var(--bg-border)'}`,
+                            background: isSel ? 'var(--accent-primary)' : 'var(--bg-surface)',
+                            color: isSel ? 'white' : 'var(--text-muted)',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Conditions */}
+                <div style={{
+                  padding: '16px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)'
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
+                    When should the reminder alert you?
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={reminderConfig.onlyIfMissingToday}
+                        onChange={e => setReminderConfig(prev => ({ ...prev, onlyIfMissingToday: e.target.checked }))}
+                      />
+                      <span>Remind me to add transactions if none recorded today</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={reminderConfig.checkUncategorized}
+                        onChange={e => setReminderConfig(prev => ({ ...prev, checkUncategorized: e.target.checked }))}
+                      />
+                      <span>Remind me to categorise pending transactions</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Channels */}
+                <div style={{
+                  padding: '16px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)'
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
+                    Delivery Channels
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                      background: 'var(--bg-surface)', border: '1px solid var(--bg-border)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Bell size={18} color="var(--accent-light)" />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            Desktop &amp; Mobile Browser Push
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            Alerts your phone or laptop screen even if ROVA is minimized
+                          </div>
+                        </div>
+                      </div>
+
+                      {reminderPermission === 'granted' ? (
+                        <div style={{
+                          padding: '3px 10px', borderRadius: 'var(--radius-full)',
+                          background: 'var(--success-dim)', color: 'var(--success)',
+                          fontSize: 11, fontWeight: 600
+                        }}>
+                          Allowed
+                        </div>
+                      ) : reminderPermission === 'denied' ? (
+                        <div style={{
+                          padding: '3px 10px', borderRadius: 'var(--radius-full)',
+                          background: 'var(--error-dim)', color: 'var(--error)',
+                          fontSize: 11, fontWeight: 600
+                        }}>
+                          Blocked in browser
+                        </div>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async () => {
+                            const res = await requestBrowserNotificationPermission();
+                            setReminderPermission(res);
+                            if (res === 'granted') {
+                              setReminderConfig(prev => ({ ...prev, notifyBrowser: true }));
+                            }
+                          }}
+                        >
+                          Enable Browser Alerts
+                        </Button>
+                      )}
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={reminderConfig.sound}
+                        onChange={e => setReminderConfig(prev => ({ ...prev, sound: e.target.checked }))}
+                      />
+                      <Volume2 size={16} color="var(--text-muted)" />
+                      <span>Play a gentle reminder chime when alerting</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, flexWrap: 'wrap', gap: 10 }}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Sparkles size={14} />}
+                    disabled={testReminderSent}
+                    onClick={async () => {
+                      if (!user) return;
+                      setTestReminderSent(true);
+                      await fireReminderAlert({
+                        userId: user.id,
+                        config: reminderConfig,
+                        customTitle: 'Daily Reminder (Test Alert)',
+                        customBody: `It's ${formatTimeDisplay(reminderConfig.time)}! Don't forget to record today's income, expenses, and categorise pending transactions.`,
+                      });
+                      setTimeout(() => setTestReminderSent(false), 3000);
+                    }}
+                  >
+                    {testReminderSent ? 'Test Alert Sent!' : 'Send Test Alert'}
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      if (!user) return;
+                      saveReminderConfig(user.id, reminderConfig);
+                      setReminderSaved(true);
+                      setTimeout(() => setReminderSaved(false), 2500);
+                    }}
+                    icon={reminderSaved ? <Check size={14} /> : undefined}
+                  >
+                    {reminderSaved ? 'Saved Successfully' : 'Save Reminder Settings'}
+                  </Button>
+                </div>
+              </div>
             </Card>
           )}
 

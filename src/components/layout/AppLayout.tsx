@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Bell, Search, ArrowLeft, Sun, Moon, Home, ArrowLeftRight, Receipt, Package, LayoutGrid } from 'lucide-react';
+import { Bell, Search, ArrowLeft, Sun, Moon, Home, ArrowLeftRight, Receipt, Package, LayoutGrid, Clock, X } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useMobile } from '../../hooks/useMobile';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
+import { runReminderCheckIfDue } from '../../lib/transactionReminder';
 import SearchModal from '../SearchModal';
 import BusinessOnboardingModal from '../onboarding/BusinessOnboardingModal';
 import { AssistantProvider } from '../../contexts/AssistantContext';
@@ -22,6 +23,7 @@ export default function AppLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [reminderBanner, setReminderBanner] = useState<{ title: string; body: string } | null>(null);
 
   const showBackButton = location.pathname !== '/app/dashboard' && location.pathname !== '/app';
 
@@ -88,6 +90,26 @@ export default function AppLayout() {
     return () => {
       window.removeEventListener('unread-notifications-updated', handleUpdateEvent);
       supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    runReminderCheckIfDue(user.id);
+    const interval = setInterval(() => {
+      runReminderCheckIfDue(user.id);
+    }, 30000);
+
+    const handleReminderBanner = (e: any) => {
+      if (e.detail) {
+        setReminderBanner(e.detail);
+      }
+    };
+    window.addEventListener('transaction-reminder-banner', handleReminderBanner);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('transaction-reminder-banner', handleReminderBanner);
     };
   }, [user?.id]);
 
@@ -401,6 +423,49 @@ export default function AppLayout() {
           overflowX: 'hidden',
           paddingBottom: isMobile ? 'calc(65px + env(safe-area-inset-bottom, 0px))' : 0,
         }}>
+          {reminderBanner && (
+            <div style={{
+              margin: '12px 16px 0', padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'linear-gradient(135deg, var(--accent-dim), var(--bg-elevated))',
+              border: '1px solid var(--accent-border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 12, flexWrap: 'wrap', animation: 'fadeIn 0.25s ease'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 'var(--radius-md)',
+                  background: 'var(--accent-primary)', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <Clock size={16} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {reminderBanner.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {reminderBanner.body}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button variant="primary" size="sm" onClick={() => { setReminderBanner(null); navigate('/app/transactions'); }}>
+                  Open Transactions
+                </Button>
+                <button
+                  onClick={() => setReminderBanner(null)}
+                  style={{
+                    background: 'none', border: 'none', color: 'var(--text-muted)',
+                    cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center'
+                  }}
+                  title="Dismiss banner"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

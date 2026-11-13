@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useMemo, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowDownLeft, Trash2, Check, Brain, Download, Edit2, Receipt } from 'lucide-react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowDownLeft, Trash2, Check, Brain, Download, Edit2, Receipt, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,13 @@ import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib
 import { autoClassify } from '../lib/categorise';
 import { downloadCSV } from '../lib/export';
 import { ensureStandardAccountingCategories } from '../lib/accountingRules';
+import {
+  type TransactionReminderConfig,
+  DEFAULT_REMINDER_CONFIG,
+  getReminderConfig,
+  formatTimeDisplay,
+} from '../lib/transactionReminder';
+import TransactionReminderModal from '../components/TransactionReminderModal';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -27,6 +34,22 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [showModal, setShowModal] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderConfig, setReminderConfig] = useState<TransactionReminderConfig>(() =>
+    effectiveUserId ? getReminderConfig(effectiveUserId) : DEFAULT_REMINDER_CONFIG
+  );
+  const [dismissUncatBanner, setDismissUncatBanner] = useState(false);
+
+  useEffect(() => {
+    if (effectiveUserId) {
+      setReminderConfig(getReminderConfig(effectiveUserId));
+    }
+    const handleReminderUpdated = (e: any) => {
+      if (e.detail) setReminderConfig(e.detail);
+    };
+    window.addEventListener('rova-reminder-settings-updated', handleReminderUpdated);
+    return () => window.removeEventListener('rova-reminder-settings-updated', handleReminderUpdated);
+  }, [effectiveUserId]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'description' | 'category' | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -200,23 +223,67 @@ export default function TransactionsPage() {
 
   const incomeTotal = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expenseTotal = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const uncategorizedCount = useMemo(() => transactions.filter(t => !t.category_id).length, [transactions]);
 
   const filteredCats = categories.filter(c => c.type === form.type || c.type === 'both');
 
   return (
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1000, animation: 'fadeIn 0.3s ease' }}>
-      <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Transactions</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Track all your money in and money out</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button
+            variant="secondary"
+            icon={<Clock size={14} />}
+            onClick={() => setShowReminderModal(true)}
+            style={{ minWidth: 'fit-content' }}
+            title="Configure daily transaction reminder time"
+          >
+            Reminder: {formatTimeDisplay(reminderConfig.time)} ({reminderConfig.enabled ? 'Active' : 'Off'})
+          </Button>
           <Button variant="secondary" icon={<Download size={14} />} onClick={handleExportCSV}>Export CSV</Button>
           <Button variant="primary" icon={<Plus size={14} />} onClick={() => { resetForm(); setShowModal(true); }}>
             Add Transaction
           </Button>
         </div>
       </div>
+
+      {uncategorizedCount > 0 && !dismissUncatBanner && (
+        <Card style={{
+          marginBottom: 20, padding: '12px 16px',
+          background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-primary)', color: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Clock size={16} />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {uncategorizedCount} uncategorised transaction{uncategorizedCount > 1 ? 's' : ''} waiting for review
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Daily reminder alerts at {formatTimeDisplay(reminderConfig.time)} to keep your records tax-ready.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button variant="secondary" size="sm" onClick={() => setShowReminderModal(true)}>
+              Change Time
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setDismissUncatBanner(true)}>
+              Dismiss
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <div className="mobile-grid-1 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
@@ -750,6 +817,13 @@ export default function TransactionsPage() {
           </div>
         </form>
       </Modal>
+
+      <TransactionReminderModal
+        isOpen={showReminderModal}
+        onClose={() => setShowReminderModal(false)}
+        userId={effectiveUserId || user?.id || ''}
+        onSaved={cfg => setReminderConfig(cfg)}
+      />
     </div>
   );
 }

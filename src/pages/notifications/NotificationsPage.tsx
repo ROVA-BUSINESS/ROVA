@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, Info, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw, MessageCircle } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, Info, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw, MessageCircle, Clock } from 'lucide-react';
+import {
+  type TransactionReminderConfig,
+  DEFAULT_REMINDER_CONFIG,
+  getReminderConfig,
+  formatTimeDisplay,
+} from '../../lib/transactionReminder';
+import TransactionReminderModal from '../../components/TransactionReminderModal';
 import { supabase, type Notification, type Transaction, type InventoryItem, type Invoice } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate, formatCurrency } from '../../lib/format';
@@ -40,6 +47,21 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderConfig, setReminderConfig] = useState<TransactionReminderConfig>(() =>
+    user ? getReminderConfig(user.id) : DEFAULT_REMINDER_CONFIG
+  );
+
+  useEffect(() => {
+    if (user) {
+      setReminderConfig(getReminderConfig(user.id));
+    }
+    const handleReminderUpdated = (e: any) => {
+      if (e.detail) setReminderConfig(e.detail);
+    };
+    window.addEventListener('rova-reminder-settings-updated', handleReminderUpdated);
+    return () => window.removeEventListener('rova-reminder-settings-updated', handleReminderUpdated);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -341,7 +363,15 @@ export default function NotificationsPage() {
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Smart alerts, reminders, and automation warnings</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button
+            variant="secondary"
+            icon={<Clock size={13} />}
+            onClick={() => setShowReminderModal(true)}
+            title="Configure daily transaction reminder time"
+          >
+            Daily Reminder: {formatTimeDisplay(reminderConfig.time)} ({reminderConfig.enabled ? 'Active' : 'Off'})
+          </Button>
           <Button variant="secondary" icon={<RefreshCw size={13} style={{ animation: generating ? 'spin 0.8s linear infinite' : 'none' }} />} onClick={generateSmartNotifications}>
             {generating ? 'Scanning...' : 'Scan for Alerts'}
           </Button>
@@ -483,6 +513,15 @@ export default function NotificationsPage() {
             );
           })}
         </div>
+      )}
+
+      {user && (
+        <TransactionReminderModal
+          isOpen={showReminderModal}
+          onClose={() => setShowReminderModal(false)}
+          userId={user.id}
+          onSaved={cfg => setReminderConfig(cfg)}
+        />
       )}
     </div>
   );
