@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download, Landmark } from 'lucide-react';
+import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download, Landmark, Code } from 'lucide-react';
 import { supabase, type Employee, type FixedAssetRecord, type Invoice, type TaxRecord, type Transaction, type WhtCreditNoteRecord } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
@@ -230,6 +230,9 @@ export default function TaxPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           <Button variant="secondary" icon={<Info size={14} />} onClick={() => setShowGuide(true)} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             Tax Guide
+          </Button>
+          <Button variant="secondary" icon={<Code size={14} />} onClick={() => navigate('/app/tax/automation-studio')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content', border: '1px solid var(--accent)' }}>
+            Automation Studio
           </Button>
           <Button variant="secondary" icon={<Download size={14} />} onClick={() => {
             const rows = records.map(r => [r.period_start, r.period_end, r.tax_type, r.gross_income, r.deductions, r.taxable_income, r.calculated_tax, r.paid_tax, r.status, r.due_date || '']);

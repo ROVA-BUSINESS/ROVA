@@ -44,6 +44,7 @@ import CompanyPage from './pages/CompanyPage';
 import PricingPage from './pages/PricingPage';
 import BillingPage from './pages/billing/BillingPage';
 import NoSubscriptionPage from './pages/billing/NoSubscriptionPage';
+import AutomationStudioPage from './pages/admin/AutomationStudioPage';
 
 // ── Auth guards ──────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -187,6 +188,7 @@ export default function App() {
             <Route path="tax/cit/:filingId" element={<SubscriptionRoute><AdminRoute><NrsCitWizardPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="tax/pit/new" element={<SubscriptionRoute><AdminRoute><PitWizardPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="tax/pit/admin" element={<SubscriptionRoute><AdminRoute><PitAdminDashboardPage /></AdminRoute></SubscriptionRoute>} />
+            <Route path="tax/automation-studio" element={<SubscriptionRoute><AdminRoute><AutomationStudioPage /></AdminRoute></SubscriptionRoute>} />
 
             {/* Business plan only */}
             <Route path="payroll" element={<SubscriptionRoute><AdminRoute><BusinessRoute><PayrollPage /></BusinessRoute></AdminRoute></SubscriptionRoute>} />
