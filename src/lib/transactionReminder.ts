@@ -1,4 +1,4 @@
-import { showServiceWorkerNotification } from './webPush.ts';
+import { showServiceWorkerNotification, syncReminderScheduleToDatabase } from './webPush.ts';
 import { supabase } from './supabase.ts';
 
 export interface TransactionReminderConfig {
@@ -41,6 +41,7 @@ export function saveReminderConfig(userId: string, config: TransactionReminderCo
   try {
     localStorage.setItem(`${STORAGE_PREFIX}${userId}`, JSON.stringify(config));
     window.dispatchEvent(new CustomEvent('rova-reminder-settings-updated', { detail: config }));
+    syncReminderScheduleToDatabase(userId, config).catch(() => {});
   } catch (err) {
     console.error('Failed to save reminder config:', err);
   }

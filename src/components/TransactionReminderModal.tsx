@@ -1,4 +1,4 @@
-import { subscribeToPush, getExistingPushSubscription, isPushSupported } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { Clock, Bell, Volume2, Check, Sparkles, X } from 'lucide-react';
 import Button from './ui/Button';
@@ -39,6 +39,7 @@ export default function TransactionReminderModal({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
+  const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && userId) {
@@ -66,6 +67,17 @@ export default function TransactionReminderModal({
       setConfig((prev) => ({ ...prev, notifyBrowser: true }));
     } else {
       setBrowserPermission(getBrowserNotificationPermission());
+    }
+  }
+
+  async function handleTestClosedSitePush() {
+    setServerTestStatus('Pinging in 10s! Close tab now...');
+    const res = await triggerServerBackgroundTestPush(userId, 10);
+    if (!res.success) {
+      setServerTestStatus(res.message || 'Failed to ping');
+      setTimeout(() => setServerTestStatus(null), 4000);
+    } else {
+      setTimeout(() => setServerTestStatus(null), 12000);
     }
   }
 
@@ -444,15 +456,28 @@ export default function TransactionReminderModal({
             background: 'var(--bg-elevated)',
           }}
         >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleTestAlert}
-            disabled={testSent}
-            icon={<Sparkles size={14} />}
-          >
-            {testSent ? 'Alert Sent!' : 'Send Test Alert'}
-          </Button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleTestAlert}
+              disabled={testSent}
+              icon={<Sparkles size={14} />}
+            >
+              {testSent ? 'Chime Sent!' : 'Instant Test'}
+            </Button>
+            {isSubscribed && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleTestClosedSitePush}
+                disabled={!!serverTestStatus}
+                style={{ fontSize: 11, padding: '4px 10px' }}
+              >
+                {serverTestStatus || 'Test Closed-Site (10s)'}
+              </Button>
+            )}
+          </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="secondary" size="sm" onClick={onClose}>

@@ -120,6 +120,12 @@ export async function subscribeToPush(userId: string): Promise<{
     // 5. Store subscription in database & local storage
     if (userId && endpoint) {
       try {
+        let reminderConfig: any = null;
+        try {
+          const raw = localStorage.getItem(`rova_tx_reminder_${userId}`);
+          if (raw) reminderConfig = JSON.parse(raw);
+        } catch {}
+
         await supabase.from('push_subscriptions').upsert(
           {
             user_id: userId,
@@ -127,6 +133,11 @@ export async function subscribeToPush(userId: string): Promise<{
             p256dh,
             auth,
             user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+            reminder_enabled: reminderConfig ? reminderConfig.enabled : true,
+            reminder_time: reminderConfig ? reminderConfig.time : '20:00',
+            only_if_missing_today: reminderConfig ? reminderConfig.onlyIfMissingToday : true,
+            check_uncategorized: reminderConfig ? reminderConfig.checkUncategorized : true,
+            sound: reminderConfig ? reminderConfig.sound : true,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id,endpoint' }
@@ -242,4 +253,72 @@ export async function showServiceWorkerNotification(params: {
   }
 
   return false;
+}
+
+/**
+ * Synchronizes the user's reminder schedule to their push_subscriptions rows in Supabase
+ */
+export async function syncReminderScheduleToDatabase(
+  userId: string,
+  config: {
+    enabled: boolean;
+    time: string;
+    onlyIfMissingToday: boolean;
+    checkUncategorized: boolean;
+    sound: boolean;
+  }
+): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .update({
+        reminder_enabled: config.enabled,
+        reminder_time: config.time,
+        only_if_missing_today: config.onlyIfMissingToday,
+        check_uncategorized: config.checkUncategorized,
+        sound: config.sound,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.warn('Could not sync reminder schedule to push_subscriptions:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Failed to sync reminder schedule to DB:', err);
+    return false;
+  }
+}
+
+/**
+ * Triggers a real server-side Web Push through Supabase Edge Function.
+ * If delaySeconds > 0, the server waits that many seconds before sending,
+ * allowing the user to completely close the browser and test lock-screen arrival!
+ */
+export async function triggerServerBackgroundTestPush(
+  userId: string,
+  delaySeconds: number = 0
+): Promise<{ success: boolean; message?: string }> {
+  if (!userId) return { success: false, message: 'Missing userId' };
+  try {
+    const { data, error } = await supabase.functions.invoke('send-reminder-push', {
+      body: {
+        action: 'test_push',
+        userId,
+        delaySeconds,
+        title: 'ROVA Daily Reminder (Site Closed)',
+        body: 'Success! Web push notification arrived while your browser was closed.',
+      },
+    });
+
+    if (error) {
+      return { success: false, message: error.message || 'Server error' };
+    }
+    return { success: data?.success ?? true, message: data?.message };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Request failed' };
+  }
 }

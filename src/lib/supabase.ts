@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || '';
-const supabaseAnonKey = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || '';
+const supabaseUrl =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
+  '';
+const supabaseAnonKey =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) ||
+  '';
 
 console.log('🚀 CURRENT SUPABASE URL BEING USED BY THE APP:', supabaseUrl);
 export const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder', {

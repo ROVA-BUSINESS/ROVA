@@ -1,4 +1,4 @@
-import { subscribeToPush, getExistingPushSubscription, isPushSupported } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [reminderSaved, setReminderSaved] = useState(false);
   const [isPushSubscribed, setIsPushSubscribed] = useState(false);
   const [isPushSubscribing, setIsPushSubscribing] = useState(false);
+  const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -949,25 +950,48 @@ export default function SettingsPage() {
 
                 {/* Action Buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, flexWrap: 'wrap', gap: 10 }}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<Sparkles size={14} />}
-                    disabled={testReminderSent}
-                    onClick={async () => {
-                      if (!user) return;
-                      setTestReminderSent(true);
-                      await fireReminderAlert({
-                        userId: user.id,
-                        config: reminderConfig,
-                        customTitle: 'Daily Reminder (Test Alert)',
-                        customBody: `It's ${formatTimeDisplay(reminderConfig.time)}! Don't forget to record today's income, expenses, and categorise pending transactions.`,
-                      });
-                      setTimeout(() => setTestReminderSent(false), 3000);
-                    }}
-                  >
-                    {testReminderSent ? 'Test Alert Sent!' : 'Send Test Alert'}
-                  </Button>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Sparkles size={14} />}
+                      disabled={testReminderSent}
+                      onClick={async () => {
+                        if (!user) return;
+                        setTestReminderSent(true);
+                        await fireReminderAlert({
+                          userId: user.id,
+                          config: reminderConfig,
+                          customTitle: 'Daily Reminder (Test Alert)',
+                          customBody: `It's ${formatTimeDisplay(reminderConfig.time)}! Don't forget to record today's income, expenses, and categorise pending transactions.`,
+                        });
+                        setTimeout(() => setTestReminderSent(false), 3000);
+                      }}
+                    >
+                      {testReminderSent ? 'Chime Sent!' : 'Instant Test'}
+                    </Button>
+
+                    {isPushSubscribed && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={!!serverTestStatus}
+                        onClick={async () => {
+                          if (!user) return;
+                          setServerTestStatus('Pinging in 10s! Close tab now...');
+                          const res = await triggerServerBackgroundTestPush(user.id, 10);
+                          if (!res.success) {
+                            setServerTestStatus(res.message || 'Failed to ping');
+                            setTimeout(() => setServerTestStatus(null), 4000);
+                          } else {
+                            setTimeout(() => setServerTestStatus(null), 12000);
+                          }
+                        }}
+                      >
+                        {serverTestStatus || 'Test Closed-Site (10s)'}
+                      </Button>
+                    )}
+                  </div>
 
                   <Button
                     variant="primary"
