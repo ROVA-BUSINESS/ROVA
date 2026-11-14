@@ -10,15 +10,19 @@ const corsHeaders = {
 
 const VAPID_PUBLIC_KEY =
   Deno.env.get("VAPID_PUBLIC_KEY") ||
-  "BPdwQ3s_-P9Z2nfl9FY75bVVtjLq8AqforPTg_8_qpybyQO6Dd6ZmAtUN8E4OX6-TfbczPqZo2MUdiyeZZ7RJA0";
+  "BG6yB5UIJ3Ja07Hz5Z9tB8OGQ37-wPgLbOTlSQXGmjL82iw36DGbwbu1DnUbkwbesi97nO2vCa6CNxNHI6j4RMI";
 
-const VAPID_PRIVATE_KEY =
-  Deno.env.get("VAPID_PRIVATE_KEY") ||
-  "6vpgxGUQcXf7UQNVK64U5utqrfIU7bk3rQDmIFsjvEM";
+const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
 
-const VAPID_SUBJECT = "mailto:support@rova.business";
+const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:support@rova.business";
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  } catch (e) {
+    console.warn("webpush.setVapidDetails warning:", e);
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

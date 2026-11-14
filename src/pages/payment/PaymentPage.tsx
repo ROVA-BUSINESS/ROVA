@@ -636,14 +636,16 @@ export default function PaymentPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, var(--accent-primary), #6366f1)',
+                width: 44,
+                height: 44,
+                borderRadius: 'var(--radius-lg)',
+                background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
+                boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
+                flexShrink: 0,
               }}
             >
               <CreditCard size={20} />
@@ -839,56 +841,71 @@ export default function PaymentPage() {
           {/* Metric Cards Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
             {/* Total Received */}
-            <Card style={{ padding: 18 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>Total Payments Received</div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 6, color: 'var(--success)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Payments Received</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }} />
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--success)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.totalReceived)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
                 {metrics.successfulCount} successful collections
               </div>
             </Card>
 
             {/* Net Collections */}
-            <Card style={{ padding: 18 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>Net Collections</div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 6, color: 'var(--text-primary)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net Collections</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-primary)' }} />
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.netCollections)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
                 Gross collections minus refunds
               </div>
             </Card>
 
             {/* Pending Payments */}
-            <Card style={{ padding: 18 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>Pending Payments</div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 6, color: 'var(--warning)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending Payments</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)' }} />
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--warning)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.pendingVolume)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
                 {metrics.pendingCount} awaiting confirmation
               </div>
             </Card>
 
             {/* Failed Payments */}
-            <Card style={{ padding: 18 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>Failed Payments</div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 6, color: 'var(--error)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Failed Payments</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--error)' }} />
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--error)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.failedVolume)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
                 {metrics.failedCount} declined transactions
               </div>
             </Card>
 
             {/* Refunded Amounts */}
-            <Card style={{ padding: 18 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>Refunds & Reversals</div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 6, color: 'var(--text-muted)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Refunds & Reversals</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)' }} />
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-muted)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.refundedVolume)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
                 Returned customer funds
               </div>
             </Card>
@@ -913,7 +930,7 @@ export default function PaymentPage() {
                 const isConnected = isProviderConnected(provider);
 
                 return (
-                  <Card key={provider} style={{ padding: 16, borderLeft: `4px solid ${cap.color}` }}>
+                  <Card key={provider} style={{ padding: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontWeight: 700, fontSize: 14 }}>{cap.displayName}</span>
                       <Badge variant={isConnected ? 'success' : cap.accessStatus === 'ready' ? 'info' : 'warning'}>

@@ -7,7 +7,7 @@ import {
   CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
   MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap, Upload, AlertTriangle,
-  Clock, Bell, Volume2, Sparkles
+  Clock, Bell, Volume2, Sparkles, Settings as SettingsIcon
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
@@ -211,10 +211,26 @@ export default function SettingsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 12px 100px' }}>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Settings</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Manage your account, WhatsApp AI bot connections, and app preferences.</p>
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 12px 100px', animation: 'fadeIn 0.3s ease' }}>
+      <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--radius-lg)',
+          background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
+          flexShrink: 0,
+        }}>
+          <SettingsIcon size={20} />
+        </div>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Settings</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '2px 0 0' }}>Manage your account, WhatsApp AI bot connections, reminders, and app preferences.</p>
+        </div>
       </div>
 
       {/* Mobile & Tablet Horizontal Scrollable Pills */}
@@ -241,7 +257,7 @@ export default function SettingsPage() {
         <div style={{
           width: 240, background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--bg-border)', padding: 8, flexShrink: 0,
-          position: 'sticky', top: 100
+          position: 'sticky', top: 100, boxShadow: 'var(--shadow-sm)'
         }} className="mobile-hide">
           {[
             { id: 'profile', label: 'Business Profile', icon: <Building size={18} /> },
@@ -259,10 +275,17 @@ export default function SettingsPage() {
                 padding: '12px 16px', borderRadius: 'var(--radius-md)', border: 'none',
                 background: section === item.id ? 'var(--accent-dim)' : 'transparent',
                 color: section === item.id ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
-                transition: 'all 0.2s'
+                fontSize: 14, fontWeight: section === item.id ? 700 : 500, cursor: 'pointer', textAlign: 'left',
+                transition: 'all 0.15s ease',
+                position: 'relative'
               }}
             >
+              {section === item.id && (
+                <span style={{
+                  position: 'absolute', left: 0, top: 8, bottom: 8, width: 3,
+                  borderRadius: '0 4px 4px 0', background: 'var(--accent-primary)'
+                }} />
+              )}
               {item.icon} {item.label}
             </button>
           ))}
@@ -710,9 +733,10 @@ export default function SettingsPage() {
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                   <div style={{
-                    width: 36, height: 36, borderRadius: 'var(--radius-md)',
-                    background: 'var(--accent-dim)', color: 'var(--accent-light)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    width: 38, height: 38, borderRadius: 'var(--radius-md)',
+                    background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: 'white',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(102, 45, 145, 0.25)', flexShrink: 0
                   }}>
                     <Clock size={20} />
                   </div>

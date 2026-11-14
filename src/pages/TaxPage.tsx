@@ -223,15 +223,31 @@ export default function TaxPage() {
   return (
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1000, animation: 'fadeIn 0.3s ease' }}>
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: isMobile ? 16 : 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, marginBottom: 4 }}>Tax & Compliance</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nigerian business tax calculations — FIRS compliant</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 44,
+            height: 44,
+            borderRadius: 'var(--radius-lg)',
+            background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
+            flexShrink: 0,
+          }}>
+            <Landmark size={20} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Tax & Compliance</h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '2px 0 0' }}>Nigeria Tax Act 2025 (NTA 2025) &amp; NRS self-filing compliance</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           <Button variant="secondary" icon={<Info size={14} />} onClick={() => setShowGuide(true)} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
             Tax Guide
           </Button>
-          <Button variant="secondary" icon={<Code size={14} />} onClick={() => navigate('/app/tax/automation-studio')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content', border: '1px solid var(--accent)' }}>
+          <Button variant="secondary" icon={<Code size={14} />} onClick={() => navigate('/app/tax/automation-studio')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content', border: '1px solid var(--accent-border)' }}>
             Automation Studio
           </Button>
           <Button variant="secondary" icon={<Download size={14} />} onClick={() => {
@@ -247,30 +263,42 @@ export default function TaxPage() {
       </div>
 
       <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <Card style={{ border: '1px solid var(--accent-border)', background: 'var(--accent-dim)' }}>
-          <div style={{ fontSize: 11, color: 'var(--accent-light)', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Revenue</div>
-          <div className="mobile-stat-value" style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
+        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Revenue</span>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-primary)' }} />
+          </div>
+          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
             {formatCurrency(totalIncome)}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>From transactions</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>From ledger transactions</div>
         </Card>
-        <Card style={{ border: '1px solid rgba(34,197,94,0.3)', background: 'var(--success-dim)' }}>
-          <div style={{ fontSize: 11, color: 'var(--success)', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net Profit</div>
-          <div className="mobile-stat-value" style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: netProfit >= 0 ? 'var(--success)' : 'var(--error)', marginBottom: 4 }}>
+        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net Profit</span>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }} />
+          </div>
+          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netProfit >= 0 ? 'var(--success)' : 'var(--error)', marginBottom: 4 }}>
             {formatCurrency(Math.abs(netProfit))}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{netProfit >= 0 ? 'Surplus' : 'Deficit'}</div>
         </Card>
-        <Card style={{ border: '1px solid rgba(239,68,68,0.3)', background: 'var(--error-dim)' }}>
-          <div style={{ fontSize: 11, color: 'var(--error)', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unpaid Tax</div>
-          <div className="mobile-stat-value" style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
+        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--error)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unpaid Tax</span>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--error)' }} />
+          </div>
+          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
             {formatCurrency(outstandingLiability)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Unpaid tax records</div>
         </Card>
-        <Card style={{ border: '1px solid rgba(245,158,11,0.3)', background: 'var(--warning-dim)' }}>
-          <div style={{ fontSize: 11, color: 'var(--warning)', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Estimated CIT</div>
-          <div className="mobile-stat-value" style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
+        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--warning)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Estimated CIT</span>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)' }} />
+          </div>
+          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
             {formatCurrency(estimatedCIT)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{citLabel(totalIncome)}</div>
@@ -280,19 +308,19 @@ export default function TaxPage() {
       {/* Filing Gateways: CIT & PIT side-by-side */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
         {/* CIT Card */}
-        <Card style={{ padding: 18, border: '1px solid var(--accent-border)', background: 'linear-gradient(135deg, var(--accent-dim), var(--bg-elevated))', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <Card style={{ padding: 22, border: '1px solid var(--accent-border)', background: 'linear-gradient(135deg, rgba(102, 45, 145, 0.08), var(--bg-card))', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--accent-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(102, 45, 145, 0.25)' }}>
                 <FileText size={20} />
               </div>
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Companies Income Tax (CIT)</h3>
-                <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 500 }}>Limited Liability Companies (NRS)</span>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Companies Income Tax (CIT)</h3>
+                <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 600 }}>Limited Liability Companies (NRS)</span>
               </div>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-              Prepare and self-file company annual tax returns, deductions, and tax computations under NTA 2025.
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 18px 0', lineHeight: 1.55 }}>
+              Prepare and self-file company annual tax returns, deductions, and tax computations under Nigeria Tax Act 2025.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -306,19 +334,19 @@ export default function TaxPage() {
         </Card>
 
         {/* PIT Card */}
-        <Card style={{ padding: 18, border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <Card style={{ padding: 22, border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--info-dim)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 'var(--radius-md)', background: 'var(--info-dim)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Landmark size={20} />
               </div>
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Personal Income Tax (PIT)</h3>
-                <span style={{ fontSize: 11, color: 'var(--info)', fontWeight: 500 }}>Individuals &amp; CAC Business Names</span>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Personal Income Tax (PIT)</h3>
+                <span style={{ fontSize: 11, color: 'var(--info)', fontWeight: 600 }}>Individuals &amp; CAC Business Names</span>
               </div>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-              State tax filing for individuals and sole proprietors (Lagos, Kano, FCT Abuja &amp; Rivers State).
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 18px 0', lineHeight: 1.55 }}>
+              State tax filing for individuals, employees, and sole proprietors (Lagos, Kano, FCT Abuja &amp; Rivers State).
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -338,12 +366,12 @@ export default function TaxPage() {
         </div>
       )}
 
-      <Card style={{ marginBottom: 20, padding: '14px 16px', border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
+      <Card style={{ marginBottom: 24, padding: '14px 18px', border: '1px solid rgba(245,158,11,0.25)', borderLeft: '3px solid var(--warning)', background: 'var(--bg-card)', display: 'flex', alignItems: 'flex-start', gap: 12, boxShadow: 'var(--shadow-sm)' }}>
+        <AlertCircle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--warning)', marginBottom: 2 }}>Disclaimer</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)', marginBottom: 2 }}>Official Compliance Notice</div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Tax estimates are based on the Nigeria Tax Act 2025 (NTA 2025) &amp; NTAA 2025 guidelines for the Nigeria Revenue Service (NRS). Always consult a qualified tax professional for official filings.
+            Tax estimates are calculated strictly in accordance with Nigeria Tax Act 2025 (NTA 2025) and Nigeria Revenue Service (NRS) guidelines. Always consult a qualified tax professional for statutory certifications.
           </div>
         </div>
       </Card>

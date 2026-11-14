@@ -353,22 +353,39 @@ export default function NotificationsPage() {
 
   return (
     <div style={{ padding: 24, maxWidth: 900, animation: 'fadeIn 0.3s ease' }}>
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <h1 style={{ fontSize: 22 }}>Notifications</h1>
-            {unreadCount > 0 && (
-              <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--error)', color: 'white', fontSize: 11, fontWeight: 700 }}>{unreadCount}</span>
-            )}
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 44,
+            height: 44,
+            borderRadius: 'var(--radius-lg)',
+            background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
+            flexShrink: 0,
+          }}>
+            <Bell size={20} />
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Smart alerts, reminders, and automation warnings</p>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Reminders & Alerts</h1>
+              {unreadCount > 0 && (
+                <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--error)', color: 'white', fontSize: 11, fontWeight: 700 }}>{unreadCount} new</span>
+              )}
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Daily transaction reminders, automated warnings, and financial alerts</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button
-            variant="secondary"
+            variant={reminderConfig.enabled ? 'primary' : 'secondary'}
             icon={<Clock size={13} />}
             onClick={() => setShowReminderModal(true)}
             title="Configure daily transaction reminder time"
+            style={{ fontWeight: 600 }}
           >
             Daily Reminder: {formatTimeDisplay(reminderConfig.time)} ({reminderConfig.enabled ? 'Active' : 'Off'})
           </Button>
@@ -379,10 +396,12 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--info-dim)', border: '1px solid rgba(59,130,246,0.2)', marginBottom: 20, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-        <Zap size={14} color="var(--info)" style={{ marginTop: 1, flexShrink: 0 }} />
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          Click <strong style={{ color: 'var(--info)' }}>Scan for Alerts</strong> to auto-generate smart notifications from your live data — including overdue invoices, low stock, cash flow warnings, and upcoming tax deadlines.
+      <div style={{ padding: '14px 18px', borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--accent-border)', marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Zap size={16} color="var(--accent-light)" />
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          Click <strong style={{ color: 'var(--accent-light)' }}>Scan for Alerts</strong> to auto-generate smart reminders and notifications from your live data — including overdue invoices, low stock, cash flow warnings, and upcoming tax deadlines.
         </div>
       </div>
 
@@ -434,32 +453,45 @@ export default function NotificationsPage() {
               <div key={notif.id}
                 onClick={() => !notif.is_read && markRead(notif.id)}
                 style={{
-                  padding: '14px 16px', borderRadius: 'var(--radius-md)',
+                  padding: '16px 18px',
+                  borderRadius: 'var(--radius-lg)',
                   background: isAiClarification
                     ? 'rgba(168,85,247,0.06)'
                     : notif.is_read ? 'var(--bg-card)' : SEVERITY_BG[notif.severity],
                   border: isAiClarification
                     ? '1px solid rgba(168,85,247,0.25)'
                     : `1px solid ${notif.is_read ? 'var(--bg-border)' : SEVERITY_BORDER[notif.severity]}`,
-                  display: 'flex', gap: 12, alignItems: 'flex-start',
+                  borderLeft: `3px solid ${isAiClarification ? 'var(--accent-primary)' : meta.color}`,
+                  display: 'flex', gap: 14, alignItems: 'flex-start',
                   cursor: notif.is_read ? 'default' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  animation: 'fadeIn 0.3s ease',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  animation: 'fadeIn 0.25s ease',
                   position: 'relative',
+                  boxShadow: notif.is_read ? 'none' : 'var(--shadow-sm)',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border)';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = isAiClarification
+                    ? 'rgba(168,85,247,0.25)'
+                    : (notif.is_read ? 'var(--bg-border)' : SEVERITY_BORDER[notif.severity]);
+                  (e.currentTarget as HTMLElement).style.transform = 'none';
                 }}
               >
                 {!notif.is_read && (
-                  <div style={{ position: 'absolute', top: 14, right: 40, width: 7, height: 7, borderRadius: '50%', background: meta.color }} />
+                  <div style={{ position: 'absolute', top: 16, right: 38, width: 8, height: 8, borderRadius: '50%', background: meta.color, boxShadow: `0 0 8px ${meta.color}` }} />
                 )}
 
                 {/* Icon */}
                 <div style={{
-                  width: 32, height: 32, borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                  background: isAiClarification ? 'linear-gradient(135deg, var(--accent-dim), var(--accent-subtle))' : notif.is_read ? 'var(--bg-elevated)' : 'transparent',
-                  border: isAiClarification ? '1px solid var(--accent-border)' : `1px solid ${notif.is_read ? 'var(--bg-border)' : 'transparent'}`,
+                  width: 36, height: 36, borderRadius: 'var(--radius-md)', flexShrink: 0,
+                  background: isAiClarification ? 'var(--accent-dim)' : notif.is_read ? 'var(--bg-elevated)' : `${meta.color}15`,
+                  border: isAiClarification ? '1px solid var(--accent-border)' : `1px solid ${notif.is_read ? 'var(--bg-border)' : `${meta.color}35`}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Icon size={15} color={meta.color} />
+                  <Icon size={16} color={meta.color} />
                 </div>
 
                 {/* Content */}

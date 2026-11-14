@@ -208,7 +208,7 @@ function ActionButton({ action, onAction }: { action: ChatAction; onAction: (act
         cursor: 'pointer',
         transition: 'all 0.15s ease',
         marginTop: 4,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontFamily: "'Inter', 'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.background = isWhatsApp ? '#20bd5a' : `${color}35`;
@@ -618,7 +618,7 @@ export default function AssistantPage() {
         background: 'var(--bg-base)',
         overflow: 'hidden',
         color: 'var(--text-primary)',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontFamily: "'Inter', 'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       {/* ── Drag & Drop Overlay ────────────────────────────────────────────── */}
@@ -678,13 +678,13 @@ export default function AssistantPage() {
                 gap: 8,
                 padding: '10px 14px',
                 borderRadius: 'var(--radius-md)',
-                background: 'linear-gradient(135deg, var(--accent-primary), #6366f1)',
+                background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
                 color: 'white',
                 border: 'none',
                 fontWeight: 700,
                 fontSize: 13,
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+                boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -1027,11 +1027,11 @@ export default function AssistantPage() {
                   width: 52,
                   height: 52,
                   borderRadius: 16,
-                  background: 'linear-gradient(135deg, var(--accent-primary), #6366f1)',
+                  background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 8px 24px rgba(99, 102, 241, 0.3)',
+                  boxShadow: '0 8px 24px rgba(102, 45, 145, 0.3)',
                   marginBottom: 14,
                 }}
               >
@@ -1145,7 +1145,7 @@ export default function AssistantPage() {
                       width: 30,
                       height: 30,
                       borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--accent-primary), #4f46e5)',
+                      background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1194,7 +1194,7 @@ export default function AssistantPage() {
                       background: isError
                         ? 'rgba(239, 68, 68, 0.15)'
                         : isUser
-                        ? 'linear-gradient(135deg, var(--accent-primary), #6366f1)'
+                        ? 'linear-gradient(135deg, var(--accent-primary), #7c3aed)'
                         : 'var(--bg-card)',
                       border: isError
                         ? '1px solid rgba(239, 68, 68, 0.4)'
@@ -1205,7 +1205,7 @@ export default function AssistantPage() {
                       fontSize: 13.5,
                       lineHeight: 1.6,
                       whiteSpace: 'pre-line',
-                      boxShadow: isUser ? '0 4px 14px rgba(99, 102, 241, 0.2)' : '0 2px 8px rgba(0,0,0,0.1)',
+                      boxShadow: isUser ? '0 4px 14px rgba(102, 45, 145, 0.25)' : '0 2px 8px rgba(0,0,0,0.1)',
                       position: 'relative',
                     }}
                   >
@@ -1315,7 +1315,7 @@ export default function AssistantPage() {
                   width: 30,
                   height: 30,
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--accent-primary), #4f46e5)',
+                  background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1355,7 +1355,7 @@ export default function AssistantPage() {
           {/* Transcription In Progress */}
           {isTranscribing && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--accent-border)' }}>
-              <div className="upload-spinner" style={{ width: 14, height: 14, border: '2px solid rgba(99,102,241,0.2)', borderTop: '2px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <div className="upload-spinner" style={{ width: 14, height: 14, border: '2px solid rgba(102,45,145,0.2)', borderTop: '2px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
               <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>Transcribing voice note with Whisper AI…</span>
             </div>
           )}
@@ -1363,7 +1363,7 @@ export default function AssistantPage() {
           {/* OCR In Progress */}
           {isProcessingOcr && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--accent-border)' }}>
-              <div className="upload-spinner" style={{ width: 14, height: 14, border: '2px solid rgba(99,102,241,0.2)', borderTop: '2px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <div className="upload-spinner" style={{ width: 14, height: 14, border: '2px solid rgba(102,45,145,0.2)', borderTop: '2px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
               <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>Analyzing document & running OCR extraction…</span>
             </div>
           )}

@@ -423,15 +423,26 @@ export default function BillingPage() {
           display: flex; align-items: center; gap: 10px;
         }
         .bil-plan-card {
-          border: 2px solid var(--bg-border);
+          border: 1px solid var(--bg-border);
           border-radius: var(--radius-xl); padding: 26px;
           display: flex; flex-direction: column; gap: 18px;
-          position: relative; transition: all 0.2s ease;
+          position: relative; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
           cursor: pointer; background: var(--bg-card);
+          box-shadow: var(--shadow-sm);
         }
-        .bil-plan-card:hover { border-color: var(--text-primary); box-shadow: 0 8px 24px -8px rgba(0,0,0,0.15); }
-        .bil-plan-card.selected { border-color: var(--text-primary); box-shadow: 0 0 0 3px rgba(0,0,0,0.12); }
-        .bil-plan-card.featured { border-color: var(--text-primary); }
+        .bil-plan-card:hover {
+          border-color: var(--accent-border);
+          box-shadow: 0 8px 30px rgba(102, 45, 145, 0.16);
+          transform: translateY(-2px);
+        }
+        .bil-plan-card.selected {
+          border-color: var(--accent-primary);
+          box-shadow: 0 0 0 2px var(--accent-border);
+        }
+        .bil-plan-card.featured {
+          border-color: var(--accent-border);
+          background: linear-gradient(135deg, rgba(102, 45, 145, 0.05), var(--bg-card));
+        }
         .bil-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 700px) { .bil-grid-2 { grid-template-columns: 1fr; } }
         .bil-history-row {
@@ -452,11 +463,27 @@ export default function BillingPage() {
       `}</style>
 
       {/* ── Header ─────────────────────────────────── */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Billing & Subscription</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-          Manage your ROVA subscriptions, view payment history, and purchase professional services.
-        </p>
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--radius-lg)',
+          background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
+          flexShrink: 0,
+        }}>
+          <CreditCard size={20} />
+        </div>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Billing & Subscription</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '2px 0 0' }}>
+            Manage your ROVA subscriptions, view payment history, and purchase professional services.
+          </p>
+        </div>
       </div>
 
       {/* ── Expired Status Banner (if access ended) ── */}

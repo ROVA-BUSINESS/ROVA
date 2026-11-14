@@ -3,7 +3,8 @@ import { supabase } from './supabase.ts';
 
 // Standard VAPID Public Key (P-256 ECDSA)
 export const VAPID_PUBLIC_KEY =
-  'BPdwQ3s_-P9Z2nfl9FY75bVVtjLq8AqforPTg_8_qpybyQO6Dd6ZmAtUN8E4OX6-TfbczPqZo2MUdiyeZZ7RJA0';
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_VAPID_PUBLIC_KEY) ||
+  'BG6yB5UIJ3Ja07Hz5Z9tB8OGQ37-wPgLbOTlSQXGmjL82iw36DGbwbu1DnUbkwbesi97nO2vCa6CNxNHI6j4RMI';
 
 /**
  * Converts a URL-safe Base64 string into a Uint8Array for pushManager.subscribe
