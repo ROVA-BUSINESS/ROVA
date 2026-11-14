@@ -28,7 +28,7 @@ import {
   FileText,
   HelpCircle,
   MessageCircle,
-  ArrowDown,
+  ArrowDown, Receipt,
 } from 'lucide-react';
 import { useMobile } from '../hooks/useMobile';
 import {
@@ -62,22 +62,26 @@ const ACTION_COLORS: Record<string, string> = {
 
 const STARTER_PROMPTS = [
   {
-    icon: '💰',
+    icon: TrendingUp,
+    badge: 'Insights',
     title: 'Financial Health',
     prompt: 'How much revenue and profit did my business generate this month?',
   },
   {
-    icon: '🧾',
+    icon: Receipt,
+    badge: 'Expenses',
     title: 'Receipts & Expenses',
     prompt: 'Show me my total expenses this week and which category is highest',
   },
   {
-    icon: '📦',
+    icon: Package,
+    badge: 'Stock',
     title: 'Inventory Stock',
     prompt: 'Which inventory items are currently running low on stock?',
   },
   {
-    icon: '📄',
+    icon: FileText,
+    badge: 'Invoices',
     title: 'Outstanding Debts',
     prompt: 'Who owes me money and what invoices are currently unpaid?',
   },
@@ -188,7 +192,7 @@ function VoiceMessagePlayer({ audioUrl, duration }: { audioUrl: string; duration
 function ActionButton({ action, onAction }: { action: ChatAction; onAction: (action: ChatAction) => void }) {
   const Icon = ACTION_ICONS[action.type] ?? ChevronRight;
   const isWhatsApp = action.type === 'open_whatsapp_bot';
-  const color = isWhatsApp ? '#25D366' : ACTION_COLORS[action.type] ?? '#a78bfa';
+  const color = isWhatsApp ? '#25D366' : (ACTION_COLORS[action.type] ?? 'var(--accent-light)');
 
   return (
     <button
@@ -196,32 +200,34 @@ function ActionButton({ action, onAction }: { action: ChatAction; onAction: (act
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 6,
+        gap: 7,
         padding: isWhatsApp ? '8px 16px' : '7px 14px',
         borderRadius: 'var(--radius-full)',
-        background: isWhatsApp ? '#25D366' : `${color}20`,
-        border: isWhatsApp ? '1px solid #1fa851' : `1px solid ${color}40`,
-        color: '#ffffff',
+        background: isWhatsApp ? 'rgba(37, 211, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+        border: isWhatsApp ? '1px solid rgba(37, 211, 102, 0.35)' : '1px solid var(--bg-border)',
+        color: isWhatsApp ? '#4ade80' : 'var(--text-primary)',
         fontSize: 12.5,
-        fontWeight: isWhatsApp ? 700 : 600,
-        boxShadow: isWhatsApp ? '0 3px 12px rgba(37, 211, 102, 0.45)' : undefined,
+        fontWeight: 600,
+        boxShadow: 'var(--shadow-sm)',
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        marginTop: 4,
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        marginTop: 6,
         fontFamily: "'Inter', 'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = isWhatsApp ? '#20bd5a' : `${color}35`;
-        (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
+        e.currentTarget.style.background = isWhatsApp ? 'rgba(37, 211, 102, 0.2)' : 'rgba(255, 255, 255, 0.09)';
+        e.currentTarget.style.borderColor = isWhatsApp ? 'rgba(37, 211, 102, 0.55)' : 'var(--accent-border)';
+        e.currentTarget.style.transform = 'translateY(-1px)';
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.background = isWhatsApp ? '#25D366' : `${color}20`;
-        (e.currentTarget as HTMLElement).style.transform = 'none';
+        e.currentTarget.style.background = isWhatsApp ? 'rgba(37, 211, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)';
+        e.currentTarget.style.borderColor = isWhatsApp ? 'rgba(37, 211, 102, 0.35)' : 'var(--bg-border)';
+        e.currentTarget.style.transform = 'none';
       }}
     >
-      <Icon size={isWhatsApp ? 15 : 13} color={isWhatsApp ? '#ffffff' : color} />
-      <span style={{ color: '#ffffff' }}>{action.label}</span>
-      {isWhatsApp && <ExternalLink size={12} style={{ opacity: 0.95, color: '#ffffff' }} />}
+      <Icon size={14} color={isWhatsApp ? '#25D366' : color} />
+      <span>{action.label}</span>
+      {isWhatsApp && <ExternalLink size={12} style={{ opacity: 0.85 }} />}
     </button>
   );
 }
@@ -421,7 +427,7 @@ export default function AssistantPage() {
 
   // Auto scroll to bottom on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.some(m => m.role === 'user')) { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }
   }, [messages, typing, isTranscribing, isProcessingOcr]);
 
   // Track scroll position to show jump-to-bottom arrow
@@ -1054,41 +1060,78 @@ export default function AssistantPage() {
                   maxWidth: 680,
                 }}
               >
-                {STARTER_PROMPTS.map((starter, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendMessage(starter.prompt)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: '12px 16px',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--bg-border)',
-                      color: 'var(--text-primary)',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)';
-                      (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--bg-border)';
-                      (e.currentTarget as HTMLElement).style.transform = 'none';
-                    }}
-                  >
-                    <span style={{ fontSize: 20 }}>{starter.icon}</span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{starter.title}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                        {starter.prompt}
+                {STARTER_PROMPTS.map((starter, i) => {
+                  const Icon = starter.icon;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => sendMessage(starter.prompt)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: 12,
+                        padding: '16px 18px',
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'var(--bg-card)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: 'var(--text-primary)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: 'var(--shadow-sm)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 8px 24px -4px rgba(124, 58, 237, 0.25)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                        e.currentTarget.style.transform = 'none';
+                        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <div style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 'var(--radius-md)',
+                          background: 'var(--accent-dim)',
+                          color: 'var(--accent-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Icon size={16} />
+                        </div>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          color: 'var(--accent-light)',
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-full)',
+                          background: 'rgba(124, 58, 237, 0.1)',
+                          border: '1px solid rgba(124, 58, 237, 0.2)',
+                        }}>
+                          {starter.badge}
+                        </span>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 4 }}>
+                          {starter.title}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {starter.prompt}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

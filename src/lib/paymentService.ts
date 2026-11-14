@@ -18,8 +18,8 @@ export const PROVIDER_CAPABILITIES: Record<PaymentProvider, ProviderCapabilityIn
     name: 'Paystack',
     displayName: 'Paystack',
     tagline: "Nigeria's modern payment infrastructure for cards, transfers, USSD & mobile money",
-    color: '#00c3f7',
-    bgLight: 'rgba(0, 195, 247, 0.1)',
+    color: '#7c3aed',
+    bgLight: 'rgba(124, 58, 237, 0.1)',
     accessStatus: 'ready',
     accessNotice: 'Active & Verified. Native payment link generation, instant verification, and webhooks operational.',
     approvalRequirements: [

@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useMemo, type FormEvent } from 'react';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowDownLeft, Trash2, Check, Brain, Download, Edit2, Receipt, Clock } from 'lucide-react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowDownLeft, Trash2, Check, Brain, Download, Edit2, Receipt, Clock, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,6 +55,56 @@ export default function TransactionsPage() {
   const [editValue, setEditValue] = useState('');
   const [expandedDescId, setExpandedDescId] = useState<string | null>(null);
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+  const [editTxModal, setEditTxModal] = useState<Transaction | null>(null);
+  const [editTxCategoryId, setEditTxCategoryId] = useState<string>('');
+  const [editTxDesc, setEditTxDesc] = useState<string>('');
+  const [editTxAmount, setEditTxAmount] = useState<string>('');
+  const [editTxDate, setEditTxDate] = useState<string>('');
+  const [editTxAccountId, setEditTxAccountId] = useState<string>('');
+  const [editTxSaving, setEditTxSaving] = useState(false);
+  const [catSearch, setCatSearch] = useState('');
+
+  function openEditModal(tx: Transaction) {
+    setEditTxModal(tx);
+    setEditTxCategoryId(tx.category_id || '');
+    setEditTxDesc(tx.description || '');
+    setEditTxAmount(String(tx.amount || ''));
+    setEditTxDate(tx.date || new Date().toISOString().split('T')[0]);
+    setEditTxAccountId(tx.account_id || '');
+    setCatSearch('');
+  }
+
+  async function handleSaveEditTx() {
+    if (!editTxModal) return;
+    setEditTxSaving(true);
+    try {
+      const updates: any = {
+        category_id: editTxCategoryId || null,
+        description: editTxDesc.trim() || editTxModal.description,
+        date: editTxDate || editTxModal.date,
+        account_id: editTxAccountId || null,
+      };
+      if (editTxAmount && !isNaN(Number(editTxAmount)) && Number(editTxAmount) > 0) {
+        updates.amount = Number(editTxAmount);
+      }
+      const { error } = await supabase.from('transactions').update(updates).eq('id', editTxModal.id);
+      if (!error) {
+        const category = categories.find(c => c.id === editTxCategoryId) || undefined;
+        const account = accounts.find(a => a.id === editTxAccountId) || undefined;
+        setTransactions(prev => prev.map(t => t.id === editTxModal.id ? {
+          ...t,
+          ...updates,
+          category,
+          account: account || t.account,
+        } : t));
+        setEditTxModal(null);
+      } else {
+        alert('Failed to update transaction: ' + error.message);
+      }
+    } finally {
+      setEditTxSaving(false);
+    }
+  }
 
   const [form, setForm] = useState({
     description: '', amount: '', type: 'expense' as 'income' | 'expense',
@@ -386,48 +436,84 @@ export default function TransactionsPage() {
                       }}>
                         {tx.type === 'income' ? <ArrowUpRight size={13} color="#10b981" /> : <ArrowDownRight size={13} color="#ef4444" />}
                       </div>
-                      {editingId === tx.id && editingField === 'description' ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
-                          <input 
-                            autoFocus
-                            value={editValue} 
-                            onChange={e => setEditValue(e.target.value)}
-                            onBlur={() => handleSaveEdit(tx.id, 'description', editValue)}
-                            onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(tx.id, 'description', editValue); if (e.key === 'Escape') setEditingId(null); }}
-                            style={{ width: '100%', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--accent-primary)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
-                          />
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                          <div 
-                            title={tx.description || ''}
-                            onClick={() => setExpandedDescId(expandedDescId === tx.id ? null : tx.id)}
-                            style={{ 
-                              fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', 
-                              overflow: expandedDescId === tx.id ? 'visible' : 'hidden', 
-                              textOverflow: expandedDescId === tx.id ? 'clip' : 'ellipsis', 
-                              whiteSpace: expandedDescId === tx.id ? 'normal' : 'nowrap', 
-                              maxWidth: expandedDescId === tx.id ? 'none' : '160px',
-                              cursor: 'pointer',
-                              wordBreak: expandedDescId === tx.id ? 'break-word' : 'normal',
-                              lineHeight: 1.4
-                            }} 
-                            className={expandedDescId === tx.id ? "" : "mobile-desc-text"}
-                          >
-                            {cleanDescription(tx.description) || 'No description'}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                        {editingId === tx.id && editingField === 'description' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%' }}>
+                            <input 
+                              autoFocus
+                              value={editValue} 
+                              onChange={e => setEditValue(e.target.value)}
+                              onBlur={() => handleSaveEdit(tx.id, 'description', editValue)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(tx.id, 'description', editValue); if (e.key === 'Escape') setEditingId(null); }}
+                              style={{ width: '100%', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--accent-primary)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }}
+                            />
                           </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+                            <div 
+                              title={tx.description || ''}
+                              onClick={() => setExpandedDescId(expandedDescId === tx.id ? null : tx.id)}
+                              style={{ 
+                                fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', 
+                                overflow: expandedDescId === tx.id ? 'visible' : 'hidden', 
+                                textOverflow: expandedDescId === tx.id ? 'clip' : 'ellipsis', 
+                                whiteSpace: expandedDescId === tx.id ? 'normal' : 'nowrap', 
+                                maxWidth: expandedDescId === tx.id ? 'none' : '160px',
+                                cursor: 'pointer',
+                                wordBreak: expandedDescId === tx.id ? 'break-word' : 'normal',
+                                lineHeight: 1.4
+                              }} 
+                              className={expandedDescId === tx.id ? "" : "mobile-desc-text"}
+                            >
+                              {cleanDescription(tx.description) || 'No description'}
+                            </div>
 
-                          <button 
-                            onClick={() => { setEditingId(tx.id); setEditingField('description'); setEditValue(tx.description || ''); }}
-                            style={{ padding: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                            title="Edit Description"
+                            <button 
+                              onClick={() => { setEditingId(tx.id); setEditingField('description'); setEditValue(tx.description || ''); }}
+                              style={{ padding: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                              title="Edit Description"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Mobile Visible Category Badge & Tap to Change */}
+                        <div className="mobile-only" style={{ marginTop: 4 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditModal(tx);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              padding: '3px 8px',
+                              borderRadius: 12,
+                              background: (tx.category as any)?.name ? 'var(--bg-elevated)' : 'rgba(245, 158, 11, 0.12)',
+                              border: (tx.category as any)?.name ? '1px solid var(--bg-border)' : '1px dashed rgba(245, 158, 11, 0.45)',
+                              color: (tx.category as any)?.name ? 'var(--text-secondary)' : 'var(--warning)',
+                              fontSize: 11,
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              lineHeight: 1.2,
+                              transition: 'all 0.15s ease',
+                              maxWidth: '100%',
+                            }}
+                            title="Tap to change category"
                           >
-                            <Edit2 size={12} />
+                            <Tag size={10} style={{ flexShrink: 0, opacity: 0.7 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                              {(tx.category as any)?.name || 'Add Category'}
+                            </span>
+                            <Edit2 size={9} style={{ opacity: 0.6, flexShrink: 0 }} />
                           </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </td>
                   <td className="mobile-hide" style={{ padding: '12px 16px' }}>
@@ -505,6 +591,15 @@ export default function TransactionsPage() {
                           <Receipt size={13} />
                         </button>
                       )}
+                      <button
+                        onClick={() => openEditModal(tx)}
+                        title="Edit Transaction & Category"
+                        style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+                      >
+                        <Edit2 size={13} />
+                      </button>
                       <button
                         onClick={() => toggleVerify(tx)}
                         title={tx.is_verified ? 'Mark as unverified' : 'Mark as verified'}
@@ -818,7 +913,220 @@ export default function TransactionsPage() {
         </form>
       </Modal>
 
-      <TransactionReminderModal
+            {/* Modal: Edit Transaction & Change Category (Mobile & Desktop) */}
+      <Modal 
+        open={!!editTxModal} 
+        onClose={() => setEditTxModal(null)} 
+        title="Edit Transaction"
+      >
+        {editTxModal && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Header Summary */}
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--bg-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {editTxModal.type === 'income' ? 'Money In' : 'Money Out'}
+                </span>
+                <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: editTxModal.type === 'income' ? 'var(--success)' : 'var(--error)' }}>
+                  {editTxModal.type === 'income' ? '+' : '-'}{formatCurrency(editTxModal.amount)}
+                </div>
+              </div>
+              <Badge variant={editTxModal.type === 'income' ? 'success' : 'default'}>
+                {formatDate(editTxModal.date)}
+              </Badge>
+            </div>
+
+            {/* Category Selector Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Tag size={14} color="var(--accent-primary)" />
+                  <span>Category</span>
+                </label>
+                {editTxCategoryId && (
+                  <button
+                    type="button"
+                    onClick={() => setEditTxCategoryId('')}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Category Search */}
+              <input
+                type="text"
+                placeholder="Search categories..."
+                value={catSearch}
+                onChange={e => setCatSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--bg-border)',
+                  color: 'var(--text-primary)',
+                  fontSize: 12.5,
+                  outline: 'none',
+                }}
+              />
+
+              {/* Quick Tap Category Chips */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                maxHeight: 140,
+                overflowY: 'auto',
+                padding: '4px 2px',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setEditTxCategoryId('')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 100,
+                    fontSize: 11.5,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    borderColor: !editTxCategoryId ? 'var(--accent-primary)' : 'var(--bg-border)',
+                    background: !editTxCategoryId ? 'var(--accent-dim)' : 'var(--bg-card)',
+                    color: !editTxCategoryId ? 'var(--accent-light)' : 'var(--text-muted)',
+                  }}
+                >
+                  Uncategorized
+                </button>
+                {categories
+                  .filter(c => c.type === editTxModal.type || c.type === 'both')
+                  .filter(c => !catSearch || c.name.toLowerCase().includes(catSearch.toLowerCase()))
+                  .map(c => {
+                    const isSelected = editTxCategoryId === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setEditTxCategoryId(c.id)}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: 100,
+                          fontSize: 11.5,
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          border: '1px solid',
+                          borderColor: isSelected ? 'var(--accent-primary)' : 'var(--bg-border)',
+                          background: isSelected ? 'linear-gradient(135deg, rgba(102, 45, 145, 0.2), rgba(124, 58, 237, 0.15))' : 'var(--bg-card)',
+                          color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        {isSelected && <Check size={11} color="var(--accent-light)" />}
+                        <span>{c.name}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+
+              {/* Standard Select Dropdown fallback */}
+              <select
+                value={editTxCategoryId}
+                onChange={e => setEditTxCategoryId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  color: editTxCategoryId ? 'var(--text-primary)' : 'var(--text-muted)',
+                  fontSize: 13,
+                  outline: 'none',
+                  marginTop: 4,
+                }}
+              >
+                <option value="">No Category (Uncategorized)</option>
+                {categories
+                  .filter(c => c.type === editTxModal.type || c.type === 'both')
+                  .map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Description Input */}
+            <div>
+              <Input
+                label="Description"
+                value={editTxDesc}
+                onChange={e => setEditTxDesc(e.target.value)}
+                placeholder="Transaction description"
+              />
+            </div>
+
+            {/* Amount & Date side-by-side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Input
+                label="Amount (₦)"
+                type="number"
+                step="0.01"
+                min="0"
+                value={editTxAmount}
+                onChange={e => setEditTxAmount(e.target.value)}
+              />
+              <Input
+                label="Date"
+                type="date"
+                value={editTxDate}
+                onChange={e => setEditTxDate(e.target.value)}
+              />
+            </div>
+
+            {/* Account Selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Account</label>
+              <select
+                value={editTxAccountId}
+                onChange={e => setEditTxAccountId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  color: editTxAccountId ? 'var(--text-primary)' : 'var(--text-muted)',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              >
+                <option value="">Select account (optional)</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <Button variant="secondary" onClick={() => setEditTxModal(null)} type="button">
+                Cancel
+              </Button>
+              <Button variant="primary" loading={editTxSaving} onClick={handleSaveEditTx}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+<TransactionReminderModal
         isOpen={showReminderModal}
         onClose={() => setShowReminderModal(false)}
         userId={effectiveUserId || user?.id || ''}

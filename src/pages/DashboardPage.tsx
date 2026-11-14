@@ -319,7 +319,7 @@ export default function DashboardPage() {
                 {recentTx.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {recentTx.map(tx => (
-                      <TransactionRow key={tx.id} tx={tx} />
+                      <TransactionRow key={tx.id} tx={tx} onClick={() => navigate("/app/transactions")} />
                     ))}
                   </div>
                 ) : (
@@ -474,13 +474,21 @@ export default function DashboardPage() {
   );
 }
 
-function TransactionRow({ tx }: { tx: Transaction }) {
+function TransactionRow({ tx, onClick }: { tx: Transaction; onClick?: () => void }) {
   const isIncome = tx.type === 'income';
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '8px 0', borderBottom: '1px solid var(--bg-border)',
-    }}>
+    <div 
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '8px 4px', borderBottom: '1px solid var(--bg-border)',
+        cursor: onClick ? 'pointer' : 'default',
+        borderRadius: 'var(--radius-sm)',
+        transition: 'background 0.15s ease',
+      }}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+      onMouseLeave={e => { if (onClick) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+    >
       <div style={{
         width: 32, height: 32, borderRadius: 'var(--radius-md)', flexShrink: 0,
         background: isIncome ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
@@ -492,9 +500,17 @@ function TransactionRow({ tx }: { tx: Transaction }) {
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {cleanDescription(tx.description) || (tx.category as any)?.name || 'Transaction'}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(tx.date)}</div>
-          <div style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{formatTime(tx.created_at)}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(tx.date)} · {formatTime(tx.created_at)}</div>
+          {(tx.category as any)?.name ? (
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', color: 'var(--text-secondary)' }}>
+              {(tx.category as any).name}
+            </span>
+          ) : (
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(245, 158, 11, 0.12)', color: 'var(--warning)', border: '1px dashed rgba(245, 158, 11, 0.35)' }}>
+              Uncategorized
+            </span>
+          )}
         </div>
       </div>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0, fontFamily: 'Space Grotesk, sans-serif' }}>

@@ -692,10 +692,11 @@ export default function PaymentPage() {
             icon={<CreditCard size={14} />}
             onClick={openDirectPayModal}
             style={{
-              background: '#00c3f7',
-              borderColor: '#00c3f7',
-              color: '#09090b',
+              background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+              borderColor: 'var(--accent-primary)',
+              color: '#ffffff',
               fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
             }}
           >
             Pay with Paystack
@@ -839,14 +840,14 @@ export default function PaymentPage() {
           </div>
 
           {/* Metric Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
             {/* Total Received */}
-            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Payments Received</span>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Received</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100, background: 'rgba(34, 197, 94, 0.12)', color: 'var(--success)', border: '1px solid rgba(34, 197, 94, 0.25)' }}>Collected</span>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--success)', fontFamily: 'Space Grotesk, sans-serif' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.totalReceived)}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -855,10 +856,10 @@ export default function PaymentPage() {
             </Card>
 
             {/* Net Collections */}
-            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net Collections</span>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-primary)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Net Collections</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100, background: 'rgba(124, 58, 237, 0.12)', color: 'var(--accent-light)', border: '1px solid rgba(124, 58, 237, 0.25)' }}>Net Inflow</span>
               </div>
               <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.netCollections)}
@@ -869,12 +870,12 @@ export default function PaymentPage() {
             </Card>
 
             {/* Pending Payments */}
-            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending Payments</span>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Inflow</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100, background: 'rgba(245, 158, 11, 0.12)', color: 'var(--warning)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>Pending</span>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--warning)', fontFamily: 'Space Grotesk, sans-serif' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.pendingVolume)}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -883,12 +884,12 @@ export default function PaymentPage() {
             </Card>
 
             {/* Failed Payments */}
-            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Failed Payments</span>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--error)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Failed / Declined</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100, background: 'rgba(239, 68, 68, 0.12)', color: 'var(--error)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>Declined</span>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--error)', fontFamily: 'Space Grotesk, sans-serif' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.failedVolume)}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -897,12 +898,12 @@ export default function PaymentPage() {
             </Card>
 
             {/* Refunded Amounts */}
-            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)' }}>
+            <Card style={{ padding: 20, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Refunds & Reversals</span>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Refunds</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100, background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)', border: '1px solid var(--bg-border)' }}>Returned</span>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-muted)', fontFamily: 'Space Grotesk, sans-serif' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, marginTop: 8, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {formatCurrency(metrics.refundedVolume)}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -949,9 +950,9 @@ export default function PaymentPage() {
                           <button
                             onClick={openDirectPayModal}
                             style={{
-                              background: 'rgba(0, 195, 247, 0.12)',
-                              border: '1px solid rgba(0, 195, 247, 0.3)',
-                              color: '#00c3f7',
+                              background: 'rgba(124, 58, 237, 0.12)',
+                              border: '1px solid rgba(124, 58, 237, 0.3)',
+                              color: '#7c3aed',
                               fontWeight: 700,
                               cursor: 'pointer',
                               padding: '2px 8px',
@@ -1215,8 +1216,8 @@ export default function PaymentPage() {
                         onClick={openDirectPayModal}
                         style={{
                           flex: 1,
-                          background: '#00c3f7',
-                          borderColor: '#00c3f7',
+                          background: '#7c3aed',
+                          borderColor: '#7c3aed',
                           color: '#09090b',
                           fontWeight: 700,
                         }}
@@ -1903,8 +1904,8 @@ export default function PaymentPage() {
             style={{
               padding: '12px 14px',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(0, 195, 247, 0.08)',
-              border: '1px solid rgba(0, 195, 247, 0.25)',
+              background: 'rgba(124, 58, 237, 0.08)',
+              border: '1px solid rgba(124, 58, 237, 0.25)',
               fontSize: 12,
               lineHeight: 1.5,
               display: 'flex',
@@ -1917,7 +1918,7 @@ export default function PaymentPage() {
                 width: 32,
                 height: 32,
                 borderRadius: '50%',
-                background: '#00c3f7',
+                background: '#7c3aed',
                 color: '#000',
                 display: 'flex',
                 alignItems: 'center',
@@ -1957,9 +1958,9 @@ export default function PaymentPage() {
                   style={{
                     padding: '4px 10px',
                     borderRadius: 'var(--radius-sm)',
-                    border: directPayAmount === preset ? '1px solid #00c3f7' : '1px solid var(--bg-border)',
-                    background: directPayAmount === preset ? 'rgba(0, 195, 247, 0.15)' : 'var(--bg-elevated)',
-                    color: directPayAmount === preset ? '#00c3f7' : 'var(--text-primary)',
+                    border: directPayAmount === preset ? '1px solid #7c3aed' : '1px solid var(--bg-border)',
+                    background: directPayAmount === preset ? 'rgba(124, 58, 237, 0.15)' : 'var(--bg-elevated)',
+                    color: directPayAmount === preset ? '#7c3aed' : 'var(--text-primary)',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -2010,8 +2011,8 @@ export default function PaymentPage() {
               loading={directPayProcessing}
               icon={<CreditCard size={14} />}
               style={{
-                background: '#00c3f7',
-                borderColor: '#00c3f7',
+                background: '#7c3aed',
+                borderColor: '#7c3aed',
                 color: '#09090b',
                 fontWeight: 700,
               }}
