@@ -633,29 +633,11 @@ export default function PaymentPage() {
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 'var(--radius-lg)',
-                background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
-                flexShrink: 0,
-              }}
-            >
-              <CreditCard size={20} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>Payment</h1>
-              <p style={{ margin: '2px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
-                Manage your payment providers, collect payments, and track transactions in one place.
-              </p>
-            </div>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>Payment</h1>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
+              Manage your payment providers, collect payments, and track transactions in one place.
+            </p>
           </div>
         </div>
 
@@ -1128,7 +1110,7 @@ export default function PaymentPage() {
                     flexDirection: 'column',
                     justifyContent: 'space-between',
                     position: 'relative',
-                    borderTop: `4px solid ${cap.color}`,
+                    
                   }}
                 >
                   <div>
