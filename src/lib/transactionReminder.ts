@@ -36,9 +36,20 @@ export function getReminderConfig(userId: string): TransactionReminderConfig {
   }
 }
 
+function getLocalDateStr(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function saveReminderConfig(userId: string, config: TransactionReminderConfig): void {
   if (!userId) return;
   try {
+    const existing = getReminderConfig(userId);
+    if (existing.time !== config.time || existing.enabled !== config.enabled) {
+      delete config.lastTriggeredDate;
+    }
     localStorage.setItem(`${STORAGE_PREFIX}${userId}`, JSON.stringify(config));
     window.dispatchEvent(new CustomEvent('rova-reminder-settings-updated', { detail: config }));
     syncReminderScheduleToDatabase(userId, config).catch(() => {});
@@ -108,7 +119,7 @@ export interface ReminderCheckResult {
 }
 
 export async function checkDailyReminderCriteria(userId: string, config: TransactionReminderConfig): Promise<ReminderCheckResult> {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
 
   // Fetch today's transactions count
   const { count: todayCount } = await supabase
@@ -219,8 +230,7 @@ export async function runReminderCheckIfDue(userId: string): Promise<boolean> {
   const config = getReminderConfig(userId);
   if (!config.enabled) return false;
 
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
 
   // Already fired today
   if (config.lastTriggeredDate === todayStr) {
@@ -229,6 +239,7 @@ export async function runReminderCheckIfDue(userId: string): Promise<boolean> {
 
   // Parse reminder time
   const [remHour, remMin] = config.time.split(':').map(Number);
+  const now = new Date();
   const currentHour = now.getHours();
   const currentMin = now.getMinutes();
 
@@ -240,9 +251,6 @@ export async function runReminderCheckIfDue(userId: string): Promise<boolean> {
   // Check conditions
   const criteria = await checkDailyReminderCriteria(userId, config);
   if (!criteria.shouldAlert) {
-    // If criteria don't require alert, mark as evaluated for today so we don't query continuously
-    config.lastTriggeredDate = todayStr;
-    saveReminderConfig(userId, config);
     return false;
   }
 
@@ -255,7 +263,9 @@ export async function runReminderCheckIfDue(userId: string): Promise<boolean> {
 
   // Mark triggered today
   config.lastTriggeredDate = todayStr;
-  saveReminderConfig(userId, config);
+  try {
+    localStorage.setItem(`${STORAGE_PREFIX}${userId}`, JSON.stringify(config));
+  } catch {}
   return true;
 }
 

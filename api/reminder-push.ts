@@ -40,10 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   const body = req.body || {};
-  const action = body.action || req.query.action || 'test_push';
+  const action = body.action || req.query.action || 'cron_check';
 
   try {
-    // 1. TEST PUSH WITH DELAY (e.g. 10 seconds for user to close tab)
+    // 1. TEST PUSH WITH OPTIONAL DELAY
     if (action === 'test_push') {
       const { userId, delaySeconds = 0, title, body: msgBody } = body;
 
@@ -52,16 +52,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (delaySeconds > 0) {
-        // Sleep on the server side so the user can close the tab completely
         await new Promise((resolve) => setTimeout(resolve, Math.min(delaySeconds, 15) * 1000));
       }
 
-      // Query active push subscriptions from database
       const { data: subs, error: subError } = await supabase
         .from('push_subscriptions')
         .select('*')
         .eq('user_id', userId)
-        .eq('is_active', true);
+        .neq('is_active', false);
 
       if (subError) {
         return res.status(500).json({ success: false, error: subError.message });
@@ -71,17 +69,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({
           success: false,
           sent: 0,
-          message: 'No active push subscription found. Please enable reminders in ROVA first.',
+          message: 'No active push subscription found.',
         });
       }
 
       const payload = JSON.stringify({
-        title: title || 'ROVA Daily Reminder (Closed-Site Alert)',
-        body:
-          msgBody ||
-          'Success! Lock-screen alert received while ROVA was completely closed.',
+        title: title || 'ROVA Daily Reminder',
+        body: msgBody || "Time to record today's transactions and review pending categories.",
         url: '/app/transactions',
-        tag: 'rova-test-alert',
+        tag: 'rova-reminder',
       });
 
       let sentCount = 0;
@@ -89,20 +85,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
           const pushSubscription = {
             endpoint: row.endpoint,
-            keys: {
-              p256dh: row.p256dh,
-              auth: row.auth,
-            },
+            keys: { p256dh: row.p256dh, auth: row.auth },
           };
           await webpush.sendNotification(pushSubscription, payload);
           sentCount++;
         } catch (sendErr: any) {
           if (sendErr.statusCode === 410 || sendErr.statusCode === 404) {
-            // Subscription expired, mark inactive
-            await supabase
-              .from('push_subscriptions')
-              .update({ is_active: false })
-              .eq('id', row.id);
+            await supabase.from('push_subscriptions').delete().eq('id', row.id);
           }
         }
       }
@@ -114,18 +103,123 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // 2. DAILY CRON DISPATCHER (Runs periodically to notify users whose reminder time matches)
+    // 2. DAILY CRON DISPATCHER (Runs periodically)
     if (action === 'cron_check' || req.method === 'GET') {
       const now = new Date();
       // Nigeria / West Africa is UTC+1
-      const watHour = (now.getUTCHours() + 1) % 24;
-      const watMin = now.getUTCMinutes();
+      const watDate = new Date(now.getTime() + 1 * 60 * 60 * 1000);
+      const watDateStr = watDate.toISOString().split('T')[0];
+      const watHour = watDate.getUTCHours();
+      const watMin = watDate.getUTCMinutes();
       const timeStr = `${String(watHour).padStart(2, '0')}:${String(watMin).padStart(2, '0')}`;
+
+      // Query active subscriptions where reminders are enabled and not yet sent today
+      const { data: subs, error: queryErr } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('reminder_enabled', true)
+        .neq('is_active', false);
+
+      if (queryErr) throw queryErr;
+
+      const results = [];
+      for (const sub of subs || []) {
+        // Skip if already pushed today
+        if (sub.last_pushed_date === watDateStr) continue;
+
+        // Check if reminder time is due
+        const [remH, remM] = (sub.reminder_time || '20:00').split(':').map(Number);
+        const isDue = watHour > remH || (watHour === remH && watMin >= remM);
+        if (!isDue) continue;
+
+        const userId = sub.user_id;
+        let shouldAlert = false;
+        let reason = "Time to record today's transactions and review pending categories.";
+
+        if (sub.only_if_missing_today) {
+          const { count: txCount } = await supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('date', watDateStr);
+
+          if ((txCount || 0) === 0) {
+            shouldAlert = true;
+            reason = 'No transactions recorded yet today.';
+          }
+        }
+
+        if (sub.check_uncategorized) {
+          const { count: uncatCount } = await supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .is('category_id', null);
+
+          if ((uncatCount || 0) > 0) {
+            shouldAlert = true;
+            reason = `${reason} You have ${uncatCount} uncategorised transaction(s) waiting.`;
+          }
+        }
+
+        if (!sub.only_if_missing_today && !sub.check_uncategorized) {
+          shouldAlert = true;
+        }
+
+        if (shouldAlert) {
+          try {
+            const payload = JSON.stringify({
+              title: 'ROVA Daily Reminder',
+              body: `It's ${sub.reminder_time} — ${reason}`,
+              url: '/app/transactions',
+              tag: 'rova-transaction-reminder',
+            });
+
+            await webpush.sendNotification(
+              {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              },
+              payload
+            );
+
+            // Mark pushed for today
+            await supabase
+              .from('push_subscriptions')
+              .update({
+                last_pushed_date: watDateStr,
+                last_pushed_at: new Date().toISOString(),
+              })
+              .eq('id', sub.id);
+
+            // In-app notification
+            await supabase.from('notifications').insert({
+              user_id: userId,
+              type: 'info',
+              severity: 'info',
+              title: 'Daily Transaction Reminder',
+              body: `It's ${sub.reminder_time} — ${reason}`,
+              action_url: '/app/transactions',
+              action_label: 'View Transactions',
+              is_read: false,
+              is_dismissed: false,
+            });
+
+            results.push({ id: sub.id, userId, status: 'sent' });
+          } catch (pushErr: any) {
+            if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
+              await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+            }
+            results.push({ id: sub.id, userId, status: 'error', error: pushErr.message });
+          }
+        }
+      }
 
       return res.status(200).json({
         success: true,
-        time: timeStr,
-        status: 'Cron endpoint active',
+        watTime: timeStr,
+        processed: results.length,
+        results,
       });
     }
 

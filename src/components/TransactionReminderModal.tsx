@@ -19,11 +19,11 @@ interface TransactionReminderModalProps {
 }
 
 const PRESET_TIMES = [
+  { label: '12:00 PM', time: '12:00' },
+  { label: '3:00 PM', time: '15:00' },
   { label: '6:00 PM', time: '18:00' },
-  { label: '7:00 PM', time: '19:00' },
   { label: '8:00 PM', time: '20:00' },
   { label: '9:00 PM', time: '21:00' },
-  { label: '10:00 PM', time: '22:00' },
 ];
 
 export default function TransactionReminderModal({
@@ -276,6 +276,48 @@ export default function TransactionReminderModal({
                 );
               })}
             </div>
+
+            {parseInt(config.time.split(':')[0], 10) < 6 && (
+              <div style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}>
+                <span style={{ fontSize: 12, color: 'var(--warning)' }}>
+                  {formatTimeDisplay(config.time)} is in the early morning. Did you mean afternoon?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const [h, m] = config.time.split(':').map(Number);
+                    const pmHour = (h + 12) % 24;
+                    setConfig((prev) => ({
+                      ...prev,
+                      time: `${String(pmHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+                    }));
+                  }}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--warning)',
+                    background: 'none',
+                    border: '1px solid var(--warning)',
+                    borderRadius: 4,
+                    padding: '2px 8px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Switch to PM
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Trigger Criteria */}
