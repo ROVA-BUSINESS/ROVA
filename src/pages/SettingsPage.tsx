@@ -1,3 +1,4 @@
+import WhatsAppIcon from '../components/ui/WhatsAppIcon';
 import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -6,7 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
-  MessageSquare, CheckCircle2, ExternalLink, Mic, Image, Zap, Upload, AlertTriangle,
+  MessageSquare, CheckCircle2, Mic, Image, Zap, Upload, AlertTriangle,
   Clock, Bell, Volume2, Sparkles, Settings as SettingsIcon
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
@@ -28,6 +29,7 @@ import {
 type Section = 'profile' | 'whatsapp' | 'accounts' | 'reminders' | 'security' | 'appearance';
 
 export default function SettingsPage() {
+  const [waComingSoon, setWaComingSoon] = useState(false);
   const navigate = useNavigate();
   const { user, profile, updateProfile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -527,37 +529,40 @@ export default function SettingsPage() {
                   </p>
                 </div>
 
-                <a
-                  href={`https://wa.me/2349132957881?text=Hello%20ROVA!%20I%20want%20to%20start%20logging%20my%20transactions.`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setWaComingSoon(true)}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 10,
                     padding: '10px 20px', borderRadius: 'var(--radius-full)',
-                    background: 'linear-gradient(135deg, #1da851, #128C3E)',
-                    border: '1px solid rgba(18, 140, 62, 0.8)',
-                    color: '#ffffff', fontSize: 13.5, fontWeight: 700,
-                    textDecoration: 'none', boxShadow: '0 4px 16px rgba(18,140,62,0.35)',
+                    background: waComingSoon ? 'rgba(37, 211, 102, 0.15)' : 'linear-gradient(135deg, #1da851, #128C3E)',
+                    border: waComingSoon ? '1px solid #25D366' : '1px solid rgba(18, 140, 62, 0.8)',
+                    color: waComingSoon ? '#25D366' : '#ffffff', fontSize: 13.5, fontWeight: 700,
+                    boxShadow: waComingSoon ? 'none' : '0 4px 16px rgba(18,140,62,0.35)',
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    cursor: 'pointer',
                   }}
                   onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.background = 'linear-gradient(135deg, #25D366, #1da851)';
-                    el.style.transform = 'translateY(-1px)';
-                    el.style.boxShadow = '0 6px 22px rgba(18, 140, 62, 0.45)';
+                    if (!waComingSoon) {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.background = 'linear-gradient(135deg, #25D366, #1da851)';
+                      el.style.transform = 'translateY(-1px)';
+                      el.style.boxShadow = '0 6px 22px rgba(18, 140, 62, 0.45)';
+                    }
                   }}
                   onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.background = 'linear-gradient(135deg, #1da851, #128C3E)';
-                    el.style.transform = 'none';
-                    el.style.boxShadow = '0 4px 16px rgba(18,140,62,0.35)';
+                    if (!waComingSoon) {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.background = 'linear-gradient(135deg, #1da851, #128C3E)';
+                      el.style.transform = 'none';
+                      el.style.boxShadow = '0 4px 16px rgba(18,140,62,0.35)';
+                    }
                   }}
                 >
-                  <img src="/whatsapp-logo.png" alt="WhatsApp" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />
-                  <span>Launch ROVA Bot on WhatsApp</span>
-                  <ExternalLink size={14} style={{ opacity: 0.9, marginLeft: 2 }} />
-                </a>
+                  <WhatsAppIcon size={20} color={waComingSoon ? '#25D366' : '#ffffff'} />
+                  <span>{waComingSoon ? 'Coming Soon' : 'Launch ROVA Bot on WhatsApp'}</span>
+                </button>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

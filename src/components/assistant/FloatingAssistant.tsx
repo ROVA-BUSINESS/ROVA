@@ -1,10 +1,11 @@
+import WhatsAppIcon from '../ui/WhatsAppIcon';
 import RobotIcon from "../ui/RobotIcon";
 ﻿import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   X, Minus, Send, Mic, MicOff, Maximize2,
   ChevronRight, FileText, Package, Users, TrendingUp, HelpCircle,
-  ExternalLink, RotateCcw
+  RotateCcw
 } from 'lucide-react';
 import { useAssistant } from '../../contexts/AssistantContext';
 import { useMobile } from '../../hooks/useMobile';
@@ -993,34 +994,31 @@ function FloatingActionButton({
   const isWhatsApp = action.type === 'open_whatsapp_bot';
   const color = isWhatsApp ? '#25D366' : (ACTION_COLORS[action.type] ?? '#a78bfa');
 
+  const [waClicked, setWaClicked] = useState(false);
   if (isWhatsApp) {
     return (
       <button
         type="button"
-        onClick={() => onAction(action)}
+        onClick={() => setWaClicked(true)}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
           padding: '6px 12px',
           borderRadius: 'var(--radius-full)',
-          background: 'linear-gradient(135deg, #1da851, #128C3E)',
-          border: '1px solid rgba(18, 140, 62, 0.8)',
-          color: '#ffffff',
+          background: waClicked ? 'rgba(37, 211, 102, 0.18)' : 'linear-gradient(135deg, #1da851, #128C3E)',
+          border: waClicked ? '1px solid #25D366' : '1px solid rgba(18, 140, 62, 0.8)',
+          color: waClicked ? '#25D366' : '#ffffff',
           fontSize: 11.5,
           fontWeight: 700,
           cursor: 'pointer',
           marginTop: 4,
-          boxShadow: '0 2px 8px rgba(18, 140, 62, 0.3)',
+          boxShadow: waClicked ? 'none' : '0 2px 8px rgba(18, 140, 62, 0.3)',
+          transition: 'all 0.15s ease',
         }}
       >
-        <img
-          src="/whatsapp-logo.png"
-          alt="WhatsApp"
-          style={{ width: 16, height: 16, objectFit: 'contain', flexShrink: 0 }}
-        />
-        <span>{action.label.replace(/^💬\s*/, '')}</span>
-        <ExternalLink size={11} style={{ opacity: 0.9 }} />
+        <WhatsAppIcon size={15} color={waClicked ? '#25D366' : '#ffffff'} />
+        <span>{waClicked ? 'Coming Soon' : action.label.replace(/^💬\s*/, '')}</span>
       </button>
     );
   }

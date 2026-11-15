@@ -1,3 +1,4 @@
+import WhatsAppIcon from '../components/ui/WhatsAppIcon';
 import RobotIcon from "../components/ui/RobotIcon";
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -190,21 +191,30 @@ function VoiceMessagePlayer({ audioUrl, duration }: { audioUrl: string; duration
 // ── Action Button Component ──────────────────────────────────────────────────
 
 function ActionButton({ action, onAction }: { action: ChatAction; onAction: (action: ChatAction) => void }) {
-  const Icon = ACTION_ICONS[action.type] ?? ChevronRight;
   const isWhatsApp = action.type === 'open_whatsapp_bot';
+  const [clicked, setClicked] = useState(false);
+  const Icon = isWhatsApp ? WhatsAppIcon : (ACTION_ICONS[action.type] ?? ChevronRight);
   const color = isWhatsApp ? '#25D366' : (ACTION_COLORS[action.type] ?? 'var(--accent-light)');
+
+  const handleClick = () => {
+    if (isWhatsApp) {
+      setClicked(true);
+      return;
+    }
+    onAction(action);
+  };
 
   return (
     <button
-      onClick={() => onAction(action)}
+      onClick={handleClick}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: 7,
         padding: isWhatsApp ? '8px 16px' : '7px 14px',
         borderRadius: 'var(--radius-full)',
-        background: isWhatsApp ? 'rgba(37, 211, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-        border: isWhatsApp ? '1px solid rgba(37, 211, 102, 0.35)' : '1px solid var(--bg-border)',
+        background: isWhatsApp ? (clicked ? 'rgba(37, 211, 102, 0.2)' : 'rgba(37, 211, 102, 0.12)') : 'rgba(255, 255, 255, 0.05)',
+        border: isWhatsApp ? (clicked ? '1px solid #25D366' : '1px solid rgba(37, 211, 102, 0.35)') : '1px solid var(--bg-border)',
         color: isWhatsApp ? '#4ade80' : 'var(--text-primary)',
         fontSize: 12.5,
         fontWeight: 600,
@@ -215,19 +225,19 @@ function ActionButton({ action, onAction }: { action: ChatAction; onAction: (act
         fontFamily: "'Inter', 'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = isWhatsApp ? 'rgba(37, 211, 102, 0.2)' : 'rgba(255, 255, 255, 0.09)';
-        e.currentTarget.style.borderColor = isWhatsApp ? 'rgba(37, 211, 102, 0.55)' : 'var(--accent-border)';
+        e.currentTarget.style.background = isWhatsApp ? 'rgba(37, 211, 102, 0.25)' : 'rgba(255, 255, 255, 0.09)';
+        e.currentTarget.style.borderColor = isWhatsApp ? '#25D366' : 'var(--accent-border)';
         e.currentTarget.style.transform = 'translateY(-1px)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = isWhatsApp ? 'rgba(37, 211, 102, 0.12)' : 'rgba(255, 255, 255, 0.05)';
-        e.currentTarget.style.borderColor = isWhatsApp ? 'rgba(37, 211, 102, 0.35)' : 'var(--bg-border)';
+        e.currentTarget.style.background = isWhatsApp ? (clicked ? 'rgba(37, 211, 102, 0.2)' : 'rgba(37, 211, 102, 0.12)') : 'rgba(255, 255, 255, 0.05)';
+        e.currentTarget.style.borderColor = isWhatsApp ? (clicked ? '1px solid #25D366' : '1px solid rgba(37, 211, 102, 0.35)') : '1px solid var(--bg-border)';
         e.currentTarget.style.transform = 'none';
       }}
     >
       <Icon size={14} color={isWhatsApp ? '#25D366' : color} />
-      <span>{action.label}</span>
-      {isWhatsApp && <ExternalLink size={12} style={{ opacity: 0.85 }} />}
+      <span>{isWhatsApp && clicked ? 'Coming Soon' : action.label}</span>
+      {isWhatsApp && !clicked && <ExternalLink size={12} style={{ opacity: 0.85 }} />}
     </button>
   );
 }
@@ -374,6 +384,7 @@ function renderFormattedContent(text: string) {
 }
 
 export default function AssistantPage() {
+  const [waPromoComingSoon, setWaPromoComingSoon] = useState(false);
   const isMobile = useMobile(900);
 
   const {
@@ -891,28 +902,34 @@ export default function AssistantPage() {
 
         {/* WhatsApp Bot Promo Footer */}
         <div style={{ padding: 12, borderTop: '1px solid var(--bg-border)', background: 'var(--bg-elevated)' }}>
-          <a
-            href="https://wa.me/2349132957881?text=Hi%20ROVA"
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => setWaPromoComingSoon(true)}
             style={{
+              width: '100%',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
               padding: '8px 12px',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(37, 211, 102, 0.1)',
-              border: '1px solid rgba(37, 211, 102, 0.25)',
+              background: waPromoComingSoon ? 'rgba(37, 211, 102, 0.2)' : 'rgba(37, 211, 102, 0.1)',
+              border: waPromoComingSoon ? '1px solid #25D366' : '1px solid rgba(37, 211, 102, 0.25)',
               color: '#25D366',
               fontSize: 12,
               fontWeight: 600,
-              textDecoration: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'all 0.15s ease',
             }}
           >
-            <MessageCircle size={15} />
-            <span style={{ flex: 1 }}>WhatsApp Voice & OCR</span>
-            <ExternalLink size={12} />
-          </a>
+            <WhatsAppIcon size={16} color="#25D366" />
+            <span style={{ flex: 1 }}>{waPromoComingSoon ? 'Coming Soon' : 'WhatsApp Voice & OCR'}</span>
+            {waPromoComingSoon ? (
+              <span style={{ fontSize: 10, background: 'rgba(37, 211, 102, 0.25)', padding: '2px 6px', borderRadius: 4 }}>Soon</span>
+            ) : (
+              <ExternalLink size={12} />
+            )}
+          </button>
         </div>
       </aside>
 
