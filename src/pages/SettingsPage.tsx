@@ -1,5 +1,5 @@
 import WhatsAppIcon from '../components/ui/WhatsAppIcon';
-import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,7 +8,7 @@ import {
   CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
   CheckCircle2, Mic, Image, Zap, Upload, AlertTriangle,
-  Clock, Bell, Volume2, Sparkles, Settings as SettingsIcon
+  Clock, Bell, Volume2, Settings as SettingsIcon
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
@@ -23,7 +23,6 @@ import {
   saveReminderConfig,
   formatTimeDisplay,
   getBrowserNotificationPermission,
-  fireReminderAlert,
 } from '../lib/transactionReminder';
 
 type Section = 'profile' | 'whatsapp' | 'accounts' | 'reminders' | 'security' | 'appearance';
@@ -49,11 +48,9 @@ export default function SettingsPage() {
     user ? getReminderConfig(user.id) : DEFAULT_REMINDER_CONFIG
   );
   const [reminderPermission, setReminderPermission] = useState<NotificationPermission | 'unsupported'>('default');
-  const [testReminderSent, setTestReminderSent] = useState(false);
   const [reminderSaved, setReminderSaved] = useState(false);
   const [isPushSubscribed, setIsPushSubscribed] = useState(false);
   const [isPushSubscribing, setIsPushSubscribing] = useState(false);
-  const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -978,49 +975,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, flexWrap: 'wrap', gap: 10 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<Sparkles size={14} />}
-                      disabled={testReminderSent}
-                      onClick={async () => {
-                        if (!user) return;
-                        setTestReminderSent(true);
-                        await fireReminderAlert({
-                          userId: user.id,
-                          config: reminderConfig,
-                          customTitle: 'Daily Reminder (Test Alert)',
-                          customBody: `It's ${formatTimeDisplay(reminderConfig.time)}! Don't forget to record today's income, expenses, and categorise pending transactions.`,
-                        });
-                        setTimeout(() => setTestReminderSent(false), 3000);
-                      }}
-                    >
-                      {testReminderSent ? 'Chime Sent!' : 'Instant Test'}
-                    </Button>
-
-                    {isPushSubscribed && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={!!serverTestStatus}
-                        onClick={async () => {
-                          setServerTestStatus('Pinging in 10s! Close tab now...');
-                          const res = await triggerServerBackgroundTestPush(user ? user.id : '', 10);
-                          if (!res.success) {
-                            setServerTestStatus(res.message || 'Permission required');
-                            setTimeout(() => setServerTestStatus(null), 4000);
-                          } else {
-                            setTimeout(() => setServerTestStatus(null), 12000);
-                          }
-                        }}
-                      >
-                        {serverTestStatus || 'Test Closed-Site (10s)'}
-                      </Button>
-                    )}
-                  </div>
-
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingTop: 8, flexWrap: 'wrap', gap: 10 }}>
                   <Button
                     variant="primary"
                     onClick={() => {

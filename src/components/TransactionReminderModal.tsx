@@ -1,6 +1,6 @@
-import { subscribeToPush, getExistingPushSubscription, isPushSupported, triggerServerBackgroundTestPush } from '../lib/webPush.ts';
+import { subscribeToPush, getExistingPushSubscription, isPushSupported } from '../lib/webPush.ts';
 import { useEffect, useState } from 'react';
-import { Clock, Bell, Volume2, Check, Sparkles, X } from 'lucide-react';
+import { Clock, Bell, Volume2, Check, X } from 'lucide-react';
 import Button from './ui/Button';
 import Badge from './ui/Badge';
 import {
@@ -9,7 +9,6 @@ import {
   saveReminderConfig,
   formatTimeDisplay,
   getBrowserNotificationPermission,
-  fireReminderAlert,
 } from '../lib/transactionReminder';
 
 interface TransactionReminderModalProps {
@@ -35,17 +34,14 @@ export default function TransactionReminderModal({
 }: TransactionReminderModalProps) {
   const [config, setConfig] = useState<TransactionReminderConfig>(() => getReminderConfig(userId));
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission | 'unsupported'>('default');
-  const [testSent, setTestSent] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
-  const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && userId) {
       setConfig(getReminderConfig(userId));
       setBrowserPermission(getBrowserNotificationPermission());
-      setTestSent(false);
       setSavedSuccess(false);
       if (isPushSupported()) {
         getExistingPushSubscription().then((sub) => {
@@ -70,17 +66,6 @@ export default function TransactionReminderModal({
     }
   }
 
-  async function handleTestClosedSitePush() {
-    setServerTestStatus('Pinging in 10s! Close tab now...');
-    const res = await triggerServerBackgroundTestPush(userId, 10);
-    if (!res.success) {
-      setServerTestStatus(res.message || 'Permission required');
-      setTimeout(() => setServerTestStatus(null), 4000);
-    } else {
-      setTimeout(() => setServerTestStatus(null), 12000);
-    }
-  }
-
   function handleSave() {
     saveReminderConfig(userId, config);
     setSavedSuccess(true);
@@ -88,23 +73,6 @@ export default function TransactionReminderModal({
     setTimeout(() => {
       onClose();
     }, 600);
-  }
-
-  async function handleTestAlert() {
-    setTestSent(true);
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      try {
-        const perm = await Notification.requestPermission();
-        setBrowserPermission(perm);
-      } catch {}
-    }
-    await fireReminderAlert({
-      userId,
-      config,
-      customTitle: 'Daily Reminder (Test Alert)',
-      customBody: `It is ${formatTimeDisplay(config.time)}! Don't forget to record today's income, expenses, and categorise pending transactions.`,
-    });
-    setTimeout(() => setTestSent(false), 3000);
   }
 
   return (
@@ -459,46 +427,22 @@ export default function TransactionReminderModal({
             borderTop: '1px solid var(--bg-border)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             background: 'var(--bg-elevated)',
+            gap: 8,
           }}
         >
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleTestAlert}
-              disabled={testSent}
-              icon={<Sparkles size={14} />}
-            >
-              {testSent ? 'Chime Sent!' : 'Instant Test'}
-            </Button>
-            {isSubscribed && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleTestClosedSitePush}
-                disabled={!!serverTestStatus}
-                style={{ fontSize: 11, padding: '4px 10px' }}
-              >
-                {serverTestStatus || 'Test Closed-Site (10s)'}
-              </Button>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" size="sm" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSave}
-              icon={savedSuccess ? <Check size={14} /> : undefined}
-            >
-              {savedSuccess ? 'Saved' : 'Save Reminder'}
-            </Button>
-          </div>
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSave}
+            icon={savedSuccess ? <Check size={14} /> : undefined}
+          >
+            {savedSuccess ? 'Saved' : 'Save Reminder'}
+          </Button>
         </div>
       </div>
     </div>
