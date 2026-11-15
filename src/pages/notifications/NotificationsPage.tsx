@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, Info, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw, MessageCircle, Clock } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Circle as XCircle, Package, FileText, CreditCard, Calendar, Zap, RefreshCw, MessageCircle, Clock } from 'lucide-react';
 import {
   type TransactionReminderConfig,
   DEFAULT_REMINDER_CONFIG,
@@ -20,22 +20,22 @@ const TYPE_META: Record<Notification['type'], { icon: React.ElementType; color: 
   low_stock: { icon: Package, color: 'var(--warning)', label: 'Low Stock' },
   cash_warning: { icon: AlertTriangle, color: 'var(--error)', label: 'Cash Warning' },
   invoice_due: { icon: FileText, color: 'var(--warning)', label: 'Invoice Due' },
-  payroll: { icon: CreditCard, color: 'var(--info)', label: 'Payroll' },
-  info: { icon: Info, color: 'var(--info)', label: 'Info' },
+  payroll: { icon: CreditCard, color: 'var(--accent-light)', label: 'Payroll' },
+  info: { icon: Clock, color: 'var(--accent-light)', label: 'Reminder' },
   success: { icon: CheckCircle, color: 'var(--success)', label: 'Success' },
   error: { icon: XCircle, color: 'var(--error)', label: 'Error' },
   ai_clarification: { icon: MessageCircle, color: 'var(--accent-light)', label: 'Clarification' },
 };
 
 const SEVERITY_BG: Record<Notification['severity'], string> = {
-  info: 'var(--info-dim)',
+  info: 'var(--bg-card)',
   warning: 'var(--warning-dim)',
   critical: 'var(--error-dim)',
   success: 'var(--success-dim)',
 };
 
 const SEVERITY_BORDER: Record<Notification['severity'], string> = {
-  info: 'rgba(59,130,246,0.2)',
+  info: 'var(--bg-border)',
   warning: 'rgba(245,158,11,0.2)',
   critical: 'rgba(239,68,68,0.2)',
   success: 'rgba(34,197,94,0.2)',
@@ -461,7 +461,6 @@ export default function NotificationsPage() {
                   border: isAiClarification
                     ? '1px solid rgba(168,85,247,0.25)'
                     : `1px solid ${notif.is_read ? 'var(--bg-border)' : SEVERITY_BORDER[notif.severity]}`,
-                  borderLeft: `3px solid ${isAiClarification ? 'var(--accent-primary)' : meta.color}`,
                   display: 'flex', gap: 14, alignItems: 'flex-start',
                   cursor: notif.is_read ? 'default' : 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -500,7 +499,7 @@ export default function NotificationsPage() {
                     <span style={{ fontSize: 13, fontWeight: notif.is_read ? 500 : 700, color: 'var(--text-primary)' }}>
                       {notif.title}
                     </span>
-                    <Badge variant={isAiClarification ? 'info' : notif.severity === 'critical' ? 'error' : notif.severity === 'warning' ? 'warning' : notif.severity === 'success' ? 'success' : 'info'}>
+                    <Badge variant={isAiClarification ? 'purple' : notif.severity === 'critical' ? 'error' : notif.severity === 'warning' ? 'warning' : notif.severity === 'success' ? 'success' : 'purple'}>
                       {meta.label}
                     </Badge>
                   </div>
