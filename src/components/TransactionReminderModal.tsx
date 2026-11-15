@@ -358,23 +358,9 @@ export default function TransactionReminderModal({
                     <Bell size={16} />
                   </div>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        Web Push (Lock-Screen Alerts)
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          padding: '1px 6px',
-                          borderRadius: 4,
-                          background: 'rgba(34,197,94,0.15)',
-                          color: 'var(--success)',
-                          fontWeight: 700,
-                        }}
-                      >
-                        100% FREE ($0)
-                      </span>
-                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Push Notifications
+                    </span>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                       Alerts your phone or desktop screen even when ROVA is closed
                     </div>
