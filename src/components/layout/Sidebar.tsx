@@ -1,10 +1,11 @@
+import RobotIcon from "../ui/RobotIcon";
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Home, ChartBar as BarChart2, FileText, Receipt,
   Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
-  Users, Package, Shield, X, Bot, NotebookPen,
+  Users, Package, Shield, X, NotebookPen,
   TrendingDown, TrendingUp, CreditCard, PieChart, Scale
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
@@ -50,7 +51,7 @@ const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices & Receipts' },
   { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
-  { type: 'link', to: '/app/assistant', icon: Bot, label: 'AI Assistant' },
+  { type: 'link', to: '/app/assistant', icon: RobotIcon, label: 'AI Assistant' },
   { type: 'link', to: '/app/notes', icon: NotebookPen, label: 'Notes Pad' },
   {
     type: 'group',

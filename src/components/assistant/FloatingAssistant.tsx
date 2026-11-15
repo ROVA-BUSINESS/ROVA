@@ -1,7 +1,8 @@
+import RobotIcon from "../ui/RobotIcon";
 ﻿import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Bot, X, Minus, Send, Mic, MicOff, Maximize2,
+  X, Minus, Send, Mic, MicOff, Maximize2,
   ChevronRight, FileText, Package, Users, TrendingUp, HelpCircle,
   ExternalLink, RotateCcw
 } from 'lucide-react';
@@ -412,7 +413,7 @@ export default function FloatingAssistant() {
                   flexShrink: 0,
                 }}
               >
-                <Bot size={16} color="#ffffff" />
+                <RobotIcon size={17} color="#ffffff" />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -615,7 +616,7 @@ export default function FloatingAssistant() {
                           marginTop: 2,
                         }}
                       >
-                        <Bot size={11} color="white" />
+                        <RobotIcon size={13} color="white" />
                       </div>
                     )}
                     <div style={{ maxWidth: '86%' }}>
@@ -663,7 +664,7 @@ export default function FloatingAssistant() {
                         justifyContent: 'center',
                       }}
                     >
-                      <Bot size={11} color="white" />
+                      <RobotIcon size={13} color="white" />
                     </div>
                     <div
                       style={{
@@ -957,7 +958,7 @@ export default function FloatingAssistant() {
             <X size={20} color="#ffffff" />
           ) : (
             <>
-              <Bot size={isMobile ? 22 : 24} color="#ffffff" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }} />
+              <RobotIcon size={isMobile ? 24 : 26} color="#ffffff" style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))" }} />
               {/* Online Pulse Dot */}
               <span
                 style={{

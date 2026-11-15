@@ -1,3 +1,4 @@
+import RobotIcon from "../components/ui/RobotIcon";
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Send,
@@ -14,7 +15,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  Bot,
   ExternalLink,
   RefreshCw,
   Play,
@@ -645,7 +645,7 @@ export default function AssistantPage() {
             pointerEvents: 'none',
           }}
         >
-          <Bot size={40} color="var(--accent-primary)" />
+          <RobotIcon size={44} color="var(--accent-primary)" />
           <h3 style={{ fontSize: 18, fontWeight: 700 }}>Drop your receipt or document here</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
             ROVA OCR will automatically extract amounts, vendor details, and items.
@@ -1041,7 +1041,7 @@ export default function AssistantPage() {
                   marginBottom: 14,
                 }}
               >
-                <Bot size={26} color="white" />
+                <RobotIcon size={30} color="white" />
               </div>
               <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
                 How can ROVA help your business today?
@@ -1197,7 +1197,7 @@ export default function AssistantPage() {
                       boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)',
                     }}
                   >
-                    <Bot size={15} color="white" />
+                    <RobotIcon size={17} color="white" />
                   </div>
                 )}
 
@@ -1365,7 +1365,7 @@ export default function AssistantPage() {
                   flexShrink: 0,
                 }}
               >
-                <Bot size={15} color="white" />
+                <RobotIcon size={17} color="white" />
               </div>
               <div
                 style={{
