@@ -1,17 +1,19 @@
 import { useState, type FormEvent } from 'react';
-import { Shield, UserPlus, Mail } from 'lucide-react';
+import { Shield, UserPlus, Mail, Copy, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import WhatsAppIcon from '../../components/ui/WhatsAppIcon';
 
 export default function OnboardingPage() {
   useAuth();
   const [form, setForm] = useState({ fullName: '', email: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [successData, setSuccessData] = useState<{ email: string; fullName: string; inviteLink: string | null } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function handleOnboard(e: FormEvent) {
     e.preventDefault();
@@ -20,7 +22,7 @@ export default function OnboardingPage() {
       return;
     }
     setError('');
-    setSuccess(false);
+    setSuccessData(null);
     setLoading(true);
 
     try {
@@ -47,7 +49,11 @@ export default function OnboardingPage() {
         throw new Error(result.error || 'Failed to invite staff');
       }
 
-      setSuccess(true);
+      setSuccessData({
+        email: form.email,
+        fullName: form.fullName,
+        inviteLink: result.inviteLink || null,
+      });
       setForm({ fullName: '', email: '' });
     } catch (err: any) {
       setError(err.message || 'Failed to onboard staff.');
@@ -95,7 +101,7 @@ export default function OnboardingPage() {
           <div style={{ padding: '12px 14px', background: 'var(--info-dim)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 'var(--radius-md)', display: 'flex', gap: 10 }}>
             <Shield size={16} color="var(--info)" style={{ flexShrink: 0, marginTop: 2 }} />
             <div style={{ fontSize: 12, color: 'var(--info)', lineHeight: 1.5 }}>
-              <strong>Important:</strong> An invite email will be sent to the staff member. They will need to click the link in the email to set their password and activate their account.
+              <strong>Important:</strong> An invite email will be sent to the staff member. You can also copy their direct invite link to share via WhatsApp.
             </div>
           </div>
 
@@ -105,9 +111,79 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {success && (
-            <div style={{ padding: '10px 12px', background: 'var(--success-dim)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-md)', color: 'var(--success)', fontSize: 13 }}>
-              Staff account created successfully! A confirmation email has been sent.
+          {successData && (
+            <div style={{
+              padding: 16,
+              background: 'var(--bg-elevated)',
+              border: '1px solid rgba(34,197,94,0.3)',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12
+            }}>
+              <div style={{ color: 'var(--success)', fontWeight: 600, fontSize: 14 }}>
+                Staff account created for {successData.email}!
+              </div>
+
+              {successData.inviteLink && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    Direct Setup Link (share with staff):
+                  </label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      readOnly
+                      value={successData.inviteLink}
+                      style={{
+                        flex: 1,
+                        background: 'var(--bg-base)',
+                        border: '1px solid var(--bg-border)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '8px 10px',
+                        fontSize: 12,
+                        color: 'var(--text-primary)',
+                        fontFamily: 'monospace',
+                        outline: 'none',
+                      }}
+                    />
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      icon={copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                      onClick={() => {
+                        navigator.clipboard.writeText(successData.inviteLink!);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                    >
+                      {copied ? 'Copied!' : 'Copy'}
+                    </Button>
+                  </div>
+
+                  <div style={{ paddingTop: 4 }}>
+                    <a
+                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Hello ${successData.fullName || ''}, you've been invited to join our team on ROVA! Set your password and activate your account here: ${successData.inviteLink}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: '#25D366',
+                        textDecoration: 'none',
+                        padding: '7px 12px',
+                        background: 'rgba(37, 211, 102, 0.1)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid rgba(37, 211, 102, 0.25)',
+                      }}
+                    >
+                      <WhatsAppIcon size={14} /> Send Link via WhatsApp
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

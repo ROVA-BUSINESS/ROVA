@@ -1,5 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, Trash2, Shield, Users, Activity, Clock, CircleCheck as CheckCircle, Circle as XCircle, CircleAlert as AlertCircle } from 'lucide-react';
+import {
+  Plus, Trash2, Shield, Users, Activity, Clock,
+  CircleCheck as CheckCircle, Circle as XCircle, CircleAlert as AlertCircle,
+  Copy, Check, Link as LinkIcon, RefreshCw
+} from 'lucide-react';
 import { supabase, type TeamMember, type ActivityLog } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../lib/format';
@@ -8,8 +12,16 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import WhatsAppIcon from '../../components/ui/WhatsAppIcon';
 
 type Tab = 'members' | 'activity';
+
+interface InviteSuccessState {
+  email: string;
+  fullName: string;
+  inviteLink: string | null;
+  emailSent: boolean;
+}
 
 const ROLE_DESCRIPTIONS: Record<TeamMember['role'], string> = {
   admin: 'Full access — can manage everything',
@@ -42,6 +54,9 @@ export default function TeamPage() {
   const [form, setForm] = useState({ fullName: '', invite_email: '', role: 'staff' as TeamMember['role'] });
   const [saving, setSaving] = useState(false);
   const [inviteError, setInviteError] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState<InviteSuccessState | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) loadData();
@@ -63,59 +78,85 @@ export default function TeamPage() {
     setInviteError('');
     setSaving(true);
     try {
-      let success = false;
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Please sign in to invite team members.');
 
-      if (session && import.meta.env.VITE_SUPABASE_URL) {
-        try {
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-staff`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              fullName: form.fullName,
-              email: form.invite_email,
-              role: form.role,
-              redirectTo: `${window.location.origin}/accept-invite`,
-            }),
-          });
-          if (response.ok) {
-            success = true;
-          }
-        } catch {
-          // Edge function failed or unpopulated, fallback to direct DB insertion
-        }
+      if (!import.meta.env.VITE_SUPABASE_URL) {
+        throw new Error('Supabase URL configuration missing.');
       }
 
-      if (!success) {
-        const { error: dbError } = await supabase.from('team_members').insert({
-          owner_id: user!.id,
-          invite_email: form.invite_email,
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-staff`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          email: form.invite_email,
           role: form.role,
-          status: 'pending',
-          invited_at: new Date().toISOString(),
-          permissions: { transactions: true, invoices: true }
-        });
-        if (dbError) throw dbError;
-      }
-
-      await supabase.from('activity_logs').insert({
-        user_id: user!.id,
-        owner_id: user!.id,
-        action: 'created',
-        entity_type: 'team_member',
-        entity_label: form.invite_email,
+          redirectTo: `${window.location.origin}/accept-invite`,
+        }),
       });
 
-      setShowModal(false);
+      const resData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(resData.error || 'Failed to send invite.');
+      }
+
+      setInviteSuccess({
+        email: form.invite_email,
+        fullName: form.fullName,
+        inviteLink: resData.inviteLink || null,
+        emailSent: resData.emailSent !== false,
+      });
+
       setForm({ fullName: '', invite_email: '', role: 'staff' });
       loadData();
     } catch (err: any) {
       setInviteError(err.message || 'Failed to send invite.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGetInviteLink(member: TeamMember) {
+    setResendingId(member.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Please sign in first.');
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-staff`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          fullName: member.invite_email.split('@')[0],
+          email: member.invite_email,
+          role: member.role,
+          redirectTo: `${window.location.origin}/accept-invite`,
+        }),
+      });
+
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData.error || 'Failed to retrieve invite link.');
+      }
+
+      setInviteSuccess({
+        email: member.invite_email,
+        fullName: member.invite_email.split('@')[0],
+        inviteLink: resData.inviteLink || null,
+        emailSent: resData.emailSent !== false,
+      });
+      setShowModal(true);
+    } catch (err: any) {
+      alert(err.message || 'Failed to get invite link.');
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -179,7 +220,9 @@ export default function TeamPage() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ fontSize: 15, fontWeight: 600 }}>Team Members ({members.length})</h3>
-            <Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowModal(true)}>Invite Member</Button>
+            <Button variant="primary" icon={<Plus size={14} />} onClick={() => { setInviteSuccess(null); setInviteError(''); setShowModal(true); }}>
+              Invite Member
+            </Button>
           </div>
 
           {loading ? (
@@ -190,7 +233,9 @@ export default function TeamPage() {
                 <Users size={32} color="var(--text-disabled)" style={{ margin: '0 auto 12px' }} />
                 <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No team members yet</p>
                 <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 4, marginBottom: 16 }}>Invite accountants, staff, or collaborators</p>
-                <Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowModal(true)}>Invite Member</Button>
+                <Button variant="primary" icon={<Plus size={14} />} onClick={() => { setInviteSuccess(null); setInviteError(''); setShowModal(true); }}>
+                  Invite Member
+                </Button>
               </div>
             </Card>
           ) : (
@@ -210,6 +255,33 @@ export default function TeamPage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} className="mobile-gap-4">
+                      {member.status === 'pending' && (
+                        <button
+                          onClick={() => handleGetInviteLink(member)}
+                          disabled={resendingId === member.id}
+                          title="Get or resend direct invite link"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '5px 9px',
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--bg-border)',
+                            borderRadius: 'var(--radius-md)',
+                            color: 'var(--accent-light)',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {resendingId === member.id ? (
+                            <RefreshCw size={12} className="animate-spin" />
+                          ) : (
+                            <LinkIcon size={12} />
+                          )}
+                          <span>Invite Link</span>
+                        </button>
+                      )}
                       <select value={member.role} onChange={e => updateRole(member.id, e.target.value as TeamMember['role'])}
                         style={{ padding: '5px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }}>
                         <option value="admin">Admin</option>
@@ -276,34 +348,149 @@ export default function TeamPage() {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => { setShowModal(false); setInviteError(''); }} title="Invite Team Member" size="sm">
-        <form onSubmit={handleInvite} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Input label="Full Name" placeholder="Jane Doe" value={form.fullName} onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))} required />
-          <Input label="Email Address" type="email" placeholder="colleague@company.com" value={form.invite_email} onChange={e => setForm(p => ({ ...p, invite_email: e.target.value }))} required />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Role</label>
-            <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value as TeamMember['role'] }))}
-              style={{ padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', outline: 'none' }}>
-              <option value="admin">Admin — Full access</option>
-              <option value="staff">Staff — Dashboard & transactions</option>
-            </select>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--bg-border)' }}>
-              {ROLE_DESCRIPTIONS[form.role]}
+      <Modal
+        open={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setInviteError('');
+          setInviteSuccess(null);
+        }}
+        title={inviteSuccess ? "Staff Invitation" : "Invite Team Member"}
+        size="sm"
+      >
+        {inviteSuccess ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+              <div style={{
+                width: 46, height: 46, borderRadius: '50%',
+                background: 'rgba(34, 197, 94, 0.12)',
+                color: 'var(--success)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 12px',
+                border: '1px solid rgba(34, 197, 94, 0.25)',
+              }}>
+                <CheckCircle size={24} />
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                Invite Ready!
+              </h3>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                {inviteSuccess.emailSent
+                  ? `An invitation email was sent to ${inviteSuccess.email}.`
+                  : `Invitation created for ${inviteSuccess.email}.`}
+              </p>
             </div>
+
+            {inviteSuccess.inviteLink && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 10,
+                background: 'var(--bg-elevated)',
+                padding: 14,
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--bg-border)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Direct Activation Link
+                  </label>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Share directly with staff</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    readOnly
+                    value={inviteSuccess.inviteLink}
+                    style={{
+                      flex: 1,
+                      background: 'var(--bg-base)',
+                      border: '1px solid var(--bg-border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '8px 10px',
+                      fontSize: 12,
+                      color: 'var(--text-primary)',
+                      fontFamily: 'monospace',
+                      outline: 'none',
+                    }}
+                  />
+                  <Button
+                    variant="secondary"
+                    icon={copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                    onClick={() => {
+                      navigator.clipboard.writeText(inviteSuccess.inviteLink!);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                  >
+                    {copied ? 'Copied!' : 'Copy'}
+                  </Button>
+                </div>
+
+                <div style={{ paddingTop: 4 }}>
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Hello ${inviteSuccess.fullName || ''}, you've been invited to join our team on ROVA! Set your password and activate your account here: ${inviteSuccess.inviteLink}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: '#25D366',
+                      textDecoration: 'none',
+                      padding: '7px 12px',
+                      background: 'rgba(37, 211, 102, 0.1)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid rgba(37, 211, 102, 0.25)',
+                    }}
+                  >
+                    <WhatsAppIcon size={14} /> Send Link via WhatsApp
+                  </a>
+                </div>
+              </div>
+            )}
+
+            <Button
+              variant="primary"
+              style={{ width: '100%', marginTop: 4 }}
+              onClick={() => {
+                setShowModal(false);
+                setInviteSuccess(null);
+                setInviteError('');
+              }}
+            >
+              Done
+            </Button>
           </div>
-          <div style={{ padding: '10px 12px', background: 'var(--info-dim)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--text-secondary)' }}>
-            An invite email will be sent. They must click the link to set their password and activate their account.
-          </div>
-          {inviteError && (
-            <div style={{ padding: '10px 12px', background: 'var(--error-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)', color: 'var(--error)', fontSize: 13 }}>
-              {inviteError}
+        ) : (
+          <form onSubmit={handleInvite} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Input label="Full Name" placeholder="Jane Doe" value={form.fullName} onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))} required />
+            <Input label="Email Address" type="email" placeholder="colleague@company.com" value={form.invite_email} onChange={e => setForm(p => ({ ...p, invite_email: e.target.value }))} required />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Role</label>
+              <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value as TeamMember['role'] }))}
+                style={{ padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', outline: 'none' }}>
+                <option value="admin">Admin — Full access</option>
+                <option value="staff">Staff — Dashboard & transactions</option>
+              </select>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--bg-border)' }}>
+                {ROLE_DESCRIPTIONS[form.role]}
+              </div>
             </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Button variant="secondary" type="button" onClick={() => { setShowModal(false); setInviteError(''); }}>Cancel</Button>
-            <Button variant="primary" loading={saving} type="submit">Send Invite</Button>
-          </div>
-        </form>
+            <div style={{ padding: '10px 12px', background: 'var(--info-dim)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--text-secondary)' }}>
+              An invite email will be sent automatically. You will also get a direct invite link to send directly via WhatsApp.
+            </div>
+            {inviteError && (
+              <div style={{ padding: '10px 12px', background: 'var(--error-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)', color: 'var(--error)', fontSize: 13 }}>
+                {inviteError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Button variant="secondary" type="button" onClick={() => { setShowModal(false); setInviteError(''); }}>Cancel</Button>
+              <Button variant="primary" loading={saving} type="submit">Send Invite</Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );
