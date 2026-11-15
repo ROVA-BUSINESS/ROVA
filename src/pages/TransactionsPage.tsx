@@ -24,6 +24,29 @@ import Input from '../components/ui/Input';
 type FilterType = 'all' | 'income' | 'expense';
 
 
+
+// ── Section 5: Learning from User Corrections ─────────────────────────────────
+async function learnUserCategoryPreference(description: string, categoryName: string, userId: string) {
+  if (!description || !categoryName || !userId) return;
+  const cleanDesc = description
+    .replace(/^(?:i\s+)?(?:just\s+)?(?:bought|purchased|paid(?:\s+for)?|spent(?:\s+on)?|sold|received)\s+/i, '')
+    .replace(/[\d,]+(?:\.\d+)?/g, '')
+    .trim();
+  if (cleanDesc.length < 3) return;
+
+  try {
+    await supabase.from('rova_memories').insert({
+      user_id: userId,
+      memory_type: 'preference',
+      content: `User classifies transactions for "${cleanDesc}" under "${categoryName}"`,
+      importance: 7,
+      source_summary: 'Manual user category correction in Transactions table',
+    });
+  } catch (err) {
+    console.warn('Could not save category learning preference:', err);
+  }
+}
+
 export default function TransactionsPage() {
   const isMobile = useMobile(768);
   const navigate = useNavigate();
@@ -92,6 +115,9 @@ export default function TransactionsPage() {
       const { error } = await supabase.from('transactions').update(updates).eq('id', editTxModal.id);
       if (!error) {
         const category = categories.find(c => c.id === editTxCategoryId) || undefined;
+        if (category && effectiveUserId) {
+          learnUserCategoryPreference(updates.description, category.name, effectiveUserId);
+        }
         const account = accounts.find(a => a.id === editTxAccountId) || undefined;
         setTransactions(prev => prev.map(t => t.id === editTxModal.id ? {
           ...t,
@@ -209,6 +235,10 @@ export default function TransactionsPage() {
     if (!error) {
       if (field === 'category_id') {
         const category = categories.find(c => c.id === value) || undefined;
+        const targetTx = transactions.find(t => t.id === txId);
+        if (category && targetTx && effectiveUserId) {
+          learnUserCategoryPreference(targetTx.description, category.name, effectiveUserId);
+        }
         setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category_id: value || null, category } : t));
       } else {
         setTransactions(prev => prev.map(t => t.id === txId ? { ...t, [field]: value } : t));

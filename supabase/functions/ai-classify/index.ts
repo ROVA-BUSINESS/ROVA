@@ -539,82 +539,320 @@ Date: ${transaction.date ?? "unknown"}`;
 
 // ── Keyword fallback (used when no DeepSeek key is set) ───────────────────────
 function keywordFallback(description, typeHint) {
-  const d = description.toLowerCase();
+  const d = (description || "").toLowerCase().trim();
 
-  if (/salary|salari|wage|payroll|monthly pay|staff pay|worker pay/.test(d)) {
+  // 1. Salaries & Wages
+  if (/\b(salary|salaries|wage|wages|payroll|monthly pay|staff pay|worker pay|cleaner pay|driver pay)\b/.test(d)) {
     const nameMatch = description.match(/(?:to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
     return {
-      category: "Payroll",
+      category: "Salaries and Wages",
       type: "expense",
-      intent: "salary_payment",
+      intent: "payroll",
       employee_name: nameMatch ? nameMatch[1] : null,
       inventory_item: null,
       quantity: null,
       unit_price: null,
-      client_name: null,
-      clarification_needed: !nameMatch,
-      ai_question: !nameMatch ? "This looks like a salary payment. Who is it for?" : null,
-      confidence: nameMatch ? 0.82 : 0.65,
+      merchant: null,
+      product_service: "Labour / Wages",
+      journal_entry: { debit: "Salaries Expense", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Salaries and Wages (Expense), Credit Bank/Cash",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
     };
   }
 
-  if (/cement|bags?|stock|inventory|purchase|supplier|bought|buy|payment for|sold/.test(d)) {
-    const qtyMatch = description.match(/(\d+)\s*(?:bags?|units?|pcs?|pieces?|cartons?|litres?)/i);
-    const isIncome = typeHint === "income" || /credit|received|inflow|deposit/.test(d);
-    
-    let itemName = null;
-    const itemMatch = description.match(/(?:bought|purchase|buy|payment for|for|sold)\s+(?:\d+\s+)?(?:bags?|units?|pcs?|pieces?|cartons?|litres?|items?)?\s*(?:of\s+)?([a-zA-Z\s]+?)(?:\s+from|\s+for|\s+at|\s+on|\bdebit\b|\bcredit\b|$)/i);
-    if (itemMatch) {
-      itemName = itemMatch[1].trim();
-    }
-
+  // 2. Packaging Materials
+  if (/\b(nylon|polythene|poly\s*bag|packaging|carton|wrapper|box(?:es)?\s+for\s+pack|tape|bubble\s*wrap)\b/.test(d)) {
     return {
-      category: isIncome ? "Business Revenue" : "Inventory Purchase",
-      type: isIncome ? "income" : "expense",
-      intent: isIncome ? "inventory_sale" : "inventory_purchase",
-      employee_name: null,
-      inventory_item: itemName,
-      quantity: qtyMatch ? parseFloat(qtyMatch[1]) : null,
-      unit_price: null,
-      client_name: null,
-      clarification_needed: !qtyMatch || !itemName,
-      ai_question: !qtyMatch || !itemName
-        ? `This looks like an inventory ${isIncome ? 'sale' : 'purchase'}. What item was it, and how many units?`
-        : null,
-      confidence: qtyMatch && itemName ? 0.85 : 0.6,
-    };
-  }
-
-  if (/invoice|payment from|receipt from|client pay/.test(d)) {
-    return {
-      category: "Business Revenue",
-      type: "income",
-      intent: "invoice_payment",
+      category: "Packaging Materials",
+      type: "expense",
+      intent: "operating_expense",
       employee_name: null,
       inventory_item: null,
       quantity: null,
       unit_price: null,
-      client_name: null,
+      merchant: null,
+      product_service: "Packaging Materials",
+      journal_entry: { debit: "Packaging Materials", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Packaging Materials (Expense), Credit Bank/Cash",
       clarification_needed: false,
       ai_question: null,
-      confidence: 0.78,
+      confidence: 0.95,
     };
   }
 
+  // 3. Inventory / Purchases for resale
+  if (/\b(rice|flour|beans|sugar|cement|oil|stock|inventory|resell|merchandise|raw\s*materials?|bags?\s+of|cartons?\s+of)\b/.test(d) && !/\b(sold|sale|received)\b/.test(d)) {
+    const qtyMatch = description.match(/(\d+)\s*(?:bags?|units?|pcs?|pieces?|cartons?|litres?)/i);
+    return {
+      category: "Purchases",
+      type: "expense",
+      intent: "inventory_purchase",
+      employee_name: null,
+      inventory_item: description,
+      quantity: qtyMatch ? parseFloat(qtyMatch[1]) : 1,
+      unit_price: null,
+      merchant: null,
+      product_service: description,
+      journal_entry: { debit: "Inventory", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Inventory (Asset), Credit Bank/Cash. Moves to COGS when sold.",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.92,
+    };
+  }
+
+  // 4. Fixed Assets (Property, Plant and Equipment)
+  if (/\b(generator|laptop|computer|freezer|refrigerator|machinery|vehicle|car|furniture|desk|printer|pos\s*terminal)\b/.test(d) && !/\b(repair|fuel|service)\b/.test(d)) {
+    return {
+      category: "Property, Plant and Equipment",
+      type: "expense",
+      intent: "fixed_asset_purchase",
+      employee_name: null,
+      inventory_item: null,
+      quantity: 1,
+      unit_price: null,
+      merchant: null,
+      product_service: description,
+      journal_entry: { debit: "Property, Plant and Equipment", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Fixed Assets (Balance Sheet), Credit Bank/Cash. Depreciate over useful life.",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+
+  // 5. Rent
+  if (/\b(rent|shop\s*rent|store\s*rent|office\s*rent|lease)\b/.test(d)) {
+    return {
+      category: "Rent",
+      type: "expense",
+      intent: "operating_expense",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Rent",
+      journal_entry: { debit: "Rent Expense", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Rent Expense (P&L), Credit Bank/Cash",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+
+  // 6. Office Supplies
+  if (/\b(paper|printer\s*paper|stationery|pen|pens|receipt\s*book|stapler|toner|cartridge|office\s*supplies?)\b/.test(d)) {
+    return {
+      category: "Office Supplies",
+      type: "expense",
+      intent: "operating_expense",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Office Supplies",
+      journal_entry: { debit: "Office Supplies", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Office Supplies (Expense), Credit Bank/Cash",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+
+  // 7. Transportation & Fuel
+  if (/\b(transport|transportation|fare|bus|uber|bolt|delivery|dispatch|waybill)\b/.test(d)) {
+    return {
+      category: "Transportation and Logistics",
+      type: "expense",
+      intent: "operating_expense",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Transportation",
+      journal_entry: { debit: "Transportation Expense", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Transportation Expense (P&L), Credit Bank/Cash",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+  if (/\b(fuel|diesel|petrol|gasoline)\b/.test(d)) {
+    return {
+      category: "Fuel",
+      type: "expense",
+      intent: "operating_expense",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Fuel",
+      journal_entry: { debit: "Fuel Expense", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Fuel Expense (P&L), Credit Bank/Cash",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+
+  // 8. Sales Revenue & Returns
+  if (/\b(customer.*return|return.*goods|refund)\b/.test(d)) {
+    return {
+      category: "Sales Returns / Refunds",
+      type: "expense",
+      intent: "customer_refund",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Refund",
+      journal_entry: { debit: "Sales Returns (contra-revenue)", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Sales Returns, Credit Bank/Cash",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.90,
+    };
+  }
+  if (/\b(sold|sale|sales|received.*from.*customer|customer\s+paid|goods\s+sold)\b/.test(d) || typeHint === "income") {
+    return {
+      category: "Sales Revenue",
+      type: "income",
+      intent: "sales_revenue",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Goods/Services Sold",
+      journal_entry: { debit: "Bank/Cash", credit: "Sales Revenue" },
+      accounting_treatment: "Debit Bank/Cash, Credit Sales Revenue (Income)",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.92,
+    };
+  }
+
+  // 9. Owner Equity: Capital & Drawings
+  if (/\b(withdr(?:ew|awal|awn)|personal\s*use|owner\s*draw|took\s*money)\b/.test(d)) {
+    return {
+      category: "Owner's Drawings",
+      type: "expense",
+      intent: "owner_withdrawal",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Drawings",
+      journal_entry: { debit: "Owner's Drawings (Equity)", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Owner's Drawings (Reduces Equity), Credit Bank/Cash. Never hits P&L.",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+  if (/\b(capital|owner\s*deposit|introduced\s*money|personal\s*money.*into.*business)\b/.test(d)) {
+    return {
+      category: "Owner's Capital",
+      type: "income",
+      intent: "owner_capital",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Capital Contribution",
+      journal_entry: { debit: "Bank/Cash", credit: "Owner's Capital (Equity)" },
+      accounting_treatment: "Debit Bank/Cash, Credit Owner's Capital (Equity). Never hits P&L.",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+
+  // 10. Loans: Received & Repayments
+  if (/\b(repaid\s*loan|loan\s*repay|debt\s*repay)\b/.test(d)) {
+    return {
+      category: "Loan Repayment",
+      type: "expense",
+      intent: "loan_repayment",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Loan Principal",
+      journal_entry: { debit: "Loan Payable (Liability)", credit: "Bank/Cash" },
+      accounting_treatment: "Debit Loan Payable (Liability), Credit Bank/Cash",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.92,
+    };
+  }
+  if (/\b(loan|borrowed|bank\s*loan)\b/.test(d)) {
+    return {
+      category: "Loan Payable",
+      type: "income",
+      intent: "loan_received",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Loan Proceeds",
+      journal_entry: { debit: "Bank/Cash", credit: "Loan Payable (Liability)" },
+      accounting_treatment: "Debit Bank/Cash, Credit Loan Payable (Liability). Not Revenue.",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.92,
+    };
+  }
+
+  // 11. Transfers
+  if (/\b(transfer(?:red)?|moved\s*money|savings\s+to\s+current|current\s+to\s+savings)\b/.test(d)) {
+    return {
+      category: "Internal Transfers",
+      type: "transfer",
+      intent: "transfer",
+      employee_name: null,
+      inventory_item: null,
+      quantity: null,
+      unit_price: null,
+      merchant: null,
+      product_service: "Internal Transfer",
+      journal_entry: { debit: "Destination Account", credit: "Source Account" },
+      accounting_treatment: "Debit Receiving Bank Account, Credit Sending Bank Account. Zero P&L effect.",
+      clarification_needed: false,
+      ai_question: null,
+      confidence: 0.95,
+    };
+  }
+
+  // Fallback
   const isIncome = typeHint === "income" || /credit|received|inflow|deposit/.test(d);
-  const isClear = description.trim().length > 10;
+  const isClear = d.length > 8;
 
   return {
-    category: isIncome ? "Other Income" : "Other Expense",
+    category: isIncome ? "Other Operating Income" : "Other Operating Expenses",
     type: isIncome ? "income" : "expense",
-    intent: isIncome ? "general_income" : "general_expense",
+    intent: isIncome ? "general_income" : "operating_expense",
     employee_name: null,
     inventory_item: null,
     quantity: null,
     unit_price: null,
-    client_name: null,
+    merchant: null,
+    product_service: description,
+    journal_entry: { debit: isIncome ? "Bank/Cash" : "Other Expense", credit: isIncome ? "Other Income" : "Bank/Cash" },
+    accounting_treatment: isIncome ? "Credit Other Income, Debit Bank/Cash" : "Debit Other Expense, Credit Bank/Cash",
     clarification_needed: !isClear,
-    ai_question: !isClear ? `What was this transaction of "${description}" for?` : null,
-    confidence: isClear ? 0.6 : 0.3,
+    ai_question: !isClear ? `What was the transaction for "${description}"?` : null,
+    confidence: isClear ? 0.72 : 0.45,
   };
 }
