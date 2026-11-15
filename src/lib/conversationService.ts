@@ -48,7 +48,7 @@ export const INITIAL_WELCOME_MESSAGE: ChatMessage = {
     "Hi! I'm ROVA, your conversational ERP and financial assistant. I have live access to your transactions, inventory, payroll, and invoices.\n\nYou can chat with me using:\n• **Text:** Ask anything about your financial health, profit, or unpaid debts\n• **Voice:** Record audio notes or upload audio files to dictate transactions\n• **Images & Documents:** Upload receipts, bills, or invoices for automated OCR analysis",
   timestamp: new Date(),
   actions: [
-    { type: 'open_whatsapp_bot', label: '💬 Chat with ROVA Bot on WhatsApp' },
+    { type: 'open_whatsapp_bot', label: 'Chat with ROVA Bot on WhatsApp' },
   ],
 };
 

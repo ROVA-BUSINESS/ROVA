@@ -7,7 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Shield, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
-  MessageSquare, CheckCircle2, Mic, Image, Zap, Upload, AlertTriangle,
+  CheckCircle2, Mic, Image, Zap, Upload, AlertTriangle,
   Clock, Bell, Volume2, Sparkles, Settings as SettingsIcon
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
@@ -263,7 +263,7 @@ export default function SettingsPage() {
         }} className="mobile-hide">
           {[
             { id: 'profile', label: 'Business Profile', icon: <Building size={18} /> },
-            { id: 'whatsapp', label: 'WhatsApp Bot', icon: <MessageSquare size={18} /> },
+            { id: 'whatsapp', label: 'WhatsApp Bot', icon: <WhatsAppIcon size={18} /> },
             { id: 'accounts', label: 'Linked Accounts', icon: <CreditCard size={18} /> },
             { id: 'reminders', label: 'Daily Reminders', icon: <Clock size={18} /> },
             { id: 'security', label: 'Security', icon: <Shield size={18} /> },

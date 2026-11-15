@@ -235,9 +235,11 @@ function ActionButton({ action, onAction }: { action: ChatAction; onAction: (act
         e.currentTarget.style.transform = 'none';
       }}
     >
-      <Icon size={14} color={isWhatsApp ? '#25D366' : color} />
-      <span>{isWhatsApp && clicked ? 'Coming Soon' : action.label}</span>
-      {isWhatsApp && !clicked && <ExternalLink size={12} style={{ opacity: 0.85 }} />}
+      <Icon size={isWhatsApp ? 18 : 14} color={isWhatsApp ? '#25D366' : color} />
+      <span>{isWhatsApp && clicked ? 'Coming Soon' : action.label.replace(/^💬\s*/, '')}</span>
+      {isWhatsApp && (
+        <span style={{ fontSize: 10, background: 'rgba(37, 211, 102, 0.25)', color: '#4ade80', padding: '2px 6px', borderRadius: 4, marginLeft: 4 }}>Soon</span>
+      )}
     </button>
   );
 }
