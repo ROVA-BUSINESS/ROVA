@@ -226,7 +226,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   }
 
   .transaction-table {
-    table-layout: fixed; /* Force it to stay within container width */
+    table-layout: auto; /* Force it to stay within container width */
   }
 
   .transaction-table th,
@@ -243,7 +243,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   }
 
   .mobile-desc-text {
-    max-width: 110px !important; /* Prevent description from taking too much space */
+    max-width: none; /* Prevent description from taking too much space */
   }
 
   .mobile-actions {

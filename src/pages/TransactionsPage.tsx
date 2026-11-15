@@ -14,6 +14,7 @@ import {
   formatTimeDisplay,
 } from '../lib/transactionReminder';
 import TransactionReminderModal from '../components/TransactionReminderModal';
+import { useMobile } from '../hooks/useMobile';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -24,6 +25,7 @@ type FilterType = 'all' | 'income' | 'expense';
 
 
 export default function TransactionsPage() {
+  const isMobile = useMobile(768);
   const navigate = useNavigate();
   const { user, isStaff, profile, isAdmin, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
@@ -397,6 +399,144 @@ export default function TransactionsPage() {
             </p>
           </div>
         ) : (
+          isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {filtered.map((tx, i) => (
+              <div
+                key={tx.id}
+                style={{
+                  padding: '14px 16px',
+                  borderTop: i > 0 ? '1px solid var(--bg-border)' : 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                {/* Row 1: Direction Icon + Description + Amount */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 'var(--radius-sm)',
+                        flexShrink: 0,
+                        background: tx.type === 'income' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: 1,
+                      }}
+                    >
+                      {tx.type === 'income' ? <ArrowUpRight size={16} color="#10b981" /> : <ArrowDownRight size={16} color="#ef4444" />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        onClick={() => openEditModal(tx)}
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          lineHeight: 1.4,
+                          cursor: 'pointer',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {cleanDescription(tx.description) || 'No description'}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>
+                        {formatDate(tx.date)} {tx.created_at ? `· ${formatTime(tx.created_at)}` : ''}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        fontFamily: 'Space Grotesk, sans-serif',
+                        color: tx.type === 'income' ? 'var(--success)' : 'var(--error)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
+                    </div>
+                    {tx.is_verified && (
+                      <div style={{ fontSize: 10.5, color: 'var(--success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                        <Check size={11} /> Verified
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Row 2: Category Classification Badge (Full Width & Clear!) + Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 2 }}>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(tx)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 12px',
+                      borderRadius: 16,
+                      background: (tx.category as any)?.name ? 'var(--bg-elevated)' : 'rgba(245, 158, 11, 0.12)',
+                      border: (tx.category as any)?.name ? '1px solid var(--bg-border)' : '1px dashed rgba(245, 158, 11, 0.45)',
+                      color: (tx.category as any)?.name ? 'var(--text-primary)' : 'var(--warning)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      lineHeight: 1.2,
+                      maxWidth: '75%',
+                    }}
+                    title="Tap to classify or change category"
+                  >
+                    <Tag size={12} color={(tx.category as any)?.name ? 'var(--accent-primary)' : 'var(--warning)'} style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {(tx.category as any)?.name || 'Classify Transaction'}
+                    </span>
+                    <Edit2 size={10} style={{ opacity: 0.6, flexShrink: 0, marginLeft: 2 }} />
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {tx.type === 'income' && (
+                      <button
+                        onClick={() => navigate('/app/receipts', { state: { openCreateModal: true, transactionId: tx.id } })}
+                        title="Generate Receipt"
+                        style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--accent-light)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', cursor: 'pointer' }}
+                      >
+                        <Receipt size={13} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openEditModal(tx)}
+                      title="Edit Transaction & Classification"
+                      style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', cursor: 'pointer' }}
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button
+                      onClick={() => toggleVerify(tx)}
+                      title={tx.is_verified ? 'Mark as unverified' : 'Mark as verified'}
+                      style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: tx.is_verified ? 'var(--success)' : 'var(--text-muted)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', cursor: 'pointer' }}
+                    >
+                      <Check size={13} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tx.id)}
+                      title="Delete"
+                      style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', cursor: 'pointer' }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
           <div className="mobile-table-container">
             <table className="transaction-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -625,6 +765,7 @@ export default function TransactionsPage() {
             </tbody>
             </table>
           </div>
+        )
         )}
       </Card>
 
