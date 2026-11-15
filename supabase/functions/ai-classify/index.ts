@@ -99,7 +99,24 @@ Classify into ONE category:
 ACCOUNTING RULES
 -------------------------
 
-1. INVENTORY PURCHASE
+
+1. PACKAGING MATERIALS
+Examples: Nylon, Polythene, Packaging bags, Boxes, Packing cartons, Wrappers, Tapes.
+Accounting: Debit Packaging Materials (Expense), Credit Cash or Accounts Payable. Do NOT replace item description with category. Preserve original item like "Nylon".
+
+2. INVENTORY / PURCHASES FOR RESALE
+Examples: Flour, Beans, Rice, Cement, Soft drinks, Stock purchased for resale.
+Accounting: Debit Inventory, Credit Cash or Accounts Payable. Move to COGS when sold.
+
+3. PROPERTY, PLANT AND EQUIPMENT (FIXED ASSETS)
+Examples: Generator, Laptop, Vehicle, Freezer, Machinery, Furniture.
+Accounting: Debit Fixed Assets (Balance Sheet), Credit Cash. Long-term assets, never ordinary operating expense.
+
+4. OPERATING EXPENSES & SUPPLIES
+Examples: Rent Expense, Salaries and Wages, Office Supplies (printer paper), Transportation Expense.
+Accounting: Debit appropriate expense account, Credit Cash.
+
+5. INVENTORY PURCHASE
 Examples: Beans, Rice, Soft drinks, Flour, Cement, Products for resale.
 Accounting: Debit Inventory, Credit Cash or Accounts Payable. Inventory increases. DO NOT recognise as expense immediately. Move to Cost of Goods Sold (COGS) when sold. If quantity is missing, ask for quantity.
 

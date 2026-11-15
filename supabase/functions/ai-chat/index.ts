@@ -493,7 +493,8 @@ READ-ONLY TOOLS (execute immediately, no confirmation needed):
 8. getTransactions(date?, period?, type?) — Query specific transactions by date or period
 
 DATA CREATION & DOCUMENT GENERATION TOOLS:
-9. recordSale(amount, description, clientName?) — Record a sales revenue transaction (MUST NOT ask for confirmation)
+9. recordTransaction(description, amount, type, category, date?, notes?) — Record any financial transaction (income, expense, transfer) preserving the user's actual original item/service in description (e.g. "Nylon"), exact stated amount, direction type ('income' | 'expense' | 'transfer'), and intelligent category (e.g. "Packaging Materials", "Inventory / Purchases", "Rent Expense", "Salaries and Wages", "Office Supplies", "Transportation Expense", "Property, Plant and Equipment", "Sales Revenue", "Owner Withdrawal", "Owner Contribution", "Loan Received", "Loan Repayment"). MUST NOT ask for confirmation when amount and description are provided.
+10. recordSale(amount, description, clientName?) — Record a sales revenue transaction (MUST NOT ask for confirmation)
 10. recordExpense(amount, description, categoryName?, merchant?) — Record a business expense (MUST NOT ask for confirmation)
 11. createInvoice(clientName, items, dueDate?, taxRate?, notes?) — Create an invoice. Automatically generates the official ROVA PDF invoice. If clientName and items or amount are present, execute immediately without asking for confirmation.
 12. createReceipt(customerName, amount?, paymentMethod?, description?) — Create an official payment receipt. Automatically generates the official ROVA PDF receipt and sends the document. If customerName and amount are present, execute immediately without asking for confirmation.
@@ -530,7 +531,7 @@ RESPONSE FORMAT (strict JSON)
 {
   "reply": "your response text",
   "tool_call": {
-    "name": "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "createReceipt" | "deleteTransaction" | "processBusinessDocument" | "sendDocument",
+    "name": "recordTransaction" | "getSales" | "getExpenses" | "getInventory" | "getOutstandingInvoices" | "getStaff" | "getPayroll" | "getCustomers" | "getTransactions" | "recordSale" | "recordExpense" | "createInvoice" | "createReceipt" | "deleteTransaction" | "processBusinessDocument" | "sendDocument",
     "parameters": {}
   } | null,
   "requires_confirmation": false,
@@ -712,7 +713,11 @@ RESPONSE FORMAT (strict JSON)
 
       try {
         let execResult: any;
-        if (toolName === "recordSale") {
+        if (toolName === "recordTransaction") {
+          execResult = await executeRecordTransaction(supabaseClient, activeUserId, params, lastUserMsg, source);
+        } else if (toolName === "askClarification") {
+          execResult = { formattedSummary: params.question || "Could you please specify how much was spent or received?" };
+        } else if (toolName === "recordSale") {
           execResult = await executeRecordSale(supabaseClient, activeUserId, params, lastUserMsg);
         } else if (toolName === "createInvoice") {
           execResult = await executeCreateInvoice(supabaseClient, activeUserId, params, lastUserMsg);
@@ -858,24 +863,57 @@ function detectRuleBasedToolCall(text: string) {
     };
   }
 
-  if (/\b(sold|sale|recorded sale|i made a sale)\b/.test(q)) {
-    const amt = extractAmount(q);
-    return { name: "recordSale", parameters: { amount: amt, description: text } };
-  }
-  if (/\b(create invoice|new invoice|invoice for|invoice client)\b/.test(q)) {
-    const clientMatch = q.match(/(?:for|to)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|$)/i);
-    const clientName = clientMatch ? clientMatch[1].trim() : "";
-    const amount = extractAmount(q);
-    return { name: "createInvoice", parameters: { clientName, amount, description: text } };
-  }
-  if (/\b(create receipt|new receipt|receipt for|generate receipt)\b/.test(q)) {
-    const customerMatch = q.match(/(?:for|to)\s+([a-zA-Z\s]+?)(?:\s+for|\s+\d+|$)/i);
-    const customerName = customerMatch ? customerMatch[1].trim() : "";
-    const amount = extractAmount(q);
-    return { name: "createReceipt", parameters: { customerName, amount, description: text } };
-  }
-  if (/\b(spent|expense|bought|paid for|cost|fuel|data|generator)\b/.test(q) && !/\b(inventory|stock)\b/.test(q)) {
-    return { name: "recordExpense", parameters: { amount: extractAmount(q), description: text } };
+    // 3. Transactions: Natural recording & extraction
+  if (/(?:bought|purchased|spent|paid for|bought nylon|paid shop rent|paid workers|transportation|generator|sale|received.*customer)/i.test(q)) {
+    const amt = extractAmount(text);
+    const item = cleanItemFromText(text);
+
+    // If no amount provided, ask the user!
+    if (!amt || amt <= 0) {
+      return {
+        name: "askClarification",
+        parameters: { question: `How much did you spend on ${item || 'that'}?` },
+      };
+    }
+
+    let category = "Operating Expense";
+    let type = "expense";
+
+    if (/\b(nylon|polythene|poly\s*bag|packaging|wrapper|box(?:es)?\s+for\s+pack)\b/i.test(q)) {
+      category = "Packaging Materials";
+      type = "expense";
+    } else if (/\b(flour|rice|beans|sugar|oil|cement|bags?\s+of|cartons?\s+of|crates?\s+of|goods\s+for\s+resale|stock|inventory)\b/i.test(q) && !/\b(sold|sale|received)\b/i.test(q)) {
+      category = "Inventory / Purchases";
+      type = "expense";
+    } else if (/\b(rent|shop\s*rent|store\s*rent|office\s*rent)\b/i.test(q)) {
+      category = "Rent Expense";
+      type = "expense";
+    } else if (/\b(workers?|staff|salary|salaries|wages?)\b/i.test(q)) {
+      category = "Salaries and Wages";
+      type = "expense";
+    } else if (/\b(paper|printer\s*paper|stationery|pen|pens|office\s*supplies?)\b/i.test(q)) {
+      category = "Office Supplies";
+      type = "expense";
+    } else if (/\b(transport|transportation|fare|fuel|diesel|petrol|uber|bolt)\b/i.test(q)) {
+      category = "Transportation Expense";
+      type = "expense";
+    } else if (/\b(generator|laptop|freezer|machinery|equipment|vehicle|car|furniture)\b/i.test(q)) {
+      category = "Property, Plant and Equipment";
+      type = "expense";
+    } else if (/\b(sold|sale|sales|customer.*goods|goods\s+sold)\b/i.test(q)) {
+      category = "Sales Revenue";
+      type = "income";
+    }
+
+    return {
+      name: "recordTransaction",
+      parameters: {
+        description: item,
+        amount: amt,
+        category,
+        type,
+      },
+    };
   }
   if (/\b(how much.*sell|total sales|sales|revenue)\b/.test(q)) {
     let period = "this_month";
@@ -925,6 +963,145 @@ function detectRuleBasedToolCall(text: string) {
 
 // ── TOOL EXECUTORS ────────────────────────────────────────────────────────────
 
+
+// ── Unified Transaction Recording & Extraction Engine ────────────────────────
+async function executeRecordTransaction(supabaseClient: any, userId: string, params: any, rawMsg: string, source?: string) {
+  const amount = Number(params.amount) || extractAmount(rawMsg) || 0;
+  if (!amount || amount <= 0) {
+    const itemDesc = params.description || cleanItemFromText(rawMsg);
+    return {
+      formattedSummary: `How much did you spend on ${itemDesc || 'that'}?`,
+      requiresClarification: true,
+    };
+  }
+
+  // Preserve the original description - extract clean item if user gave full sentence
+  let description = params.description || cleanItemFromText(rawMsg);
+  if (!description) description = "Transaction";
+  description = description.charAt(0).toUpperCase() + description.slice(1);
+
+  // Determine type
+  let type = params.type || "expense";
+  if (!["income", "expense", "transfer"].includes(type)) {
+    if (type === "owner_contribution" || type === "loan_received") type = "income";
+    else if (type === "owner_withdrawal" || type === "loan_repayment" || type === "asset_purchase") type = "expense";
+    else type = "expense";
+  }
+
+  // Determine category
+  const categoryName = params.category || (type === "income" ? "Sales Revenue" : "Operating Expense");
+
+  // Link or create category
+  let categoryId = null;
+  try {
+    const { data: existingCat } = await supabaseClient
+      .from("categories")
+      .select("id, name")
+      .ilike("name", categoryName.trim())
+      .or(`user_id.eq.${userId},is_system.eq.true`)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingCat) {
+      categoryId = existingCat.id;
+    } else {
+      const { data: newCat } = await supabaseClient
+        .from("categories")
+        .insert({
+          user_id: userId,
+          name: categoryName.trim(),
+          type: type === "transfer" ? "both" : type,
+          icon: type === "income" ? "trending-up" : "credit-card",
+          color: type === "income" ? "#10b981" : "#ef4444",
+          is_system: false,
+        })
+        .select("id")
+        .single();
+      if (newCat) categoryId = newCat.id;
+    }
+  } catch (cErr) {
+    console.warn("[ROVA Core] Category lookup/insert error:", cErr);
+  }
+
+  const txDate = params.date || new Date().toISOString().split("T")[0];
+  const refCode = `${type === "income" ? "REV" : type === "transfer" ? "TRF" : "EXP"}-${Date.now().toString().slice(-6)}`;
+
+  const { data: transaction, error } = await supabaseClient
+    .from("transactions")
+    .insert({
+      user_id: userId,
+      amount: Math.abs(amount),
+      type,
+      description,
+      date: txDate,
+      category_id: categoryId,
+      ai_category: categoryName,
+      reference: refCode,
+      notes: params.notes || null,
+      is_verified: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Handle inventory stock update if category is Inventory / Purchases
+  if (/inventory|purchases/i.test(categoryName)) {
+    try {
+      const { data: matchedItem } = await supabaseClient
+        .from("inventory_items")
+        .select("id, name, current_stock")
+        .eq("user_id", userId)
+        .ilike("name", `%${description}%`)
+        .maybeSingle();
+
+      if (matchedItem) {
+        await supabaseClient
+          .from("inventory_items")
+          .update({ current_stock: (matchedItem.current_stock || 0) + 1 })
+          .eq("id", matchedItem.id);
+
+        await supabaseClient.from("inventory_transactions").insert({
+          user_id: userId,
+          item_id: matchedItem.id,
+          transaction_id: transaction.id,
+          type: "purchase",
+          quantity: 1,
+          unit_cost: Math.abs(amount),
+          total_cost: Math.abs(amount),
+          date: txDate,
+          notes: "Auto-linked by ROVA AI",
+        });
+      }
+    } catch (invErr) {
+      console.warn("[ROVA Core] Inventory auto-link error:", invErr);
+    }
+  }
+
+  // Exact confirmation requested by Rule 8
+  const formattedAmt = formatCurrency(amount);
+  const summaryPrefix = source === "whatsapp" ? "✅ " : "";
+  const formattedSummary = `${summaryPrefix}I've recorded ${formattedAmt} for ${description} under ${categoryName}.`;
+
+  return {
+    formattedSummary,
+    actions: [{ type: "view_report", label: "View Transactions", payload: { transactionId: transaction.id } }],
+    recordId: transaction.id,
+  };
+}
+
+function cleanItemFromText(text: string): string {
+  if (!text) return "";
+  let cleaned = text
+    .replace(/^(?:i\s+)?(?:just\s+)?(?:bought|purchased|paid(?:\s+for)?|spent(?:\s+on)?|sold|received|collected|recorded|got|withdrew|withdrawn|transferred|introduced|contributed)\s+/i, "")
+    .replace(/(?:\s+for|\s+of|\s+at|\s+worth|\s+amounting\s+to)?\s*(?:(?:₦|ngn|\$)\s*)?[\d,]+(?:\.\d+)?\s*(?:k|thousand|m|million|naira)?\s*$/i, "")
+    .trim();
+  if (!cleaned || /^(?:something|it|items?|money)$/i.test(cleaned)) {
+    cleaned = text;
+  }
+  return cleaned;
+}
+
 async function executeRecordSale(supabaseClient: any, userId: string, params: any, rawMsg: string) {
   const amount = params.amount || extractAmount(rawMsg) || 0;
   const description = params.description || rawMsg || "Sale";
@@ -958,7 +1135,7 @@ async function executeRecordSale(supabaseClient: any, userId: string, params: an
   const todayTotal = (todayTxs || []).reduce((s: number, t: any) => s + t.amount, 0);
 
   return {
-    formattedSummary: `✅ Sale Recorded: ${formatCurrency(amount)} for "${description}".\n📊 Today's Total Sales: ${formatCurrency(todayTotal)}.`,
+    formattedSummary: `I've recorded ${formatCurrency(amount)} for ${description} under Sales Revenue.`,
     actions: [{ type: "view_report", label: "View Sales Report", payload: {} }],
     recordId: transaction.id,
   };
@@ -1514,7 +1691,7 @@ async function executeRecordExpense(supabaseClient: any, userId: string, params:
   const monthTotal = (monthTxs || []).reduce((s: number, t: any) => s + t.amount, 0);
 
   return {
-    formattedSummary: `💸 Expense Recorded: ${formatCurrency(amount)} for "${description}".\n📊 Total Expenses This Month: ${formatCurrency(monthTotal)}.`,
+    formattedSummary: `I've recorded ${formatCurrency(amount)} for ${description} under ${params.categoryName || "Operating Expense"}.`,
     actions: [{ type: "view_report", label: "View Expense Report", payload: {} }],
     recordId: transaction.id,
   };
@@ -1842,6 +2019,60 @@ async function executeCalculateTax(supabaseClient: any, userId: string, params: 
 }
 
 function extractAmount(text: string): number {
-  const m = text.match(/(?:₦|naira|ngn|\$)?\s*([\d,]+(?:\.\d+)?)/i);
-  return m ? parseFloat(m[1].replace(/,/g, "")) : 0;
+  if (!text) return 0;
+  const clean = text.trim();
+
+  // 1. Explicit currency symbol or code: ₦15,000, N15,000, NGN 15000, 15,000 naira
+  const currencyRegex = /(?:₦|ngn|\bnaira\b|\$)\s*([\d,]+(?:\.\d+)?)\s*(k|thousand|m|million)?|\b([\d,]+(?:\.\d+)?)\s*(?:₦|ngn|\bnaira\b|\$)/i;
+  const currMatch = clean.match(currencyRegex);
+  if (currMatch) {
+    const rawNum = currMatch[1] || currMatch[3];
+    let val = parseFloat(rawNum.replace(/,/g, ""));
+    const mult = (currMatch[2] || "").toLowerCase();
+    if (mult === "k" || mult === "thousand") val *= 1000;
+    if (mult === "m" || mult === "million") val *= 1000000;
+    return val;
+  }
+
+  // 2. Preceded by transaction verbs/prepositions: 'for 15,000', 'paid 50,000', 'spent 3000', 'of 10,000'
+  const prepRegex = /\b(?:for|paid|spent|cost|worth|received|total(?:ing)?)\s+(?:(?:₦|ngn|\$)\s*)?([\d,]+(?:\.\d+)?)\s*(k|thousand|m|million)?\b/i;
+  const prepMatch = clean.match(prepRegex);
+  if (prepMatch) {
+    let val = parseFloat(prepMatch[1].replace(/,/g, ""));
+    const mult = (prepMatch[2] || "").toLowerCase();
+    if (mult === "k" || mult === "thousand") val *= 1000;
+    if (mult === "m" || mult === "million") val *= 1000000;
+    return val;
+  }
+
+  // 3. Standalone numbers with 'k' or 'm': '3k', '50k', '2m'
+  const kmRegex = /\b([\d,]+(?:\.\d+)?)\s*(k|thousand|m|million)\b/i;
+  const kmMatch = clean.match(kmRegex);
+  if (kmMatch) {
+    let val = parseFloat(kmMatch[1].replace(/,/g, ""));
+    const mult = (kmMatch[2] || "").toLowerCase();
+    if (mult === "k" || mult === "thousand") val *= 1000;
+    if (mult === "m" || mult === "million") val *= 1000000;
+    return val;
+  }
+
+  // 4. Find candidates, skipping quantities like '3 bags', '2 units', '5 pcs'
+  const candidates: number[] = [];
+  const allNumMatches = [...clean.matchAll(/\b([\d,]+(?:\.\d+)?)\b/g)];
+  for (const m of allNumMatches) {
+    const numStr = m[1];
+    const idx = m.index ?? 0;
+    const after = clean.slice(idx + numStr.length, idx + numStr.length + 15).toLowerCase();
+    if (/^\s*(bags?|units?|pcs?|pieces?|cartons?|litres?|kg|rolls?|crates?|packs?)\b/.test(after)) {
+      continue;
+    }
+    const val = parseFloat(numStr.replace(/,/g, ""));
+    if (!isNaN(val)) candidates.push(val);
+  }
+
+  if (candidates.length > 0) {
+    return candidates[candidates.length - 1];
+  }
+
+  return 0;
 }
