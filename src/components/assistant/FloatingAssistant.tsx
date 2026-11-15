@@ -1,7 +1,7 @@
 ﻿import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Brain, X, Minus, Send, Mic, MicOff, Maximize2,
+  Bot, X, Minus, Send, Mic, MicOff, Maximize2,
   ChevronRight, FileText, Package, Users, TrendingUp, HelpCircle,
   ExternalLink, RotateCcw
 } from 'lucide-react';
@@ -412,7 +412,7 @@ export default function FloatingAssistant() {
                   flexShrink: 0,
                 }}
               >
-                <Brain size={16} color="#ffffff" />
+                <Bot size={16} color="#ffffff" />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -615,7 +615,7 @@ export default function FloatingAssistant() {
                           marginTop: 2,
                         }}
                       >
-                        <Brain size={11} color="white" />
+                        <Bot size={11} color="white" />
                       </div>
                     )}
                     <div style={{ maxWidth: '86%' }}>
@@ -663,7 +663,7 @@ export default function FloatingAssistant() {
                         justifyContent: 'center',
                       }}
                     >
-                      <Brain size={11} color="white" />
+                      <Bot size={11} color="white" />
                     </div>
                     <div
                       style={{
@@ -957,7 +957,7 @@ export default function FloatingAssistant() {
             <X size={20} color="#ffffff" />
           ) : (
             <>
-              <Brain size={isMobile ? 22 : 24} color="#ffffff" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }} />
+              <Bot size={isMobile ? 22 : 24} color="#ffffff" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }} />
               {/* Online Pulse Dot */}
               <span
                 style={{

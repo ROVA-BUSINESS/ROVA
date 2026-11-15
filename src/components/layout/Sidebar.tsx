@@ -4,7 +4,7 @@ import {
   Home, ChartBar as BarChart2, FileText, Receipt,
   Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
-  Users, Package, Shield, X, Brain, NotebookPen,
+  Users, Package, Shield, X, Bot, NotebookPen,
   TrendingDown, TrendingUp, CreditCard, PieChart, Scale
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
@@ -50,7 +50,7 @@ const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices & Receipts' },
   { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
-  { type: 'link', to: '/app/assistant', icon: Brain, label: 'AI Assistant' },
+  { type: 'link', to: '/app/assistant', icon: Bot, label: 'AI Assistant' },
   { type: 'link', to: '/app/notes', icon: NotebookPen, label: 'Notes Pad' },
   {
     type: 'group',
