@@ -924,7 +924,7 @@ export default function AssistantPage() {
               transition: 'all 0.15s ease',
             }}
           >
-            <WhatsAppIcon size={20} color="#25D366" />
+            <WhatsAppIcon size={22} color="#25D366" />
             <span style={{ flex: 1 }}>{waPromoComingSoon ? 'Coming Soon' : 'WhatsApp Voice & OCR'}</span>
             {waPromoComingSoon ? (
               <span style={{ fontSize: 10, background: 'rgba(37, 211, 102, 0.25)', padding: '2px 6px', borderRadius: 4 }}>Soon</span>

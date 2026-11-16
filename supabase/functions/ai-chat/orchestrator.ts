@@ -242,7 +242,7 @@ CRITICAL RULES:
     } else if (modelReply) {
       finalReply = ResponseGenerator.cleanAsterisks(modelReply);
     } else {
-      finalReply = "Hi! I'm ROVA AI, your conversational business assistant. What would you like to review or record today?";
+      finalReply = "I didn't quite catch that. Could you clarify what you'd like to do? For example, you can ask to record an expense, check your stock levels, or review unpaid invoices.";
     }
 
     // ── 8. Fire-and-Forget Memory Extraction ────────────────────────────────────
