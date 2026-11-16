@@ -1,10 +1,10 @@
 // ROVA Web Push Notifications & Service Worker Integration (100% Free / $0 Forever)
 import { supabase } from './supabase.ts';
 
-// Standard VAPID Public Key (P-256 ECDSA)
+// Standard VAPID Public Key (P-256 ECDSA - Rotated Keypair)
 export const VAPID_PUBLIC_KEY =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_VAPID_PUBLIC_KEY) ||
-  'BDAwKemVvdLQUdz8l1toc-qi_oBMcexCkYnRsM4YTPK5BjTYT_nlXb2EtvO0k5_OHJUWmMd5yw37knZJwPyuQOQ';
+  'BL2-7X2E4pmZCgImcL4lc0f2HDa9IZ5QSID0hx_mo4tbW-jsm2JrFwrVWpEWUWqrOwUSoF9MV8ICRXF25CWR5U8';
 
 /**
  * Converts a URL-safe Base64 string into a Uint8Array for pushManager.subscribe
