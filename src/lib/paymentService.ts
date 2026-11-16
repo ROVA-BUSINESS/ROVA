@@ -185,7 +185,12 @@ export async function getPaymentLinks(userId: string): Promise<PaymentLink[]> {
     console.warn('Error fetching payment links:', error.message);
     return [];
   }
-  return data || [];
+  return (data || []).map(link => ({
+    ...link,
+    payment_url: link.payment_url || (link as any).url || `https://paystack.com/pay/${link.provider_slug || link.id}`,
+    total_collected: Number(link.total_collected || 0),
+    payments_count: Number(link.payments_count || 0),
+  }));
 }
 
 export async function createPaymentLink(params: {
@@ -239,15 +244,21 @@ export async function createPaymentLink(params: {
       if (res.ok) {
         const body = await res.json();
         if (body.success && body.link) {
-          return body.link;
+          return {
+            ...body.link,
+            payment_url: body.link.payment_url || body.link.url || paymentUrl,
+            total_collected: Number(body.link.total_collected || 0),
+            payments_count: Number(body.link.payments_count || 0),
+          };
         }
       }
     } catch (e) {
       // Backend not running locally or error - fallback to direct link generation
     }
 
-    // Direct fallback: Paystack Payment URL format
-    paymentUrl = `https://paystack.com/pay/${slug}`;
+    // Direct fallback: ROVA Hosted Payment URL format
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://www.rovabusiness.com';
+    paymentUrl = `${host}/pay/${slug}`;
     providerLinkId = `PLK_${slug.toUpperCase()}`;
   } else {
     // For other providers (e.g. OPay Cashier)
@@ -282,7 +293,12 @@ export async function createPaymentLink(params: {
     .single();
 
   if (error) throw error;
-  return data;
+  return {
+    ...data,
+    payment_url: data?.payment_url || paymentUrl,
+    total_collected: Number(data?.total_collected || 0),
+    payments_count: Number(data?.payments_count || 0),
+  };
 }
 
 export async function togglePaymentLinkStatus(
