@@ -1284,65 +1284,71 @@ export default function PaymentPage() {
             </Card>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-              {paymentLinks.map(link => (
-                <Card key={link.id} style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{link.title}</h3>
-                      <Badge variant={link.status === 'active' ? 'success' : 'default'}>
-                        {link.status}
-                      </Badge>
-                    </div>
+              {paymentLinks.map(link => {
+                const linkUrl = link?.payment_url || (link as any)?.url || '';
+                const linkCollected = Number(link?.total_collected || 0);
+                const linkCount = Number(link?.payments_count || 0);
 
-                    {link.description && (
-                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 12px', lineHeight: 1.4 }}>
-                        {link.description}
-                      </p>
-                    )}
+                return (
+                  <Card key={link.id || Math.random()} style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{link.title}</h3>
+                        <Badge variant={link.status === 'active' ? 'success' : 'default'}>
+                          {link.status || 'active'}
+                        </Badge>
+                      </div>
 
-                    <div style={{ margin: '12px 0', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>Price / Amount</div>
-                      <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2, color: 'var(--accent-primary)' }}>
-                        {link.allow_custom_amount || !link.amount
-                          ? 'Customer decides amount'
-                          : formatCurrency(link.amount, link.currency)}
+                      {link.description && (
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 12px', lineHeight: 1.4 }}>
+                          {link.description}
+                        </p>
+                      )}
+
+                      <div style={{ margin: '12px 0', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>Price / Amount</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2, color: 'var(--accent-primary)' }}>
+                          {link.allow_custom_amount || !link.amount
+                            ? 'Customer decides amount'
+                            : formatCurrency(link.amount, link.currency)}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                        <div>Total Collections: <strong>{formatCurrency(linkCollected, link.currency)}</strong></div>
+                        <div>Payments Count: <strong>{linkCount}</strong></div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                      <div>Total Collections: <strong>{formatCurrency(link.total_collected, link.currency)}</strong></div>
-                      <div>Payments Count: <strong>{link.payments_count}</strong></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--bg-border)' }}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={copiedId === link.id ? <Check size={13} style={{ color: 'var(--success)' }} /> : <Copy size={13} />}
+                        onClick={() => handleCopy(linkUrl, link.id)}
+                        style={{ flex: 1 }}
+                      >
+                        {copiedId === link.id ? 'Copied!' : 'Copy Link'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        icon={<Share2 size={13} />}
+                        onClick={() => setShowShareModal(link)}
+                      >
+                        Share
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<ExternalLink size={13} />}
+                        onClick={() => linkUrl && window.open(linkUrl, '_blank')}
+                        title="Open payment page"
+                      />
                     </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--bg-border)' }}>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={copiedId === link.id ? <Check size={13} style={{ color: 'var(--success)' }} /> : <Copy size={13} />}
-                      onClick={() => handleCopy(link.payment_url, link.id)}
-                      style={{ flex: 1 }}
-                    >
-                      {copiedId === link.id ? 'Copied!' : 'Copy Link'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      icon={<Share2 size={13} />}
-                      onClick={() => setShowShareModal(link)}
-                    >
-                      Share
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<ExternalLink size={13} />}
-                      onClick={() => window.open(link.payment_url, '_blank')}
-                      title="Open payment page"
-                    />
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
@@ -2193,7 +2199,7 @@ export default function PaymentPage() {
             </div>
 
             <div style={{ padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', wordBreak: 'break-all', fontSize: 12, color: 'var(--accent-primary)', fontWeight: 600 }}>
-              {showShareModal.payment_url}
+              {showShareModal.payment_url || (showShareModal as any).url}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2201,7 +2207,7 @@ export default function PaymentPage() {
                 variant="primary"
                 fullWidth
                 icon={<Copy size={14} />}
-                onClick={() => handleCopy(showShareModal.payment_url, 'share_modal')}
+                onClick={() => handleCopy(showShareModal.payment_url || (showShareModal as any).url || '', 'share_modal')}
               >
                 {copiedId === 'share_modal' ? 'Copied to Clipboard!' : 'Copy Payment Link'}
               </Button>
