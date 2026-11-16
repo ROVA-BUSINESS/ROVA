@@ -4,7 +4,7 @@ import { supabase } from './supabase.ts';
 // Standard VAPID Public Key (P-256 ECDSA)
 export const VAPID_PUBLIC_KEY =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_VAPID_PUBLIC_KEY) ||
-  'BG6yB5UIJ3Ja07Hz5Z9tB8OGQ37-wPgLbOTlSQXGmjL82iw36DGbwbu1DnUbkwbesi97nO2vCa6CNxNHI6j4RMI';
+  'BDAwKemVvdLQUdz8l1toc-qi_oBMcexCkYnRsM4YTPK5BjTYT_nlXb2EtvO0k5_OHJUWmMd5yw37knZJwPyuQOQ';
 
 /**
  * Converts a URL-safe Base64 string into a Uint8Array for pushManager.subscribe
@@ -361,7 +361,7 @@ export async function syncReminderScheduleToDatabase(
 ): Promise<boolean> {
   if (!userId) return false;
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('push_subscriptions')
       .update({
         reminder_enabled: config.enabled,
@@ -371,12 +371,21 @@ export async function syncReminderScheduleToDatabase(
         sound: config.sound,
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('id');
 
     if (error) {
       console.warn('Could not sync reminder schedule to push_subscriptions:', error);
       return false;
     }
+
+    // If no existing push subscription row was updated, attempt to create one if permission is granted
+    if ((!data || data.length === 0) && isPushSupported() && typeof window !== 'undefined') {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        subscribeToPush(userId).catch(() => {});
+      }
+    }
+
     return true;
   } catch (err) {
     console.warn('Failed to sync reminder schedule to DB:', err);

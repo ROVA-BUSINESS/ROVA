@@ -4,9 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 
 const VAPID_PUBLIC_KEY =
   process.env.VAPID_PUBLIC_KEY ||
-  'BG6yB5UIJ3Ja07Hz5Z9tB8OGQ37-wPgLbOTlSQXGmjL82iw36DGbwbu1DnUbkwbesi97nO2vCa6CNxNHI6j4RMI';
+  process.env.VITE_VAPID_PUBLIC_KEY ||
+  'BDAwKemVvdLQUdz8l1toc-qi_oBMcexCkYnRsM4YTPK5BjTYT_nlXb2EtvO0k5_OHJUWmMd5yw37knZJwPyuQOQ';
 
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+const VAPID_PRIVATE_KEY =
+  process.env.VAPID_PRIVATE_KEY ||
+  '9yhzGBiJaZAhVqyBcel0Tr1Nn_K0mondQ_MrsFs6jic';
 
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@rova.business';
 

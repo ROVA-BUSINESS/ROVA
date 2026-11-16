@@ -70,6 +70,13 @@ export default function TransactionReminderModal({
     saveReminderConfig(userId, config);
     setSavedSuccess(true);
     if (onSaved) onSaved(config);
+
+    if (config.enabled && isPushSupported() && typeof window !== 'undefined') {
+      if ('Notification' in window && Notification.permission === 'granted' && !isSubscribed) {
+        subscribeToPush(userId).catch(() => {});
+      }
+    }
+
     setTimeout(() => {
       onClose();
     }, 600);
