@@ -235,7 +235,7 @@ function ActionButton({ action, onAction }: { action: ChatAction; onAction: (act
         e.currentTarget.style.transform = 'none';
       }}
     >
-      <Icon size={isWhatsApp ? 18 : 14} color={isWhatsApp ? '#25D366' : color} />
+      <Icon size={isWhatsApp ? 22 : 14} color={isWhatsApp ? '#25D366' : color} />
       <span>{isWhatsApp && clicked ? 'Coming Soon' : action.label.replace(/^💬\s*/, '')}</span>
       {isWhatsApp && (
         <span style={{ fontSize: 10, background: 'rgba(37, 211, 102, 0.25)', color: '#4ade80', padding: '2px 6px', borderRadius: 4, marginLeft: 4 }}>Soon</span>
@@ -924,7 +924,7 @@ export default function AssistantPage() {
               transition: 'all 0.15s ease',
             }}
           >
-            <WhatsAppIcon size={16} color="#25D366" />
+            <WhatsAppIcon size={20} color="#25D366" />
             <span style={{ flex: 1 }}>{waPromoComingSoon ? 'Coming Soon' : 'WhatsApp Voice & OCR'}</span>
             {waPromoComingSoon ? (
               <span style={{ fontSize: 10, background: 'rgba(37, 211, 102, 0.25)', padding: '2px 6px', borderRadius: 4 }}>Soon</span>

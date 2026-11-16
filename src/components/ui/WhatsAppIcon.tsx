@@ -11,7 +11,7 @@ interface WhatsAppIconProps {
 }
 
 export default function WhatsAppIcon({
-  size = 20,
+  size = 22,
   className = '',
   style,
 }: WhatsAppIconProps) {

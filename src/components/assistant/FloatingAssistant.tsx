@@ -1017,7 +1017,7 @@ function FloatingActionButton({
           transition: 'all 0.15s ease',
         }}
       >
-        <WhatsAppIcon size={15} color={waClicked ? '#25D366' : '#ffffff'} />
+        <WhatsAppIcon size={20} color={waClicked ? '#25D366' : '#ffffff'} />
         <span>{waClicked ? 'Coming Soon' : action.label.replace(/^💬\s*/, '')}</span>
       </button>
     );
