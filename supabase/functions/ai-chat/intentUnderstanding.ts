@@ -70,15 +70,97 @@ export class IntentUnderstanding {
   }
 
   /**
-   * Cleans item names from transaction sentence (e.g. "I bought nylon for 15,000" -> "Nylon")
+   * Cleans item names from transaction sentence (e.g. "I paid for an eraser" -> "Eraser", "paid 500 for waybill" -> "Waybill")
    */
   static cleanItemFromText(text: string): string {
     let cleaned = text.trim();
-    cleaned = cleaned.replace(/^(i\s+)?(just\s+)?(bought|purchased|paid\s+for|spent\s+money\s+on|spent\s+on|sold|received\s+for)\s+/i, "");
-    cleaned = cleaned.replace(/\s+(for|at|costing|amounting\s+to|worth)?\s*(₦|ngn|\$)?\s*[\d,]+(\.\d+)?\s*(k|thousand|m|million|\b naira)?.*$/i, "");
+    // 1. Handle 'paid 500 for eraser' or 'spent 2k on fuel'
+    cleaned = cleaned.replace(/^(?:i\s+)?(?:just\s+)?(?:paid|spent)\s+(?:(?:₦|ngn|\$)\s*)?[\d,]+(?:\.\d+)?\s*(?:k|thousand|m|million|\bnaira\b)?\s*(?:for|on)\s+/i, "");
+    // 2. Handle 'paid for eraser', 'bought eraser', etc.
+    cleaned = cleaned.replace(/^(?:i\s+)?(?:just\s+)?(?:bought|buy|purchased|purchase|paid\s+for|paid|spent\s+money\s+on|spent\s+on|got|ordered|restocked|sold|sell|received\s+for)\s+/i, "");
+    // 3. Strip trailing price: 'eraser for 500', 'eraser 500'
+    cleaned = cleaned.replace(/\s+(?:for|at|costing|amounting\s+to|worth)?\s*(?:₦|ngn|\$)?\s*[\d,]+(?:\.\d+)?\s*(?:k|thousand|m|million|\bnaira\b)?.*$/i, "");
+    // 4. Strip leading articles: "an eraser" -> "Eraser"
+    cleaned = cleaned.replace(/^(?:a|an|the)\s+/i, "");
     cleaned = cleaned.replace(/[.,!?]+$/, "").trim();
     if (!cleaned) cleaned = text;
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+
+  /**
+   * Automatically classifies everyday Nigerian SME business activities and expenses
+   * into natural business categories without requiring rigid accounting terminology.
+   */
+  static determineBusinessCategory(text: string): { category: string; type: "income" | "expense" } {
+    const q = text.toLowerCase();
+
+    // 1. Office Supplies & Stationery (erasers, pens, paper, ink, printing, etc.)
+    if (/\b(eraser|pencil|pen|pens|biro|marker|chalk|paper|a4|notebook|jotter|book|books|ledger|stapler|staples|pin|paperclip|tape|sellotape|glue|envelope|file|folder|calculator|ink|toner|cartridge|printing|print|photocopy|laminating|stationery|office\s*supplies|office\s*supply|receipt\s*book|invoice\s*book)\b/i.test(q)) {
+      return { category: "Office Supplies", type: "expense" };
+    }
+
+    // 2. Packaging Materials
+    if (/\b(nylon|polythene|poly\s*bag|leather\s*bag|shopping\s*bag|carrier\s*bag|packaging|wrapper|carton\s*for\s*pack|packing\s*box|bubble\s*wrap|tape\s*for\s*pack|label|sticker|branding\s*package)\b/i.test(q)) {
+      return { category: "Packaging Materials", type: "expense" };
+    }
+
+    // 3. Logistics, Delivery, Travel & Transportation
+    if (/\b(dispatch|delivery|rider|waybill|shipping|courier|haulage|freight|logistics|transport|transportation|fare|bus\s*fare|keke|okada|uber|bolt|flight|fuel|diesel|petrol|gas)\b/i.test(q)) {
+      return { category: "Transportation Expense", type: "expense" };
+    }
+
+    // 4. Utilities, Power & Telecoms
+    if (/\b(nepa|phcn|electricity|light\s*bill|power|prepaid\s*meter|water\s*bill|water\s*rate|airtime|recharge\s*card|recharge|data|internet|wifi|mtn|airtel|glo|9mobile|spectranet|smile)\b/i.test(q)) {
+      return { category: "Utilities (electricity, water)", type: "expense" };
+    }
+
+    // 5. Staff Salaries, Wages & Allowances
+    if (/\b(salary|salaries|wage|wages|stipend|paid\s*worker|paid\s*staff|paid\s*boy|apprentice|casual\s*worker|sales\s*girl|sales\s*boy|manager\s*pay|staff\s*allowance)\b/i.test(q)) {
+      return { category: "Salaries and Wages", type: "expense" };
+    }
+
+    // 6. Rent & Facility Space
+    if (/\b(rent|shop\s*rent|store\s*rent|office\s*rent|warehouse\s*rent|space\s*rent|stall\s*fee)\b/i.test(q)) {
+      return { category: "Rent Expense", type: "expense" };
+    }
+
+    // 7. Repairs, Maintenance & Cleaning
+    if (/\b(repair|repairs|fixing|servicing|maintenance|mechanic|plumber|electrician|carpenter|cleaning|sanitation|detergent|soap|broom|mop|waste\s*disposal|fumigation)\b/i.test(q)) {
+      return { category: "Repairs & Maintenance", type: "expense" };
+    }
+
+    // 8. Staff Welfare & Refreshments
+    if (/\b(lunch|food\s*for\s*staff|staff\s*lunch|staff\s*food|meal|refreshment|snacks|water\s*for\s*office|pure\s*water|dispenser\s*water)\b/i.test(q)) {
+      return { category: "Staff Welfare / Meals", type: "expense" };
+    }
+
+    // 9. Marketing, Advertising & Promotion
+    if (/\b(ad|ads|advert|advertisement|advertising|facebook\s*ad|instagram\s*ad|meta\s*ad|google\s*ad|tiktok\s*ad|flyer|flyers|banner|billboard|promo|promotion|influencer|marketing)\b/i.test(q)) {
+      return { category: "Marketing & Advertising", type: "expense" };
+    }
+
+    // 10. Equipment, Machinery & Fixed Assets
+    if (/\b(generator|laptop|computer|phone\s*for\s*business|printer|scanner|pos\s*machine|freezer|fridge|ac|fan|shelf|shelves|counter|table|chair|machinery|equipment|vehicle|motorcycle|bike|asset)\b/i.test(q)) {
+      return { category: "Property, Plant and Equipment", type: "expense" };
+    }
+
+    // 11. Bank Charges, POS & Licences
+    if (/\b(bank\s*charge|pos\s*charge|stamp\s*duty|transfer\s*fee|sms\s*charge|card\s*fee|cac|licence|license|permit|filing\s*fee)\b/i.test(q)) {
+      return { category: "Bank Charges", type: "expense" };
+    }
+
+    // 12. Sales, Revenue & Customer Inflows
+    if (/\b(sold|sale|sales|customer\s*paid|received\s*from|payment\s*from|client\s*paid|cash\s*collected|bank\s*transfer\s*received|supply\s*payment|settled\s*bill)\b/i.test(q)) {
+      return { category: "Sales Revenue", type: "income" };
+    }
+
+    // 13. Inventory / Stock / Goods for Resale
+    if (/\b(stock|inventory|goods|flour|rice|beans|sugar|oil|cement|drinks|provisions|raw\s*materials|wholesale|resale)\b/i.test(q)) {
+      return { category: "Inventory / Purchases", type: "expense" };
+    }
+
+    // Default for everyday business purchases
+    return { category: "Office Supplies", type: "expense" };
   }
 
   /**
@@ -96,15 +178,19 @@ export class IntentUnderstanding {
     if (pendingClarification && pendingClarification.isAnswer) {
       const amt = this.extractAmount(userText);
       if (amt > 0 && pendingClarification.itemContext) {
+        const cat =
+          pendingClarification.categoryContext ||
+          this.determineBusinessCategory(pendingClarification.itemContext).category;
         return {
           primaryCategory: "clarification_response",
           needsFinancialSnapshot: false,
-          neededTables: ["transactions", "inventory_items"],
+          neededTables: ["transactions", "categories", "inventory_items"],
           suggestedToolCall: {
             name: "recordTransaction",
             parameters: {
               description: pendingClarification.itemContext,
               amount: amt,
+              category: cat,
               type: "expense",
             },
           },
@@ -185,12 +271,18 @@ export class IntentUnderstanding {
       };
     }
 
-    // 4. Financial Transaction Recording
-    if (/(?:bought|purchased|spent|paid for|bought nylon|paid shop rent|paid workers|transportation|generator|sale|sold|received.*customer)/i.test(q)) {
+    // 4. Financial Transaction & Everyday Business Operation Recording
+    // Matches any phrase indicating a purchase, expense, sale, or business spending
+    const isTransactionIntent =
+      /\b(bought|buy|purchased|purchase|spent|spend|paid|pay|cost|costs|costing|acquired|ordered|restocked|restock|sold|sell|sale|sales|received|collected)\b/i.test(q) ||
+      /\b(eraser|stationery|office\s*supplies|nylon|packaging|dispatch|waybill|delivery|fuel|diesel|petrol|airtime|recharge|nepa|phcn|electricity|salary|wages|rent|repair|fixing|cleaning|lunch|food|drinks|generator|laptop|pen|paper|stapler|toner|cartridge)\b/i.test(q);
+
+    if (isTransactionIntent) {
       const amt = this.extractAmount(userText);
       const item = this.cleanItemFromText(userText);
+      const { category, type } = this.determineBusinessCategory(userText);
 
-      // Missing amount triggers clarification
+      // Missing amount triggers contextual, intelligent clarification without falling back to default
       if (!amt || amt <= 0) {
         return {
           primaryCategory: "record_transaction",
@@ -198,35 +290,9 @@ export class IntentUnderstanding {
           neededTables: [],
           suggestedToolCall: null,
           isMultiIntent: false,
-          clarificationNeeded: `How much did you spend on ${item || "that"}?`,
-          confidence: 0.85,
+          clarificationNeeded: `How much did you pay for ${item || "that"}? Once you provide the amount, I will record it as an expense under ${category}.`,
+          confidence: 0.9,
         };
-      }
-
-      let category = "Operating Expense";
-      let type = "expense";
-
-      if (/\b(nylon|polythene|poly\s*bag|packaging|wrapper|box(?:es)?\s+for\s+pack)\b/i.test(q)) {
-        category = "Packaging Materials";
-        type = "expense";
-      } else if (/\b(flour|rice|beans|sugar|oil|cement|bags?\s+of|cartons?\s+of|crates?\s+of|goods\s+for\s+resale|stock|inventory)\b/i.test(q) && !/\b(sold|sale|received)\b/i.test(q)) {
-        category = "Inventory / Purchases";
-        type = "expense";
-      } else if (/\b(rent|shop\s*rent|store\s*rent|office\s*rent)\b/i.test(q)) {
-        category = "Rent Expense";
-        type = "expense";
-      } else if (/\b(workers?|staff|salary|salaries|wages?)\b/i.test(q)) {
-        category = "Salaries and Wages";
-        type = "expense";
-      } else if (/\b(transport|transportation|fare|fuel|diesel|petrol|uber|bolt)\b/i.test(q)) {
-        category = "Transportation Expense";
-        type = "expense";
-      } else if (/\b(generator|laptop|freezer|machinery|equipment|vehicle|car|furniture)\b/i.test(q)) {
-        category = "Property, Plant and Equipment";
-        type = "expense";
-      } else if (/\b(sold|sale|sales|customer.*goods|goods\s+sold)\b/i.test(q)) {
-        category = "Sales Revenue";
-        type = "income";
       }
 
       return {
@@ -365,10 +431,10 @@ export class IntentUnderstanding {
       };
     }
 
-    // 13. Financial Health / Business Advisory
-    if (/\b(how is my business|financial health|profit|profitability|advice|performance|overview)\b/i.test(q)) {
+    // 13. Financial Health & Broad Business Advisory / Operations
+    if (/\b(business|how is my business|financial health|profit|profitability|advice|performance|overview|pricing|price|margin|grow|sales tips|cost cutting|reduce cost|credit policy|debt recovery|customer strategy|expansion|operations)\b/i.test(q)) {
       return {
-        primaryCategory: "financial_analysis",
+        primaryCategory: "business_advice",
         needsFinancialSnapshot: true,
         neededTables: ["accounts", "transactions", "invoices", "inventory_items"],
         suggestedToolCall: null,
