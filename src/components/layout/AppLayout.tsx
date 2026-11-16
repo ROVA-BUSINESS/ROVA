@@ -14,6 +14,7 @@ import SearchModal from '../SearchModal';
 import BusinessOnboardingModal from '../onboarding/BusinessOnboardingModal';
 import { AssistantProvider } from '../../contexts/AssistantContext';
 import FloatingAssistant from '../assistant/FloatingAssistant';
+import PushNotificationPrompt from '../PushNotificationPrompt';
 
 
 export default function AppLayout() {
@@ -446,6 +447,7 @@ export default function AppLayout() {
           overflowX: 'hidden',
           paddingBottom: isMobile ? 'calc(65px + env(safe-area-inset-bottom, 0px))' : 0,
         }}>
+          {user?.id && <PushNotificationPrompt userId={user.id} />}
           {reminderBanner && (
             <div style={{
               margin: '12px 16px 0', padding: '12px 16px',
