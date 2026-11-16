@@ -71,6 +71,12 @@ export interface ROVAAIResponse {
   confirmationSummary?: string;
   pendingToolCall?: any;
   toolExecuted?: boolean;
+  documentToSend?: {
+    url: string;
+    fileName: string;
+    caption?: string;
+    mimeType: string;
+  };
 }
 
 // ── PROVIDER INTERFACES ──────────────────────────────────────────────────

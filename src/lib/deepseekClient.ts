@@ -71,8 +71,8 @@ export type PendingClarification = {
 export type ChatPayload = {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
   context: {
-    transactions: any[];
-    accounts: any[];
+    transactions?: any[];
+    accounts?: any[];
     userId: string;
     isStaff?: boolean;
     inventoryItems?: any[];
@@ -82,10 +82,15 @@ export type ChatPayload = {
     serviceAgreements?: any[];
     documentUrl?: string;
     documentFileName?: string;
+    screenContext?: {
+      pathname: string;
+      pageTitle: string;
+    };
   };
   confirmed?: boolean;
   cancelled?: boolean;
   pendingToolCall?: { name: string; parameters: Record<string, any> } | null;
+  idempotencyKey?: string;
 };
 
 export type ChatResponse = {
@@ -95,6 +100,12 @@ export type ChatResponse = {
   confirmationSummary?: string;
   pendingToolCall?: { name: string; parameters: Record<string, any> } | null;
   toolExecuted?: boolean;
+  documentToSend?: {
+    url: string;
+    fileName: string;
+    caption?: string;
+    mimeType: string;
+  };
 };
 
 export type ChatAction = {

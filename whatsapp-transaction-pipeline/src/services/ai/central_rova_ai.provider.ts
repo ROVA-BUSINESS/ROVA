@@ -54,6 +54,7 @@ export class CentralROVAAIProvider implements AIProvider {
         confirmationSummary: response.data?.confirmationSummary,
         pendingToolCall: response.data?.pendingToolCall,
         toolExecuted: Boolean(response.data?.toolExecuted),
+        documentToSend: response.data?.documentToSend,
       };
     } catch (err: any) {
       Logger.error(`Central ROVA AI Agent call failed: ${err.message}`);
