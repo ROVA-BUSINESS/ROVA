@@ -10,11 +10,9 @@ const corsHeaders = {
 
 const VAPID_PUBLIC_KEY =
   Deno.env.get("VAPID_PUBLIC_KEY") ||
-  "BDAwKemVvdLQUdz8l1toc-qi_oBMcexCkYnRsM4YTPK5BjTYT_nlXb2EtvO0k5_OHJUWmMd5yw37knZJwPyuQOQ";
+  "BL2-7X2E4pmZCgImcL4lc0f2HDa9IZ5QSID0hx_mo4tbW-jsm2JrFwrVWpEWUWqrOwUSoF9MV8ICRXF25CWR5U8";
 
-const VAPID_PRIVATE_KEY =
-  Deno.env.get("VAPID_PRIVATE_KEY") ||
-  "9yhzGBiJaZAhVqyBcel0Tr1Nn_K0mondQ_MrsFs6jic";
+const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
 
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:support@rova.business";
 
