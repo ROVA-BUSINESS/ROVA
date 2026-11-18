@@ -41,7 +41,9 @@ import {
   classifyPaymentTransaction,
   importStatementRecords,
   getSettlementAccounts,
+  recordDirectPayment,
 } from '../../lib/paymentService';
+import { generatePaymentRef, openPaystackPopup } from '../../lib/paystack';
 import SettlementAccountSection from '../../components/payment/SettlementAccountSection';
 import MyBankingTab from '../../components/payment/MyBankingTab';
 import {
@@ -127,6 +129,16 @@ export default function PaymentPage() {
   const [linkExpiryDate, setLinkExpiryDate] = useState('');
   const [linkInvoiceId, setLinkInvoiceId] = useState('');
   const [creatingLink, setCreatingLink] = useState(false);
+
+  // Direct Paystack charge modal states
+  const [showDirectChargeModal, setShowDirectChargeModal] = useState(false);
+  const [directChargeAmount, setDirectChargeAmount] = useState('');
+  const [directChargeEmail, setDirectChargeEmail] = useState('');
+  const [directChargeName, setDirectChargeName] = useState('');
+  const [directChargePurpose, setDirectChargePurpose] = useState('Customer Direct Payment');
+  const [directChargeSettlementAccountId, setDirectChargeSettlementAccountId] = useState('');
+  const [directChargeProcessing, setDirectChargeProcessing] = useState(false);
+  const [directChargeError, setDirectChargeError] = useState<string | null>(null);
 
   // Reconciliation form
   const [reconcileType, setReconcileType] = useState<'income' | 'expense' | 'transfer' | 'ignored'>('income');
@@ -342,6 +354,128 @@ export default function PaymentPage() {
       showNotice('error', err.message || 'Failed to create payment link.');
     } finally {
       setCreatingLink(false);
+    }
+  }
+
+  // ── Handlers: Direct Paystack Charge into Settlement Account ───────────────
+  function openDirectChargeModal() {
+    if (settlementAccounts.length === 0) {
+      showNotice('info', 'Please register a verified Nigerian settlement account in My Banking before collecting payments.');
+      setActiveTab('banking');
+      return;
+    }
+
+    const primary = settlementAccounts.find(a => a.is_primary) || settlementAccounts[0];
+    setDirectChargeSettlementAccountId(primary?.id || '');
+    setDirectChargeAmount('');
+    setDirectChargeEmail(user?.email || '');
+    setDirectChargeName('');
+    setDirectChargePurpose('Customer Direct Payment');
+    setDirectChargeError(null);
+    setShowDirectChargeModal(true);
+  }
+
+  async function handleExecuteDirectCharge(e: FormEvent) {
+    e.preventDefault();
+    if (!effectiveUserId) return;
+    setDirectChargeError(null);
+
+    const numAmount = parseFloat(directChargeAmount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setDirectChargeError('Please enter a valid payment amount greater than zero.');
+      return;
+    }
+
+    if (!directChargeEmail || !directChargeEmail.includes('@')) {
+      setDirectChargeError('Please provide a valid customer email for the Paystack receipt.');
+      return;
+    }
+
+    const selectedAcct = settlementAccounts.find(a => a.id === directChargeSettlementAccountId) || settlementAccounts[0];
+    if (!selectedAcct) {
+      setDirectChargeError('Please select a valid settlement account.');
+      return;
+    }
+
+    setDirectChargeProcessing(true);
+
+    try {
+      const ref = generatePaymentRef('DIR');
+
+      await openPaystackPopup({
+        email: directChargeEmail.trim(),
+        amountNaira: numAmount,
+        reference: ref,
+        subaccount: selectedAcct.paystack_subaccount_code || undefined,
+        metadata: {
+          settlement_account_id: selectedAcct.id,
+          settlement_bank: selectedAcct.bank_name,
+          settlement_account_number: selectedAcct.account_number,
+          counterparty_name: directChargeName.trim() || undefined,
+          counterparty_email: directChargeEmail.trim(),
+          purpose: directChargePurpose.trim(),
+          source: 'paystack_direct_settlement',
+        },
+        onSuccess: async (reference) => {
+          try {
+            // 1. Record in payment_transactions
+            await recordDirectPayment({
+              userId: effectiveUserId,
+              provider: 'paystack',
+              reference,
+              amount: numAmount,
+              description: directChargePurpose.trim() || `Customer Payment via Paystack (${selectedAcct.bank_name})`,
+              payerName: directChargeName.trim() || undefined,
+              payerEmail: directChargeEmail.trim(),
+              channel: 'paystack_inline',
+              metadata: {
+                settlement_account_id: selectedAcct.id,
+                bank_name: selectedAcct.bank_name,
+                account_number: selectedAcct.account_number,
+                subaccount_code: selectedAcct.paystack_subaccount_code,
+              },
+            });
+
+            // 2. Insert into accounting ledger 'transactions'
+            await supabase.from('transactions').insert({
+              user_id: effectiveUserId,
+              amount: numAmount,
+              type: 'income',
+              description: directChargePurpose.trim() || `Customer Payment via Paystack (${selectedAcct.bank_name})`,
+              reference,
+              date: new Date().toISOString().split('T')[0],
+              notes: `Payment collected via Paystack directly settled into ${selectedAcct.bank_name} (${selectedAcct.account_number}). Payer: ${directChargeName || directChargeEmail}`,
+              is_verified: true,
+              ai_category: 'Sales & Revenue',
+            });
+
+            showNotice(
+              'success',
+              `Payment of ${formatCurrency(numAmount)} received successfully! Settled directly into ${selectedAcct.bank_name} (${selectedAcct.account_number}).`
+            );
+
+            setShowDirectChargeModal(false);
+            await loadAllData();
+          } catch (recErr: any) {
+            console.error('Failed to log direct payment:', recErr);
+            showNotice(
+              'info',
+              `Payment confirmed (Ref: ${reference}). Proceeds settled directly into ${selectedAcct.bank_name}.`
+            );
+            setShowDirectChargeModal(false);
+            await loadAllData();
+          } finally {
+            setDirectChargeProcessing(false);
+          }
+        },
+        onClose: () => {
+          setDirectChargeProcessing(false);
+        },
+      });
+    } catch (err: any) {
+      console.error('Error opening Paystack popup:', err);
+      setDirectChargeError(err?.message || 'Could not launch Paystack checkout. Please check your network and try again.');
+      setDirectChargeProcessing(false);
     }
   }
 
@@ -897,7 +1031,7 @@ export default function PaymentPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {provider === 'paystack' && isConnected && (
                           <button
-                            onClick={() => setShowCreateLinkModal(true)}
+                            onClick={openDirectChargeModal}
                             style={{
                               background: 'rgba(124, 58, 237, 0.12)',
                               border: '1px solid rgba(124, 58, 237, 0.3)',
@@ -912,8 +1046,8 @@ export default function PaymentPage() {
                               gap: 4,
                             }}
                           >
-                            <Plus size={11} />
-                            Create Link
+                            <CreditCard size={11} />
+                            Collect Payment
                           </button>
                         )}
                         <button
@@ -1161,8 +1295,8 @@ export default function PaymentPage() {
                       <Button
                         variant="primary"
                         size="sm"
-                        icon={<Plus size={14} />}
-                        onClick={() => setShowCreateLinkModal(true)}
+                        icon={<CreditCard size={14} />}
+                        onClick={openDirectChargeModal}
                         style={{
                           flex: 1,
                           background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
@@ -1171,7 +1305,7 @@ export default function PaymentPage() {
                           fontWeight: 700,
                         }}
                       >
-                        Create Payment Link
+                        Collect Payment (Paystack)
                       </Button>
                     ) : (
                       <div
@@ -1881,6 +2015,215 @@ export default function PaymentPage() {
         </div>
       )}
 
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* MODAL: DIRECT PAYMENT COLLECT (PAYSTACK)                             */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <Modal
+        open={showDirectChargeModal}
+        onClose={() => !directChargeProcessing && setShowDirectChargeModal(false)}
+        title="Collect Payment via Paystack"
+        size="md"
+      >
+        <form onSubmit={handleExecuteDirectCharge} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Trust Banner */}
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+            }}
+          >
+            <ShieldCheck size={18} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: 2 }}>
+                Direct Settlement into Your Bank Account
+              </strong>
+              Customer pays directly into your verified bank account via Paystack. ROVA does not hold or pool funds.
+            </div>
+          </div>
+
+          {/* Destination Settlement Account */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Settlement Destination Bank <span style={{ color: 'var(--error)' }}>*</span>
+            </label>
+            {settlementAccounts.length === 1 ? (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--accent-primary)',
+                  background: 'rgba(124, 58, 237, 0.04)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+                    {settlementAccounts[0].bank_name} — {settlementAccounts[0].account_number}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    {settlementAccounts[0].account_name}
+                  </div>
+                </div>
+                <Badge variant="success">Verified Bank</Badge>
+              </div>
+            ) : (
+              <select
+                value={directChargeSettlementAccountId}
+                onChange={e => setDirectChargeSettlementAccountId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--bg-border)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: 13,
+                }}
+                required
+              >
+                {settlementAccounts.map(acct => (
+                  <option key={acct.id} value={acct.id}>
+                    {acct.bank_name} — {acct.account_number} ({acct.account_name}) {acct.is_primary ? '★ Primary' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Amount to Collect (NGN) <span style={{ color: 'var(--error)' }}>*</span>
+            </label>
+            <Input
+              type="number"
+              placeholder="e.g. 10000"
+              value={directChargeAmount}
+              onChange={e => setDirectChargeAmount(e.target.value)}
+              min={100}
+              step="any"
+              required
+              prefix="₦"
+            />
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              {['2000', '5000', '10000', '25000', '50000', '100000'].map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setDirectChargeAmount(preset)}
+                  style={{
+                    background: directChargeAmount === preset ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                    color: directChargeAmount === preset ? '#ffffff' : 'var(--text-secondary)',
+                    border: '1px solid var(--bg-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ₦{Number(preset).toLocaleString()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Customer Info */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                Customer / Payer Email <span style={{ color: 'var(--error)' }}>*</span>
+              </label>
+              <Input
+                type="email"
+                placeholder="customer@example.com"
+                value={directChargeEmail}
+                onChange={e => setDirectChargeEmail(e.target.value)}
+                required
+              />
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, display: 'block' }}>
+                Paystack receipt sent here
+              </span>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                Customer / Payer Name
+              </label>
+              <Input
+                placeholder="e.g. Adeola Johnson"
+                value={directChargeName}
+                onChange={e => setDirectChargeName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Purpose / Narration */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Payment Narration / Purpose
+            </label>
+            <Input
+              placeholder="e.g. Consultation fee, Point of Sale, Product payment"
+              value={directChargePurpose}
+              onChange={e => setDirectChargePurpose(e.target.value)}
+            />
+          </div>
+
+          {/* Error Message */}
+          {directChargeError && (
+            <div
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid var(--error)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 12,
+                color: 'var(--error)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <AlertCircle size={14} />
+              <span>{directChargeError}</span>
+            </div>
+          )}
+
+          {/* Modal Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setShowDirectChargeModal(false)}
+              disabled={directChargeProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              type="submit"
+              loading={directChargeProcessing}
+              icon={<CreditCard size={14} />}
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+                color: '#ffffff',
+                fontWeight: 700,
+              }}
+            >
+              {directChargeProcessing ? 'Opening Paystack…' : 'Pay with Paystack'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* MODAL: CREATE PAYMENT LINK                                          */}
