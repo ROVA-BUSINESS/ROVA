@@ -19,8 +19,6 @@ import {
   Search,
   ExternalLink,
   RefreshCw,
-  Play,
-  Pause,
   AlertCircle,
   CheckCircle2,
   Paperclip,
