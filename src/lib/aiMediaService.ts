@@ -217,30 +217,144 @@ export class AudioRecorder {
   }
 }
 
+// ── Browser Speech Recognition Controller ────────────────────────────────────
+
+export class BrowserSpeechRecognizer {
+  private recognition: any = null;
+  public transcript: string = '';
+  public isListening: boolean = false;
+  private onTranscriptUpdate?: (text: string) => void;
+
+  constructor(onTranscriptUpdate?: (text: string) => void) {
+    this.onTranscriptUpdate = onTranscriptUpdate;
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        try {
+          const rec = new SpeechRecognition();
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.maxAlternatives = 1;
+
+          try {
+            rec.lang = navigator.language || 'en-US';
+          } catch {
+            rec.lang = 'en-US';
+          }
+
+          rec.onresult = (event: any) => {
+            let fullStr = '';
+            for (let i = 0; i < event.results.length; ++i) {
+              fullStr += event.results[i][0].transcript;
+            }
+            const text = fullStr.trim();
+            if (text) {
+              this.transcript = text;
+              if (this.onTranscriptUpdate) {
+                this.onTranscriptUpdate(text);
+              }
+            }
+          };
+
+          rec.onerror = (e: any) => {
+            if (e?.error !== 'no-speech' && e?.error !== 'aborted') {
+              console.warn('Browser SpeechRecognition event:', e?.error);
+            }
+          };
+
+          rec.onend = () => {
+            if (this.isListening) {
+              try {
+                rec.start();
+              } catch {
+                // Ignore restart error if mic is stopping
+              }
+            }
+          };
+
+          this.recognition = rec;
+        } catch (err) {
+          console.warn('SpeechRecognition initialization warning:', err);
+        }
+      }
+    }
+  }
+
+  start(): void {
+    if (!this.recognition || this.isListening) return;
+    this.transcript = '';
+    this.isListening = true;
+    try {
+      this.recognition.start();
+    } catch (e) {
+      console.warn('Failed to start SpeechRecognition:', e);
+    }
+  }
+
+  stop(): string {
+    this.isListening = false;
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch {}
+    }
+    return this.transcript;
+  }
+
+  cancel(): void {
+    this.isListening = false;
+    this.transcript = '';
+    if (this.recognition) {
+      try {
+        this.recognition.abort();
+      } catch {}
+    }
+  }
+
+  static isSupported(): boolean {
+    return typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  }
+}
+
 // ── Transcription Service ───────────────────────────────────────────────────
 
 /**
  * Transcribes an audio blob into text.
  * Priority:
  * 1. Backend SpeechToTextService endpoint (`/api/ai/transcribe`)
- * 2. Fallback to browser SpeechRecognition if interim text was captured
+ * 2. Fallback to browser SpeechRecognition if interim/final text was captured
+ * 3. Graceful fallback when no text was detected so voice note is preserved
  */
 export async function transcribeAudioBlob(
   blob: Blob,
-  fileName: string = 'recording.webm'
+  fileName: string = 'recording.webm',
+  fallbackText: string = ''
 ): Promise<TranscriptionResult> {
-  const formData = new FormData();
-  formData.append('audio', blob, fileName);
+  const cleanFallback = (fallbackText || '').trim();
 
+  // 1. Try backend serverless Whisper endpoint
   try {
-    const response = await fetch('/api/ai/transcribe', {
+    const backendUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || '';
+    const endpoint = backendUrl ? `${backendUrl.replace(/\/$/, '')}/api/ai/transcribe` : '/api/ai/transcribe';
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    const formData = new FormData();
+    formData.append('audio', blob, fileName);
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       body: formData,
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (response.ok) {
       const data = await response.json();
-      if (data.success && data.transcript) {
+      if (data.success && data.transcript && data.transcript.trim()) {
         return {
           text: data.transcript.trim(),
           confidence: data.confidence || 0.95,
@@ -249,12 +363,24 @@ export async function transcribeAudioBlob(
       }
     }
   } catch (err) {
-    console.warn('Backend transcription endpoint failed, checking fallbacks:', err);
+    console.warn('Backend transcription endpoint unavailable or returned error, using fallback:', err);
   }
 
-  throw new Error(
-    'UNCLEAR_AUDIO: Could not transcribe recording. Please speak clearly or type your message directly.'
-  );
+  // 2. Fallback to captured browser speech recognition text
+  if (cleanFallback) {
+    return {
+      text: cleanFallback,
+      confidence: 0.92,
+      source: 'browser_speech',
+    };
+  }
+
+  // 3. Graceful result when no text was detected (preserves voice note attachment)
+  return {
+    text: '',
+    confidence: 0,
+    source: 'browser_speech',
+  };
 }
 
 // ── Document & Image OCR Service ─────────────────────────────────────────────

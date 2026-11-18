@@ -119,6 +119,11 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   100% { background-position: 200% 0; }
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.92); }
+}
+
 .animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
 .animate-slideIn { animation: slideIn 0.3s ease forwards; }
 .animate-spin { animation: spin 0.8s linear infinite; }

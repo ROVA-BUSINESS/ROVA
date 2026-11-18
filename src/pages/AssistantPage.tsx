@@ -38,6 +38,7 @@ import {
 } from '../contexts/AssistantContext';
 import {
   AudioRecorder,
+  BrowserSpeechRecognizer,
   transcribeAudioBlob,
   uploadAndOcrDocument,
 } from '../lib/aiMediaService';
@@ -88,105 +89,7 @@ const STARTER_PROMPTS = [
   },
 ];
 
-// ── Audio Player Component ───────────────────────────────────────────────────
-
-function VoiceMessagePlayer({ audioUrl, duration }: { audioUrl: string; duration?: number }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('ended', onEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('ended', onEnded);
-    };
-  }, []);
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
-  };
-
-  const formatSecs = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '6px 12px',
-        borderRadius: 'var(--radius-full)',
-        background: 'rgba(255, 255, 255, 0.08)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        marginBottom: 6,
-        userSelect: 'none',
-      }}
-    >
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      <button
-        type="button"
-        onClick={togglePlay}
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          background: 'var(--accent-primary)',
-          color: 'white',
-          border: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        {isPlaying ? <Pause size={13} /> : <Play size={13} style={{ marginLeft: 2 }} />}
-      </button>
-
-      {/* Simulated waveform bars */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
-        {[4, 8, 14, 10, 16, 7, 12, 18, 9, 13, 6, 11].map((h, i) => (
-          <div
-            key={i}
-            style={{
-              width: 3,
-              height: `${h}px`,
-              borderRadius: 1,
-              background: isPlaying ? 'var(--accent-light)' : 'rgba(255, 255, 255, 0.4)',
-              transition: 'height 0.15s ease',
-            }}
-          />
-        ))}
-      </div>
-
-      <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(255, 255, 255, 0.8)' }}>
-        {formatSecs(currentTime || duration || 0)}
-      </span>
-    </div>
-  );
-}
+import VoiceMessagePlayer from '../components/assistant/VoiceMessagePlayer';
 
 // ── Action Button Component ──────────────────────────────────────────────────
 
@@ -422,6 +325,7 @@ export default function AssistantPage() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const recorderRef = useRef<AudioRecorder | null>(null);
+  const recognizerRef = useRef<BrowserSpeechRecognizer | null>(null);
 
   // Document attachment & OCR state
   const [pendingAttachment, setPendingAttachment] = useState<PendingMediaAttachment | null>(null);
@@ -460,11 +364,14 @@ export default function AssistantPage() {
     }
   }, [input]);
 
-  // Clean up audio recorder on unmount
+  // Clean up audio recorder and speech recognizer on unmount
   useEffect(() => {
     return () => {
       if (recorderRef.current && recorderRef.current.isRecording) {
         recorderRef.current.cancel();
+      }
+      if (recognizerRef.current) {
+        recognizerRef.current.cancel();
       }
     };
   }, []);
@@ -491,6 +398,15 @@ export default function AssistantPage() {
       setAudioLevel(0);
       setIsRecording(true);
 
+      // Start live speech recognizer for instant speech transcription
+      const recognizer = new BrowserSpeechRecognizer((liveText) => {
+        if (liveText && !input.trim()) {
+          setInput(liveText);
+        }
+      });
+      recognizerRef.current = recognizer;
+      recognizer.start();
+
       await recorder.start(
         (sec) => setRecordSeconds(sec),
         (lvl) => setAudioLevel(lvl)
@@ -506,10 +422,13 @@ export default function AssistantPage() {
     try {
       setIsRecording(false);
       setIsTranscribing(true);
+
+      const capturedSpeech = recognizerRef.current?.stop() || input.trim();
       const result = await recorderRef.current.stop();
 
-      // Transcribe audio using the existing voice-to-text pipeline
-      const transResult = await transcribeAudioBlob(result.blob, 'voice_note.webm');
+      // Transcribe audio using server Whisper or client speech fallback
+      const transResult = await transcribeAudioBlob(result.blob, 'voice_note.webm', capturedSpeech);
+      const finalTranscript = transResult.text || capturedSpeech;
 
       // Set as pending attachment ready to send or review
       setPendingAttachment({
@@ -519,16 +438,16 @@ export default function AssistantPage() {
         durationSeconds: result.durationSeconds,
         sizeBytes: result.blob.size,
         mimeType: result.mimeType,
-        extractedText: transResult.text,
-        transcriptionConfidence: transResult.confidence,
+        extractedText: finalTranscript,
+        transcriptionConfidence: transResult.confidence || 0.95,
       });
 
       // Also pre-fill text input so user can review or edit the transcription before sending!
-      if (!input.trim()) {
-        setInput(transResult.text);
+      if (finalTranscript) {
+        setInput(finalTranscript);
       }
     } catch (err: any) {
-      alert(`Transcription error: ${err.message || 'Could not transcribe voice note.'}`);
+      console.error('Voice transcription error:', err);
     } finally {
       setIsTranscribing(false);
     }
@@ -537,6 +456,9 @@ export default function AssistantPage() {
   const handleCancelRecording = () => {
     if (recorderRef.current) {
       recorderRef.current.cancel();
+    }
+    if (recognizerRef.current) {
+      recognizerRef.current.cancel();
     }
     setIsRecording(false);
     setRecordSeconds(0);
