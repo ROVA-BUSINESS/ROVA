@@ -15,6 +15,12 @@ interface PublicLinkData {
   payment_url: string;
   status: string;
   merchant_name: string;
+  subaccount_code?: string | null;
+  settlement_bank?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  expires_at?: string | null;
 }
 
 export default function PublicCheckoutPage() {
@@ -48,8 +54,19 @@ export default function PublicCheckoutPage() {
         if (res.ok) {
           const body = await res.json();
           if (body.success && body.link) {
+            if (body.link.expires_at) {
+              const exp = new Date(body.link.expires_at);
+              exp.setHours(23, 59, 59, 999);
+              if (exp < new Date()) {
+                setError('This payment link has expired.');
+                setLoading(false);
+                return;
+              }
+            }
             setLinkData(body.link);
             if (body.link.amount) setCustomAmount(String(body.link.amount));
+            if (body.link.customer_name) setPayerName(body.link.customer_name);
+            if (body.link.customer_email) setPayerEmail(body.link.customer_email);
             setLoading(false);
             return;
           }
@@ -69,6 +86,15 @@ export default function PublicCheckoutPage() {
           throw new Error('Payment link not found or inactive.');
         }
 
+        const meta = (data.metadata || {}) as Record<string, any>;
+        if (meta.expires_at) {
+          const exp = new Date(meta.expires_at);
+          exp.setHours(23, 59, 59, 999);
+          if (exp < new Date()) {
+            throw new Error('This payment link has expired.');
+          }
+        }
+
         setLinkData({
           id: data.id,
           title: data.title,
@@ -79,8 +105,16 @@ export default function PublicCheckoutPage() {
           payment_url: data.payment_url,
           status: data.status,
           merchant_name: 'ROVA Business Merchant',
+          subaccount_code: meta.subaccount_code || null,
+          settlement_bank: meta.settlement_bank || null,
+          customer_name: meta.customer_name || null,
+          customer_email: meta.customer_email || null,
+          customer_phone: meta.customer_phone || null,
+          expires_at: meta.expires_at || null,
         });
         if (data.amount) setCustomAmount(String(data.amount));
+        if (meta.customer_name) setPayerName(meta.customer_name);
+        if (meta.customer_email) setPayerEmail(meta.customer_email);
       } catch (err: any) {
         setError(err.message || 'Payment link not found.');
       } finally {
@@ -117,10 +151,12 @@ export default function PublicCheckoutPage() {
         amountNaira: payableAmount,
         email: payerEmail.trim(),
         reference,
+        subaccount: linkData.subaccount_code || undefined,
         metadata: {
           linkId: linkData.id,
           linkTitle: linkData.title,
           payerName: payerName.trim(),
+          subaccount: linkData.subaccount_code || undefined,
           via: 'rova_checkout',
         },
         onSuccess: async (verifiedRef) => {
@@ -309,6 +345,25 @@ export default function PublicCheckoutPage() {
                 <p style={{ fontSize: 13, color: '#a1a1aa', margin: 0, lineHeight: 1.4 }}>
                   {linkData.description}
                 </p>
+              )}
+              {linkData.settlement_bank && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 11,
+                    color: '#22c55e',
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.25)',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    marginTop: 10,
+                  }}
+                >
+                  <ShieldCheck size={13} />
+                  <span>Settles directly into {linkData.settlement_bank} account</span>
+                </div>
               )}
             </div>
 

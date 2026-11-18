@@ -133,3 +133,25 @@ export interface StatementParsedRow {
   validationError?: string;
 }
 
+
+export interface SettlementAccount {
+  id: string;
+  user_id: string;
+  bank_name: string;
+  bank_code: string;
+  account_number: string;
+  account_name: string;
+  is_verified: boolean;
+  is_primary: boolean;
+  paystack_subaccount_code?: string | null;
+  paystack_recipient_code?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NigerianBank {
+  name: string;
+  code: string;
+  category: 'commercial' | 'digital' | 'microfinance';
+}

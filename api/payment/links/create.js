@@ -14,7 +14,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { userId, title, description = '', amount, currency = 'NGN', allowCustomAmount = false, provider = 'paystack' } = req.body || {};
+    const {
+      userId,
+      title,
+      description = '',
+      amount,
+      currency = 'NGN',
+      allowCustomAmount = false,
+      provider = 'paystack',
+      settlementAccountId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      expiresAt,
+      invoiceId,
+    } = req.body || {};
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'User ID is required.' });
@@ -22,6 +36,39 @@ export default async function handler(req, res) {
 
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, error: 'Title is required for creating a payment link.' });
+    }
+
+    // Lookup settlement account and Paystack subaccount if provided
+    let subaccountCode = null;
+    let settlementBankName = null;
+    let settlementAccountNum = null;
+    if (settlementAccountId) {
+      const { data: settlAcct } = await supabase
+        .from('settlement_accounts')
+        .select('*')
+        .eq('id', settlementAccountId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (settlAcct) {
+        subaccountCode = settlAcct.paystack_subaccount_code || null;
+        settlementBankName = settlAcct.bank_name || null;
+        settlementAccountNum = settlAcct.account_number || null;
+      }
+    } else {
+      // Check if user has a primary settlement account
+      const { data: primaryAcct } = await supabase
+        .from('settlement_accounts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_primary', true)
+        .maybeSingle();
+
+      if (primaryAcct) {
+        subaccountCode = primaryAcct.paystack_subaccount_code || null;
+        settlementBankName = primaryAcct.bank_name || null;
+        settlementAccountNum = primaryAcct.account_number || null;
+      }
     }
 
     const slug = `rova-${Math.random().toString(36).substring(2, 9).toLowerCase()}`;
@@ -36,6 +83,7 @@ export default async function handler(req, res) {
           description: description || 'Payment via ROVA',
           amount: allowCustomAmount ? undefined : Math.round(Number(amount) * 100),
           currency,
+          ...(subaccountCode ? { split_code: undefined, subaccount: subaccountCode } : {}),
         };
 
         const paystackRes = await fetch('https://api.paystack.co/page', {
@@ -59,6 +107,19 @@ export default async function handler(req, res) {
       }
     }
 
+    const linkMetadata = {
+      generated_by: 'rova_unified_payment_tab',
+      subaccount_code: subaccountCode,
+      settlement_account_id: settlementAccountId || null,
+      settlement_bank: settlementBankName,
+      settlement_account_number: settlementAccountNum,
+      customer_name: customerName || null,
+      customer_email: customerEmail || null,
+      customer_phone: customerPhone || null,
+      expires_at: expiresAt || null,
+      invoice_id: invoiceId || null,
+    };
+
     const { data: linkRecord, error: dbError } = await supabase
       .from('payment_links')
       .insert({
@@ -75,7 +136,7 @@ export default async function handler(req, res) {
         status: 'active',
         total_collected: 0,
         payments_count: 0,
-        metadata: { generated_by: 'rova_unified_payment_tab' },
+        metadata: linkMetadata,
       })
       .select()
       .single();
@@ -99,6 +160,7 @@ export default async function handler(req, res) {
           status: 'active',
           total_collected: 0,
           payments_count: 0,
+          metadata: linkMetadata,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },

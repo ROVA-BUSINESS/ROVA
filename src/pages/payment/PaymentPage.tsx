@@ -19,6 +19,7 @@ import {
   Info,
   Calendar,
   Layers,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Account, type Category } from '../../lib/supabase';
@@ -40,7 +41,10 @@ import {
   classifyPaymentTransaction,
   importStatementRecords,
   recordDirectPayment,
+  getSettlementAccounts,
 } from '../../lib/paymentService';
+import SettlementAccountSection from '../../components/payment/SettlementAccountSection';
+import MyBankingTab from '../../components/payment/MyBankingTab';
 import { generatePaymentRef, openPaystackPopup } from '../../lib/paystack';
 import {
   parseCSVText,
@@ -55,9 +59,10 @@ import type {
   PaymentTransaction,
   PaymentOverviewMetrics,
   StatementParsedRow,
+  SettlementAccount,
 } from '../../types/payment';
 
-type ActiveTab = 'overview' | 'providers' | 'links' | 'transactions' | 'import';
+type ActiveTab = 'overview' | 'providers' | 'links' | 'transactions' | 'import' | 'banking';
 type DateFilter = 'today' | '7days' | 'month' | 'custom';
 
 export default function PaymentPage() {
@@ -113,6 +118,10 @@ export default function PaymentPage() {
   const [showTxDetailsModal, setShowTxDetailsModal] = useState<PaymentTransaction | null>(null);
   const [showReconcileModal, setShowReconcileModal] = useState<PaymentTransaction | null>(null);
 
+  // Settlement & Banking states
+  const [settlementAccounts, setSettlementAccounts] = useState<SettlementAccount[]>([]);
+  const [invoices, setInvoices] = useState<{ id: string; invoice_number: string; client_name: string; total_amount: number; payment_status: string }[]>([]);
+
   // Form states for creating link
   const [linkTitle, setLinkTitle] = useState('');
   const [linkDesc, setLinkDesc] = useState('');
@@ -120,6 +129,12 @@ export default function PaymentPage() {
   const [linkCurrency, setLinkCurrency] = useState('NGN');
   const [linkCustomAmount, setLinkCustomAmount] = useState(false);
   const [linkProvider, setLinkProvider] = useState<PaymentProvider>('paystack');
+  const [linkSettlementAccountId, setLinkSettlementAccountId] = useState('');
+  const [linkCustomerName, setLinkCustomerName] = useState('');
+  const [linkCustomerEmail, setLinkCustomerEmail] = useState('');
+  const [linkCustomerPhone, setLinkCustomerPhone] = useState('');
+  const [linkExpiryDate, setLinkExpiryDate] = useState('');
+  const [linkInvoiceId, setLinkInvoiceId] = useState('');
   const [creatingLink, setCreatingLink] = useState(false);
 
   // Reconciliation form
@@ -194,6 +209,24 @@ export default function PaymentPage() {
       setTotalTxCount(txData.totalCount);
       setAccounts(accsData.data || []);
       setCategories(catsData.data || []);
+
+      // Load settlement bank accounts and open invoices
+      try {
+        const [settlRes, invRes] = await Promise.all([
+          getSettlementAccounts(effectiveUserId),
+          supabase
+            .from('invoices')
+            .select('id, invoice_number, client_name, total_amount, payment_status')
+            .eq('user_id', effectiveUserId)
+            .neq('payment_status', 'paid_in_full')
+            .order('created_at', { ascending: false })
+            .limit(20),
+        ]);
+        setSettlementAccounts(settlRes || []);
+        setInvoices((invRes.data as any) || []);
+      } catch (subLoadErr) {
+        console.warn('Settlement accounts or invoices secondary load warning:', subLoadErr);
+      }
     } catch (err: any) {
       console.error('Error loading payment data:', err);
       showNotice('error', 'Failed to load payment data. Please try again.');
@@ -363,6 +396,12 @@ export default function PaymentPage() {
         amount: amt,
         currency: linkCurrency,
         allowCustomAmount: linkCustomAmount,
+        settlementAccountId: linkSettlementAccountId || undefined,
+        customerName: linkCustomerName.trim() || undefined,
+        customerEmail: linkCustomerEmail.trim() || undefined,
+        customerPhone: linkCustomerPhone.trim() || undefined,
+        expiresAt: linkExpiryDate || undefined,
+        invoiceId: linkInvoiceId || undefined,
       });
 
       setPaymentLinks(prev => [newLink, ...prev]);
@@ -371,6 +410,12 @@ export default function PaymentPage() {
       setLinkDesc('');
       setLinkAmount('');
       setLinkCustomAmount(false);
+      setLinkSettlementAccountId('');
+      setLinkCustomerName('');
+      setLinkCustomerEmail('');
+      setLinkCustomerPhone('');
+      setLinkExpiryDate('');
+      setLinkInvoiceId('');
       showNotice('success', `Payment link "${newLink.title}" created successfully!`);
     } catch (err: any) {
       showNotice('error', err.message || 'Failed to create payment link.');
@@ -634,9 +679,9 @@ export default function PaymentPage() {
       >
         <div>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>Payment</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>Banking & Payments</h1>
             <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
-              Manage your payment providers, collect payments, and track transactions in one place.
+              Collect customer payments directly into your verified bank account and access official Nigerian banking portals.
             </p>
           </div>
         </div>
@@ -703,6 +748,7 @@ export default function PaymentPage() {
           { id: 'links', label: 'Payment Links', icon: LinkIcon, count: paymentLinks.length },
           { id: 'transactions', label: 'Transactions', icon: Clock, count: totalTxCount },
           { id: 'import', label: 'Import Statements', icon: Upload },
+          { id: 'banking', label: 'My Banking', icon: Building2, count: settlementAccounts.length ? settlementAccounts.length : undefined },
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1314,10 +1360,26 @@ export default function PaymentPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
                         <div>Total Collections: <strong>{formatCurrency(linkCollected, link.currency)}</strong></div>
                         <div>Payments Count: <strong>{linkCount}</strong></div>
                       </div>
+
+                      {((link.metadata as any)?.settlement_bank || (link.metadata as any)?.customer_name) && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                          {(link.metadata as any)?.settlement_bank && (
+                            <span style={{ fontSize: 11, background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <CheckCircle2 size={11} />
+                              {(link.metadata as any).settlement_bank}
+                            </span>
+                          )}
+                          {(link.metadata as any)?.customer_name && (
+                            <span style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 4 }}>
+                              For: {(link.metadata as any).customer_name}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--bg-border)' }}>
@@ -1879,6 +1941,28 @@ export default function PaymentPage() {
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* TAB 6: MY BANKING & SETTLEMENT ACCOUNTS                             */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {activeTab === 'banking' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          {/* Section 1: Settlement Bank Account Registration */}
+          {effectiveUserId && (
+            <SettlementAccountSection
+              userId={effectiveUserId}
+              settlementAccounts={settlementAccounts}
+              onAccountsChanged={async () => {
+                const updated = await getSettlementAccounts(effectiveUserId);
+                setSettlementAccounts(updated);
+              }}
+            />
+          )}
+
+          {/* Section 2: Official Internet Banking Directory */}
+          <MyBankingTab />
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
       {/* MODAL: DIRECT PAY INTO ROVA (VIA PAYSTACK)                          */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       <Modal
@@ -2084,6 +2168,203 @@ export default function PaymentPage() {
               <option value="paystack">Paystack (Recommended & Ready)</option>
             </select>
           </div>
+
+          {/* Settlement Account Selector */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Settlement Bank Account
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateLinkModal(false);
+                  setActiveTab('banking');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-primary)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                + Manage Accounts
+              </button>
+            </div>
+            {settlementAccounts.length > 0 ? (
+              <select
+                value={linkSettlementAccountId}
+                onChange={e => setLinkSettlementAccountId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  fontSize: 13,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="">-- Use Primary Settlement Account --</option>
+                {settlementAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.bank_name} — ****{acc.account_number.slice(-4)} ({acc.account_name}){acc.is_primary ? ' [Primary]' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(234, 179, 8, 0.08)',
+                  border: '1px solid rgba(234, 179, 8, 0.25)',
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.4,
+                }}
+              >
+                No settlement bank account registered yet. Payments will be held until you register your Nigerian bank account under the <strong>My Banking</strong> tab.
+              </div>
+            )}
+          </div>
+
+          {/* Pre-fill Customer Details (Optional) */}
+          <div
+            style={{
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--bg-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 14px',
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+              Pre-fill Customer Info (Optional)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Customer Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Chukwuma Adebayo"
+                  value={linkCustomerName}
+                  onChange={e => setLinkCustomerName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Customer Email</label>
+                <input
+                  type="email"
+                  placeholder="e.g. client@email.com"
+                  value={linkCustomerEmail}
+                  onChange={e => setLinkCustomerEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Customer Phone</label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 08012345678"
+                  value={linkCustomerPhone}
+                  onChange={e => setLinkCustomerPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Expiry Date</label>
+                <input
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  value={linkExpiryDate}
+                  onChange={e => setLinkExpiryDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Link to Open Invoice (Optional) */}
+          {invoices.length > 0 && (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                Attach to Invoice (Optional)
+              </label>
+              <select
+                value={linkInvoiceId}
+                onChange={e => {
+                  const invId = e.target.value;
+                  setLinkInvoiceId(invId);
+                  const selectedInv = invoices.find(inv => inv.id === invId);
+                  if (selectedInv) {
+                    if (!linkTitle) setLinkTitle(`Invoice ${selectedInv.invoice_number}`);
+                    if (!linkAmount && !linkCustomAmount) setLinkAmount(String(selectedInv.total_amount));
+                    if (!linkCustomerName) setLinkCustomerName(selectedInv.client_name);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  fontSize: 13,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="">-- No invoice attached --</option>
+                {invoices.map(inv => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.invoice_number} — {inv.client_name} ({formatCurrency(inv.total_amount)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
             <Button variant="secondary" type="button" onClick={() => setShowCreateLinkModal(false)}>
