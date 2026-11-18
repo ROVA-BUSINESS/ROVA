@@ -35,54 +35,54 @@ function getPageContext(pathname: string): { title: string; suggestions: string[
   if (pathname.includes('/transactions')) {
     return {
       title: 'Transactions',
-      suggestions: ["Show today's expenses", 'Categorize recent transactions', 'Largest expense this month'],
+      suggestions: ['How can I optimize recurring business expenses?', 'What metrics should I track for healthy cash flow?', 'Ask any question...'],
     };
   }
   if (pathname.includes('/invoices')) {
     return {
       title: 'Invoices',
-      suggestions: ['Show me unpaid invoices', 'Create an invoice', 'Who owes the most?'],
+      suggestions: ['What payment terms work best for client invoices?', 'How can I minimize overdue receivables?', 'Ask any question...'],
     };
   }
   if (pathname.includes('/inventory')) {
     return {
       title: 'Inventory',
-      suggestions: ['Which products are running low?', 'What is my total stock value?', 'Add new inventory item'],
+      suggestions: ['What is the best way to calculate reorder levels?', 'How do I calculate inventory turnover ratio?', 'Ask any question...'],
     };
   }
   if (pathname.includes('/receipts')) {
     return {
       title: 'Receipts',
-      suggestions: ['Show recent receipts', 'Unmatched receipts', 'Expense summary by category'],
+      suggestions: ['Why is audit-ready receipt recordkeeping important?', 'How should I organize digital business receipts?', 'Ask any question...'],
     };
   }
   if (pathname.includes('/expenses') || pathname.includes('/bills')) {
     return {
       title: 'Bills & Expenses',
-      suggestions: ['Upcoming bills due', 'Total expenses this week', 'Record a new expense'],
+      suggestions: ['What is the difference between direct and indirect costs?', 'How do I prepare a monthly expense budget?', 'Ask any question...'],
     };
   }
   if (pathname.includes('/reports') || pathname.includes('/statements')) {
     return {
       title: 'Financial Reports',
-      suggestions: ['What is my profit margin?', 'Compare revenue vs last month', 'Net cash flow summary'],
+      suggestions: ['What is the difference between EBITDA and Net Profit?', 'Explain the components of a balance sheet', 'Ask any question...'],
     };
   }
   if (pathname.includes('/payroll')) {
     return {
       title: 'Payroll',
-      suggestions: ['How many staff are on payroll?', 'Run monthly payroll', 'Show pending salary disbursements'],
+      suggestions: ['What are key payroll statutory deductions in Nigeria?', 'How do I structure competitive employee benefits?', 'Ask any question...'],
     };
   }
   if (pathname.includes('/tax')) {
     return {
       title: 'Tax & Compliance',
-      suggestions: ['Calculate estimated CIT', 'What are my tax obligations?', 'Show VAT report'],
+      suggestions: ['Explain how Company Income Tax works for small businesses', 'What are allowable tax deductions?', 'Ask any question...'],
     };
   }
   return {
-    title: 'Dashboard',
-    suggestions: ['How much did I make this month?', 'Why did my profit decrease?', 'Summarize my business health'],
+    title: 'Assistant',
+    suggestions: ['Ask anything: technology, science, everyday life', 'Help me brainstorm business ideas', 'Explain a complex concept simply'],
   };
 }
 

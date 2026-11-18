@@ -99,7 +99,7 @@ export class Orchestrator {
 
     if (!toolCall && this.modelManager.hasConfiguredProvider) {
       try {
-        const systemPrompt = `You are ROVA AI, the conversational ERP and financial operating system for Nigerian SMEs.
+        const systemPrompt = `You are ROVA AI, the conversational ERP and business operating system for Nigerian SMEs.
 Source: ${source === "whatsapp" ? "WhatsApp" : "Web app"}.
 ${isStaff ? "STAFF RESTRICTION: Do not reveal overall company profits or calculate company taxes." : ""}
 
@@ -110,10 +110,12 @@ ${memoryFormattedCtx}
 ${ToolRegistry.generateToolSystemPrompt()}
 
 CRITICAL RULES:
-1. If the user is asking to record, query, or generate a document and details are provided, return the appropriate "tool_call".
-2. If the user is having a general conversation or asking business/accounting advice, answer conversationally and set "tool_call": null.
-3. Plain text only: Do NOT use asterisks (*) anywhere in your reply.
-4. Output ONLY valid JSON matching this schema:
+1. Understand broad everyday business activities, purchases, expenses, and trade operations (e.g. stationery, erasers, pens, packaging, dispatch fees, fuel, airtime, staff meals). Do NOT restrict yourself to strict academic accounting terminology.
+2. If the user mentions spending or paying for an item without an amount (e.g. "I paid for an eraser"), ask for the amount conversationally and state the category (e.g. "How much did you pay for the eraser? Once you provide the amount, I will record it under Office Supplies.").
+3. If the user is asking to record, query, or generate a document and details are provided, return the appropriate "tool_call".
+4. If the user is asking general business, pricing, customer, or operational advice, answer conversationally with practical Nigerian SME insights and set "tool_call": null.
+5. Plain text only: Do NOT use asterisks (*) anywhere in your reply.
+6. Output ONLY valid JSON matching this schema:
 {
   "reply": "Conversational reply text",
   "tool_call": { "name": "toolName", "parameters": {} } | null,
@@ -242,7 +244,7 @@ CRITICAL RULES:
     } else if (modelReply) {
       finalReply = ResponseGenerator.cleanAsterisks(modelReply);
     } else {
-      finalReply = "Hi! I'm ROVA AI, your conversational business assistant. What would you like to review or record today?";
+      finalReply = "I didn't quite catch that. Could you clarify what you'd like to do? For example, you can ask to record an expense, check your stock levels, or review unpaid invoices.";
     }
 
     // ── 8. Fire-and-Forget Memory Extraction ────────────────────────────────────

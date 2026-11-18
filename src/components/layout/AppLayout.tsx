@@ -50,7 +50,8 @@ export default function AppLayout() {
   };
   const initials = getInitials(displayName);
 
-  const needsSetup = isStaff && staffData?.status === 'pending';
+  const [setupDismissed, setSetupDismissed] = useState(false);
+  const needsSetup = isStaff && staffData?.status === 'pending' && !setupDismissed;
   const [setupLoading, setSetupLoading] = useState(false);
   const [setupError, setSetupError] = useState('');
 
@@ -207,15 +208,35 @@ export default function AppLayout() {
     setSetupLoading(true);
     setSetupError('');
 
-    const { error: dbError } = await supabase.from('team_members').update({ status: 'active' }).eq('id', staffData!.id);
-    if (dbError) {
-      setSetupError(dbError.message);
-      setSetupLoading(false);
-      return;
-    }
+    try {
+      // 1. Try secure RPC activation first (bypasses RLS issues safely)
+      const { data: rpcData, error: rpcError } = await supabase.rpc('activate_team_member');
 
-    await refreshAuth();
-    setSetupLoading(false);
+      let activated = !rpcError && (rpcData as any)?.success;
+
+      // 2. Fallback to direct table update if RPC failed or not yet deployed
+      if (!activated && staffData?.id) {
+        const { error: dbError } = await supabase
+          .from('team_members')
+          .update({
+            status: 'active',
+            joined_at: new Date().toISOString(),
+            member_id: user?.id,
+          })
+          .eq('id', staffData.id);
+
+        if (dbError) {
+          throw new Error(dbError.message);
+        }
+      }
+
+      setSetupDismissed(true);
+      await refreshAuth();
+    } catch (err: any) {
+      setSetupError(err?.message || 'Failed to complete setup. Please try again.');
+    } finally {
+      setSetupLoading(false);
+    }
   }
 
   return (
@@ -341,7 +362,7 @@ export default function AppLayout() {
               }}
               title={waComingSoon ? 'WhatsApp transaction logging is coming soon' : 'WhatsApp'}
             >
-              <WhatsAppIcon size={18} color={waComingSoon ? '#25D366' : 'currentColor'} />
+              <WhatsAppIcon size={20} color={waComingSoon ? '#25D366' : 'currentColor'} />
               {waComingSoon && <span>Coming Soon</span>}
             </button>
 

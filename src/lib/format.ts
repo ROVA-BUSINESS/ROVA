@@ -1,8 +1,19 @@
-export function formatCurrency(amount: number, currency = 'NGN'): string {
-  if (currency === 'NGN') {
-    return `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export function formatCurrency(amount: number | string | null | undefined, currency = 'NGN'): string {
+  if (amount === null || amount === undefined || amount === '') {
+    return currency === 'NGN' ? '₦0.00' : '0.00';
   }
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  const numeric = typeof amount === 'number' ? amount : parseFloat(String(amount));
+  const safeAmount = isNaN(numeric) ? 0 : numeric;
+  const safeCurrency = currency || 'NGN';
+
+  if (safeCurrency === 'NGN') {
+    return `₦${safeAmount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: safeCurrency }).format(safeAmount);
+  } catch {
+    return `₦${safeAmount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 }
 
 export function formatDate(dateStr: string | null | undefined): string {

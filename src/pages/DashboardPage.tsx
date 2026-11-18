@@ -134,7 +134,7 @@ export default function DashboardPage() {
               flex: isMobile ? 1 : 'none', minWidth: 'fit-content'
             }}
           >
-            <WhatsAppIcon size={15} color={waComingSoon ? '#25D366' : 'currentColor'} />
+            <WhatsAppIcon size={18} color={waComingSoon ? '#25D366' : 'currentColor'} />
             <span>{waComingSoon ? 'Coming Soon' : 'WhatsApp AI'}</span>
           </button>
           <Button variant="secondary" size="sm" onClick={handleSyncBanks} loading={isSyncing} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
