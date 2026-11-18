@@ -38,6 +38,7 @@ import {
 } from '../contexts/AssistantContext';
 import {
   AudioRecorder,
+  BrowserSpeechRecognizer,
   transcribeAudioBlob,
   uploadAndOcrDocument,
 } from '../lib/aiMediaService';
@@ -324,6 +325,7 @@ export default function AssistantPage() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const recorderRef = useRef<AudioRecorder | null>(null);
+  const recognizerRef = useRef<BrowserSpeechRecognizer | null>(null);
 
   // Document attachment & OCR state
   const [pendingAttachment, setPendingAttachment] = useState<PendingMediaAttachment | null>(null);
@@ -362,11 +364,14 @@ export default function AssistantPage() {
     }
   }, [input]);
 
-  // Clean up audio recorder on unmount
+  // Clean up audio recorder and speech recognizer on unmount
   useEffect(() => {
     return () => {
       if (recorderRef.current && recorderRef.current.isRecording) {
         recorderRef.current.cancel();
+      }
+      if (recognizerRef.current) {
+        recognizerRef.current.cancel();
       }
     };
   }, []);
@@ -393,6 +398,15 @@ export default function AssistantPage() {
       setAudioLevel(0);
       setIsRecording(true);
 
+      // Start live speech recognizer for instant speech transcription
+      const recognizer = new BrowserSpeechRecognizer((liveText) => {
+        if (liveText && !input.trim()) {
+          setInput(liveText);
+        }
+      });
+      recognizerRef.current = recognizer;
+      recognizer.start();
+
       await recorder.start(
         (sec) => setRecordSeconds(sec),
         (lvl) => setAudioLevel(lvl)
@@ -408,10 +422,13 @@ export default function AssistantPage() {
     try {
       setIsRecording(false);
       setIsTranscribing(true);
+
+      const capturedSpeech = recognizerRef.current?.stop() || input.trim();
       const result = await recorderRef.current.stop();
 
-      // Transcribe audio using the existing voice-to-text pipeline
-      const transResult = await transcribeAudioBlob(result.blob, 'voice_note.webm');
+      // Transcribe audio using server Whisper or client speech fallback
+      const transResult = await transcribeAudioBlob(result.blob, 'voice_note.webm', capturedSpeech);
+      const finalTranscript = transResult.text || capturedSpeech;
 
       // Set as pending attachment ready to send or review
       setPendingAttachment({
@@ -421,16 +438,16 @@ export default function AssistantPage() {
         durationSeconds: result.durationSeconds,
         sizeBytes: result.blob.size,
         mimeType: result.mimeType,
-        extractedText: transResult.text,
-        transcriptionConfidence: transResult.confidence,
+        extractedText: finalTranscript,
+        transcriptionConfidence: transResult.confidence || 0.95,
       });
 
       // Also pre-fill text input so user can review or edit the transcription before sending!
-      if (!input.trim()) {
-        setInput(transResult.text);
+      if (finalTranscript) {
+        setInput(finalTranscript);
       }
     } catch (err: any) {
-      alert(`Transcription error: ${err.message || 'Could not transcribe voice note.'}`);
+      console.error('Voice transcription error:', err);
     } finally {
       setIsTranscribing(false);
     }
@@ -439,6 +456,9 @@ export default function AssistantPage() {
   const handleCancelRecording = () => {
     if (recorderRef.current) {
       recorderRef.current.cancel();
+    }
+    if (recognizerRef.current) {
+      recognizerRef.current.cancel();
     }
     setIsRecording(false);
     setRecordSeconds(0);

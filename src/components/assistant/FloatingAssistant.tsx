@@ -10,7 +10,7 @@ import {
 import { useAssistant, type PendingMediaAttachment } from '../../contexts/AssistantContext';
 import { useMobile } from '../../hooks/useMobile';
 import type { ChatAction } from '../../lib/deepseekClient';
-import { AudioRecorder, transcribeAudioBlob } from '../../lib/aiMediaService';
+import { AudioRecorder, BrowserSpeechRecognizer, transcribeAudioBlob } from '../../lib/aiMediaService';
 import VoiceMessagePlayer from './VoiceMessagePlayer';
 
 const ACTION_ICONS: Record<string, React.ElementType> = {
@@ -281,16 +281,16 @@ export default function FloatingAssistant() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognizerRef = useRef<BrowserSpeechRecognizer | null>(null);
 
-  // Clean up audio recorder on unmount
+  // Clean up audio recorder and speech recognizer on unmount
   useEffect(() => {
     return () => {
       if (recorderRef.current && recorderRef.current.isRecording) {
         recorderRef.current.cancel();
       }
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
+      if (recognizerRef.current) {
+        recognizerRef.current.cancel();
       }
     };
   }, []);
@@ -305,36 +305,19 @@ export default function FloatingAssistant() {
       setAudioLevel(0);
       setIsRecording(true);
 
+      // Start live speech recognizer for immediate speech capture
+      const recognizer = new BrowserSpeechRecognizer((liveText) => {
+        if (liveText && !input.trim()) {
+          setInput(liveText);
+        }
+      });
+      recognizerRef.current = recognizer;
+      recognizer.start();
+
       await recorder.start(
         (sec) => setRecordSeconds(sec),
         (lvl) => setAudioLevel(lvl)
       );
-
-      // Start interim recognition if browser supports SpeechRecognition for real-time speech preview
-      try {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (SpeechRecognition) {
-          const rec = new SpeechRecognition();
-          rec.continuous = false;
-          rec.interimResults = true;
-          rec.lang = 'en-NG';
-          rec.onresult = (evt: any) => {
-            let transcript = '';
-            for (let i = evt.resultIndex; i < evt.results.length; ++i) {
-              transcript += evt.results[i][0].transcript;
-            }
-            if (transcript.trim()) {
-              setInput(transcript);
-            }
-          };
-          rec.onerror = () => {};
-          rec.onend = () => {};
-          recognitionRef.current = rec;
-          rec.start();
-        }
-      } catch {
-        // Non-fatal if browser speech recognition is unavailable
-      }
     } catch (err: any) {
       setIsRecording(false);
       setSpeechError(err.message || 'Microphone access failed. Please ensure microphone permissions are allowed.');
@@ -344,29 +327,15 @@ export default function FloatingAssistant() {
   const handleStopRecording = async () => {
     if (!recorderRef.current || !isRecording) return;
     try {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
-      }
       setIsRecording(false);
       setIsTranscribing(true);
+
+      const capturedSpeech = recognizerRef.current?.stop() || input.trim();
       const result = await recorderRef.current.stop();
 
-      let transcribedText = '';
-      let confidence = 0.95;
-
-      try {
-        // Transcribe audio using the Whisper AI translation & transcription pipeline
-        const transResult = await transcribeAudioBlob(result.blob, 'voice_note.webm');
-        transcribedText = transResult.text;
-        confidence = transResult.confidence;
-      } catch (transErr: any) {
-        console.warn('Backend whisper transcription failed, falling back to input text:', transErr);
-        if (input.trim()) {
-          transcribedText = input.trim();
-        } else {
-          throw transErr;
-        }
-      }
+      // Transcribe audio using server Whisper or client speech fallback
+      const transResult = await transcribeAudioBlob(result.blob, 'voice_note.webm', capturedSpeech);
+      const finalTranscript = transResult.text || capturedSpeech;
 
       setPendingAttachment({
         type: 'voice',
@@ -375,15 +344,16 @@ export default function FloatingAssistant() {
         durationSeconds: result.durationSeconds,
         sizeBytes: result.blob.size,
         mimeType: result.mimeType,
-        extractedText: transcribedText,
-        transcriptionConfidence: confidence,
+        extractedText: finalTranscript,
+        transcriptionConfidence: transResult.confidence || 0.95,
       });
 
-      if (transcribedText) {
-        setInput(transcribedText);
+      if (finalTranscript) {
+        setInput(finalTranscript);
       }
     } catch (err: any) {
-      setSpeechError(`Voice translation error: ${err.message || 'Could not transcribe voice note.'}`);
+      console.error('Voice transcription error:', err);
+      setSpeechError(`Voice error: ${err.message || 'Could not record voice note.'}`);
     } finally {
       setIsTranscribing(false);
     }
@@ -393,8 +363,8 @@ export default function FloatingAssistant() {
     if (recorderRef.current) {
       recorderRef.current.cancel();
     }
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch {}
+    if (recognizerRef.current) {
+      recognizerRef.current.cancel();
     }
     setIsRecording(false);
     setRecordSeconds(0);
@@ -908,131 +878,120 @@ export default function FloatingAssistant() {
               )}
 
               {/* Bottom Input Area: Recording Controls OR Input Form */}
-              {isRecording ? (
-                /* Active Recording Controls */
-                <div
-                  style={{
-                    padding: '10px 14px',
-                    borderTop: '1px solid rgba(239, 68, 68, 0.3)',
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    flexShrink: 0,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: '50%',
-                        background: '#ef4444',
-                        boxShadow: '0 0 10px #ef4444',
-                        animation: 'pulse 1.2s infinite',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                      Recording voice note…
-                    </span>
-                    <span style={{ fontSize: 11.5, fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                      {Math.floor(recordSeconds / 60)}:{(recordSeconds % 60).toString().padStart(2, '0')} / 02:00
-                    </span>
+              <div
+                style={{
+                  padding: '10px 12px',
+                  background: 'var(--bg-surface)',
+                  borderTop: '1px solid var(--bg-border)',
+                  flexShrink: 0,
+                }}
+              >
+                {isRecording ? (
+                  /* Active Recording Bar matching AssistantPage */
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      borderRadius: 'var(--radius-lg)',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      animation: 'pulse 2s infinite',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          background: '#ef4444',
+                          boxShadow: '0 0 10px #ef4444',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                        Recording voice note…
+                      </span>
+                      <span style={{ fontSize: 11.5, fontFamily: 'monospace', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        {Math.floor(recordSeconds / 60)}:{(recordSeconds % 60).toString().padStart(2, '0')} / 02:00
+                      </span>
 
-                    {/* Dynamic Audio Level Meter */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((bar) => {
-                        const isActive = audioLevel > bar * 11;
-                        return (
-                          <div
-                            key={bar}
-                            style={{
-                              width: 3,
-                              height: `${isActive ? 16 : 4}px`,
-                              borderRadius: 1,
-                              background: isActive ? '#ef4444' : 'rgba(255, 255, 255, 0.2)',
-                              transition: 'height 0.1s ease',
-                            }}
-                          />
-                        );
-                      })}
+                      {/* Dynamic Audio Level Meter */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((bar) => {
+                          const isActive = audioLevel > bar * 11;
+                          return (
+                            <div
+                              key={bar}
+                              style={{
+                                width: 2.5,
+                                height: `${isActive ? 16 : 4}px`,
+                                borderRadius: 1,
+                                background: isActive ? '#ef4444' : 'rgba(255, 255, 255, 0.2)',
+                                transition: 'height 0.1s ease',
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={handleCancelRecording}
+                        title="Cancel recording"
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--bg-border)',
+                          color: 'var(--text-secondary)',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStopRecording}
+                        title="Finish & transcribe"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'var(--accent-primary)',
+                          border: 'none',
+                          color: 'white',
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Transcribe
+                      </button>
                     </div>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <button
-                      type="button"
-                      onClick={handleCancelRecording}
-                      title="Cancel recording"
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--bg-border)',
-                        color: 'var(--text-secondary)',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleStopRecording}
-                      title="Finish & transcribe"
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--accent-primary)',
-                        border: 'none',
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: 12,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Transcribe
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Normal Input Form */
-                <form
-                  onSubmit={handleSubmit}
-                  style={{
-                    padding: '10px 12px',
-                    borderTop: '1px solid var(--bg-border)',
-                    background: 'var(--bg-surface)',
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-                    <input
-                      ref={inputRef}
-                      value={input}
-                      onChange={e => setInput(e.target.value)}
-                      placeholder={speechError ? speechError : `Ask about ${pageContext.title.toLowerCase()} or anything…`}
-                      disabled={typing || isTranscribing}
-                      style={{
-                        width: '100%',
-                        padding: '8px 36px 8px 12px',
-                        background: 'var(--bg-elevated)',
-                        border: '1px solid var(--bg-border)',
-                        borderRadius: 'var(--radius-md)',
-                        color: 'var(--text-primary)',
-                        outline: 'none',
-                        fontSize: 13,
-                        transition: 'all 0.15s ease',
-                      }}
-                      onFocus={e => (e.target.style.borderColor = 'var(--accent-primary)')}
-                      onBlur={e => (e.target.style.borderColor = 'var(--bg-border)')}
-                    />
-
+                ) : (
+                  /* Normal Input Form matching AssistantPage layout */
+                  <form
+                    onSubmit={handleSubmit}
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      alignItems: 'center',
+                      padding: '6px 10px',
+                      borderRadius: 'var(--radius-lg)',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--bg-border)',
+                      transition: 'border-color 0.15s ease',
+                    }}
+                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'var(--bg-border)')}
+                  >
                     {/* Voice Note Button */}
                     <button
                       type="button"
@@ -1040,19 +999,18 @@ export default function FloatingAssistant() {
                       disabled={typing || isTranscribing}
                       title="Record voice note"
                       style={{
-                        position: 'absolute',
-                        right: 6,
+                        width: 34,
+                        height: 34,
+                        borderRadius: 'var(--radius-md)',
                         background: 'transparent',
                         border: 'none',
                         color: 'var(--text-muted)',
-                        borderRadius: '50%',
-                        width: 24,
-                        height: 24,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease',
+                        flexShrink: 0,
+                        transition: 'color 0.15s ease',
                       }}
                       onMouseEnter={e => {
                         (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)';
@@ -1061,33 +1019,51 @@ export default function FloatingAssistant() {
                         (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
                       }}
                     >
-                      <Mic size={15} />
+                      <Mic size={18} />
                     </button>
-                  </div>
 
-                  {/* Send Button */}
-                  <button
-                    type="submit"
-                    disabled={(!input.trim() && !pendingAttachment) || typing || isTranscribing}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 'var(--radius-md)',
-                      background: (input.trim() || pendingAttachment) && !typing && !isTranscribing ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-                      color: (input.trim() || pendingAttachment) && !typing && !isTranscribing ? 'white' : 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid var(--bg-border)',
-                      cursor: (input.trim() || pendingAttachment) && !typing && !isTranscribing ? 'pointer' : 'default',
-                      flexShrink: 0,
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <Send size={14} />
-                  </button>
-                </form>
-              )}
+                    {/* Text input */}
+                    <input
+                      ref={inputRef}
+                      value={input}
+                      onChange={e => setInput(e.target.value)}
+                      placeholder={speechError ? speechError : `Ask about ${pageContext.title.toLowerCase()} or dictate…`}
+                      disabled={typing || isTranscribing}
+                      style={{
+                        flex: 1,
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        color: 'var(--text-primary)',
+                        fontSize: 13,
+                        minWidth: 0,
+                      }}
+                    />
+
+                    {/* Send Button */}
+                    <button
+                      type="submit"
+                      disabled={(!input.trim() && !pendingAttachment) || typing || isTranscribing}
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 'var(--radius-md)',
+                        background: (input.trim() || pendingAttachment) && !typing && !isTranscribing ? 'var(--accent-primary)' : 'transparent',
+                        color: (input.trim() || pendingAttachment) && !typing && !isTranscribing ? 'white' : 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: 'none',
+                        cursor: (input.trim() || pendingAttachment) && !typing && !isTranscribing ? 'pointer' : 'default',
+                        flexShrink: 0,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Send size={15} />
+                    </button>
+                  </form>
+                )}
+              </div>
             </>
           )}
         </div>
