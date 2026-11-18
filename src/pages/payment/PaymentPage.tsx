@@ -366,7 +366,7 @@ export default function PaymentPage() {
   }
 
   async function handleSyncAll() {
-    const providers: PaymentProvider[] = ['paystack', 'kuda'];
+    const providers: PaymentProvider[] = ['paystack'];
     for (const p of providers) {
       await handleSyncProvider(p);
     }
@@ -665,7 +665,7 @@ export default function PaymentPage() {
       >
         {[
           { id: 'overview', label: 'Overview', icon: Layers },
-          { id: 'providers', label: 'Payment Providers', icon: CreditCard, count: 4 },
+          { id: 'providers', label: 'Payment Providers', icon: CreditCard },
           { id: 'links', label: 'Payment Links', icon: LinkIcon, count: paymentLinks.length },
           { id: 'transactions', label: 'Transactions', icon: Clock, count: totalTxCount },
           { id: 'import', label: 'Import Statements', icon: Upload },
@@ -874,7 +874,7 @@ export default function PaymentPage() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-              {(['paystack', 'kuda'] as PaymentProvider[]).map(provider => {
+              {(['paystack'] as PaymentProvider[]).map(provider => {
                 const cap = PROVIDER_CAPABILITIES[provider];
                 const conf = configs[provider];
                 const isConnected = isProviderConnected(provider);
@@ -1063,7 +1063,7 @@ export default function PaymentPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-            {(['paystack', 'kuda'] as PaymentProvider[]).map(provider => {
+            {(['paystack'] as PaymentProvider[]).map(provider => {
               const cap = PROVIDER_CAPABILITIES[provider];
               const conf = configs[provider];
               const isConnected = isProviderConnected(provider);
@@ -1347,7 +1347,7 @@ export default function PaymentPage() {
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Unified Transaction History</h2>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                Consolidated transaction records from Paystack, Kuda, and imported statements.
+                Consolidated transaction records from Paystack and imported statements.
               </p>
             </div>
 
@@ -1389,7 +1389,6 @@ export default function PaymentPage() {
                 >
                   <option value="all">All Providers</option>
                   <option value="paystack">Paystack</option>
-                  <option value="kuda">Kuda Business</option>
                   <option value="manual_import">Manual Import</option>
                 </select>
               </div>
@@ -1675,7 +1674,7 @@ export default function PaymentPage() {
             <Upload size={36} style={{ color: 'var(--accent-primary)', margin: '0 auto 12px' }} />
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Select or Drop Statement File</h3>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 16px' }}>
-              Supports standard Nigerian bank CSV statements (Kuda, Zenith, GTB, Access, etc.)
+              Supports standard Nigerian bank CSV statements (Zenith, GTB, Access, etc.)
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -1774,7 +1773,6 @@ export default function PaymentPage() {
                       style={{ width: '100%', padding: '6px 8px', fontSize: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)' }}
                     >
                       <option value="manual_import">Manual Import (Generic)</option>
-                      <option value="kuda">Kuda Business</option>
                       <option value="paystack">Paystack</option>
                     </select>
                   </div>
