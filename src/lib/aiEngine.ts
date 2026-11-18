@@ -167,7 +167,7 @@ export function generateInsights(transactions: Transaction[], accounts: Account[
 }
 
 /**
- * Delegates query handling to the unified central ROVA AI Agent Core.
+ * Delegates query handling to the general-purpose DeepSeek ROVA AI endpoint.
  */
 export async function askROVAAgent(
   question: string,
@@ -178,62 +178,35 @@ export async function askROVAAgent(
     const { data, error } = await supabase.functions.invoke('ai-chat', {
       body: {
         messages: [...history, { role: 'user', content: question }],
-        context: { userId },
+        userId,
       },
     });
 
     if (error) throw new Error(error.message);
     return {
-      reply: data.reply || 'ROVA AI Agent responded successfully.',
-      actions: data.actions || [],
+      reply: data?.reply || data?.content || 'ROVA AI responded successfully.',
+      actions: [],
     };
   } catch (err: any) {
-    console.warn('Central Edge Function call failed. Fallback to direct shared functions.', err);
-    return { reply: answerQuestion(question, [], []) };
+    console.warn('[ROVA AI] Edge Function call failed:', err);
+    return {
+      reply: "I'm having trouble connecting right now. Please try asking your question again in a moment.",
+      actions: [],
+    };
   }
 }
 
 /**
- * Standard rule-based answer fallback using direct financial queries
+ * Friendly conversational helper fallback
  */
 export function answerQuestion(
   question: string,
-  transactions: Transaction[],
-  accounts: Account[],
-  isStaff: boolean = false
+  _transactions: Transaction[] = [],
+  _accounts: Account[] = [],
+  _isStaff: boolean = false
 ): string {
-  const q = question.toLowerCase();
-  const now = new Date();
-  const thisMonth = now.getMonth();
-  const thisYear = now.getFullYear();
-
-  const thisMonthTx = transactions.filter(t => {
-    const d = new Date(t.date);
-    return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
-  });
-
-  const thisIncome = thisMonthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const thisExpense = thisMonthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
-
-  if ((q.includes('make') || q.includes('earn') || q.includes('income') || q.includes('revenue')) && q.includes('this month')) {
-    return `This month you've earned ${formatCurrency(thisIncome)} in income. Your expenses are ${formatCurrency(thisExpense)}, giving you a net of ${formatCurrency(thisIncome - thisExpense)}.`;
+  if (!question.trim()) {
+    return "Hello! I'm ROVA AI, your conversational assistant. How can I help you today?";
   }
-
-  if (q.includes('owe') || q.includes('who owes') || q.includes('receivable')) {
-    return `To check outstanding payments owed to you, ask "How much do customers owe me?" or check your Invoices page.`;
-  }
-
-  if (q.includes('balance') || (q.includes('how much') && q.includes('account'))) {
-    if (accounts.length === 0) return `No accounts found. Add your bank and wallet accounts in Settings.`;
-    const lines = accounts.map(a => `• ${a.name}: ${formatCurrency(a.balance)}`).join('\n');
-    return `Your total balance is ${formatCurrency(totalBalance)}.\n\n${lines}`;
-  }
-
-  if (q.includes('summary') || q.includes('overview')) {
-    if (isStaff) return "I cannot provide overall financial summaries to staff members.";
-    return `Here's your financial summary:\n\n• This month income: ${formatCurrency(thisIncome)}\n• This month expenses: ${formatCurrency(thisExpense)}\n• Net this month: ${formatCurrency(thisIncome - thisExpense)}\n• Total balance (all accounts): ${formatCurrency(totalBalance)}`;
-  }
-
-  return `Hello! I'm your unified ROVA AI Assistant. Ask me things like:\n• "I sold ₦50,000 today."\n• "Create an invoice for John for ₦200,000."\n• "I spent ₦25,000 on fuel."\n• "How much did I sell this month?"\n• "How much do customers owe me?"\n• "How much tax do I currently owe?"`;
+  return "Hello! I'm ROVA AI. Feel free to ask me questions, explore ideas, or discuss any topics you have in mind.";
 }

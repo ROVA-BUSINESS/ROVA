@@ -155,11 +155,125 @@ export async function classifyTransaction(
 
 export async function chatWithAssistant(payload: ChatPayload): Promise<ChatResponse> {
   const { data, error } = await supabase.functions.invoke('ai-chat', {
-    body: { ...payload, source: 'web' },
+    body: {
+      messages: payload.messages,
+      userId: payload.context?.userId,
+      stream: false,
+    },
   });
 
   if (error) throw new Error(error.message);
-  return data as ChatResponse;
+  const reply = data?.reply || data?.content || (typeof data === 'string' ? data : '');
+  return {
+    reply: reply || 'I received your message, but no response was generated. Please try again.',
+    actions: data?.actions || [],
+    toolExecuted: false,
+  };
+}
+
+// ── Streaming Chat with ROVA AI ───────────────────────────────────────────────
+
+export async function streamChatWithAssistant(
+  payload: {
+    messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
+    userId?: string;
+  },
+  onToken: (fullText: string) => void,
+  signal?: AbortSignal
+): Promise<string> {
+  const supabaseUrl =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || '';
+  const supabaseAnonKey =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || '';
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token || supabaseAnonKey;
+
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify({
+        messages: payload.messages,
+        userId: payload.userId,
+        stream: true,
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`Edge Function returned HTTP ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/event-stream') || !response.body) {
+      // Non-streaming fallback
+      const data = await response.json();
+      const reply = data.reply || data.content || '';
+      onToken(reply);
+      return reply;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = '';
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith(':')) continue;
+        if (trimmed === 'data: [DONE]') continue;
+
+        if (trimmed.startsWith('data: ')) {
+          try {
+            const json = JSON.parse(trimmed.slice(6));
+            const delta = json.choices?.[0]?.delta?.content || '';
+            if (delta) {
+              accumulated += delta;
+              onToken(accumulated);
+            }
+          } catch (_e) {
+            // Ignore malformed chunk
+          }
+        }
+      }
+    }
+
+    if (buffer.trim().startsWith('data: ')) {
+      try {
+        const json = JSON.parse(buffer.trim().slice(6));
+        const delta = json.choices?.[0]?.delta?.content || '';
+        if (delta) {
+          accumulated += delta;
+          onToken(accumulated);
+        }
+      } catch (_e) {}
+    }
+
+    return accumulated;
+  } catch (err: any) {
+    if (signal?.aborted) throw err;
+    console.warn('[ROVA AI] Streaming failed, falling back to standard invoke:', err.message);
+    const res = await chatWithAssistant({
+      messages: payload.messages,
+      context: { userId: payload.userId || '' },
+    });
+    onToken(res.reply);
+    return res.reply;
+  }
 }
 
 // ── Confirm a pending AI action ───────────────────────────────────────────────

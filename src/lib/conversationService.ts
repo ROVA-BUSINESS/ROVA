@@ -45,11 +45,8 @@ export const INITIAL_WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "Hi! I'm ROVA, your conversational ERP and financial assistant. I have live access to your transactions, inventory, payroll, and invoices.\n\nYou can chat with me using:\n• **Text:** Ask anything about your financial health, profit, or unpaid debts\n• **Voice:** Record audio notes or upload audio files to dictate transactions\n• **Images & Documents:** Upload receipts, bills, or invoices for automated OCR analysis",
+    "Hello! I'm ROVA AI, an intelligent, helpful, and friendly AI assistant powered by DeepSeek.\n\nYou can ask me anything—whether you want explanations, help solving problems, brainstorming ideas, casual conversations, or discussing general topics, technology, science, education, or business concepts.",
   timestamp: new Date(),
-  actions: [
-    { type: 'open_whatsapp_bot', label: 'Chat with ROVA Bot on WhatsApp' },
-  ],
 };
 
 // ── Token Budget Estimator & Summarizer ──────────────────────────────────────

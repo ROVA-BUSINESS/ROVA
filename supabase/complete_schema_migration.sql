@@ -995,19 +995,74 @@ CREATE TABLE IF NOT EXISTS team_members (
 
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Owners can view their team"
+CREATE POLICY "Owners and members can view team"
   ON team_members FOR SELECT TO authenticated
-  USING (auth.uid() = owner_id OR auth.uid() = member_id);
+  USING (
+    auth.uid() = owner_id 
+    OR auth.uid() = member_id 
+    OR (invite_email IS NOT NULL AND lower(invite_email) = lower(auth.jwt() ->> 'email'))
+  );
 CREATE POLICY "Owners can insert team members"
   ON team_members FOR INSERT TO authenticated
   WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY "Owners can update team members"
+CREATE POLICY "Owners or members can update team members"
   ON team_members FOR UPDATE TO authenticated
-  USING (auth.uid() = owner_id)
-  WITH CHECK (auth.uid() = owner_id);
+  USING (
+    auth.uid() = owner_id 
+    OR auth.uid() = member_id 
+    OR (invite_email IS NOT NULL AND lower(invite_email) = lower(auth.jwt() ->> 'email'))
+  )
+  WITH CHECK (
+    auth.uid() = owner_id 
+    OR auth.uid() = member_id 
+    OR (invite_email IS NOT NULL AND lower(invite_email) = lower(auth.jwt() ->> 'email'))
+  );
 CREATE POLICY "Owners can delete team members"
   ON team_members FOR DELETE TO authenticated
   USING (auth.uid() = owner_id);
+
+CREATE OR REPLACE FUNCTION public.activate_team_member()
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_email text := auth.jwt() ->> 'email';
+  v_member team_members%ROWTYPE;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  SELECT * INTO v_member
+  FROM public.team_members
+  WHERE (member_id = v_user_id OR (invite_email IS NOT NULL AND lower(invite_email) = lower(v_email)))
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'message', 'No pending invitation found for this user');
+  END IF;
+
+  UPDATE public.team_members
+  SET 
+    status = 'active',
+    member_id = v_user_id,
+    joined_at = COALESCE(joined_at, now())
+  WHERE id = v_member.id;
+
+  RETURN json_build_object(
+    'success', true,
+    'id', v_member.id,
+    'role', v_member.role,
+    'status', 'active'
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.activate_team_member() TO authenticated;
 
 -- Activity logs table
 CREATE TABLE IF NOT EXISTS activity_logs (

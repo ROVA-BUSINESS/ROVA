@@ -29,7 +29,7 @@ import {
   FileText,
   HelpCircle,
   MessageCircle,
-  ArrowDown, Receipt,
+  ArrowDown,
 } from 'lucide-react';
 import { useMobile } from '../hooks/useMobile';
 import {
@@ -63,28 +63,28 @@ const ACTION_COLORS: Record<string, string> = {
 
 const STARTER_PROMPTS = [
   {
+    icon: HelpCircle,
+    badge: 'Explain',
+    title: 'General Knowledge',
+    prompt: 'Can you explain how quantum computing works in simple terms?',
+  },
+  {
     icon: TrendingUp,
-    badge: 'Insights',
-    title: 'Financial Health',
-    prompt: 'How much revenue and profit did my business generate this month?',
-  },
-  {
-    icon: Receipt,
-    badge: 'Expenses',
-    title: 'Receipts & Expenses',
-    prompt: 'Show me my total expenses this week and which category is highest',
-  },
-  {
-    icon: Package,
-    badge: 'Stock',
-    title: 'Inventory Stock',
-    prompt: 'Which inventory items are currently running low on stock?',
+    badge: 'Brainstorm',
+    title: 'Ideas & Strategy',
+    prompt: 'Brainstorm 5 innovative marketing and growth ideas for a startup in 2026.',
   },
   {
     icon: FileText,
-    badge: 'Invoices',
-    title: 'Outstanding Debts',
-    prompt: 'Who owes me money and what invoices are currently unpaid?',
+    badge: 'Business',
+    title: 'Business & Finance',
+    prompt: 'What are the most effective ways to manage cash flow and improve profit margins?',
+  },
+  {
+    icon: MessageSquare,
+    badge: 'Chat',
+    title: 'Casual Conversation',
+    prompt: 'Hi! What are some fascinating science or technology discoveries from recently?',
   },
 ];
 

@@ -60,9 +60,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function loadProfile(userId: string, email: string) {
+    const cleanEmail = email.trim().toLowerCase();
     const [profileRes, staffRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-      supabase.from('team_members').select('*').eq('invite_email', email).maybeSingle()
+      supabase
+        .from('team_members')
+        .select('*')
+        .or(`member_id.eq.${userId},invite_email.ilike.${cleanEmail}`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
     ]);
 
     if (staffRes.data && !staffRes.data.member_id) {

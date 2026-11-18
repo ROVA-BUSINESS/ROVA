@@ -47,13 +47,35 @@ export default function AcceptInvitePage() {
     setLoading(true);
 
     const { error: updateError } = await supabase.auth.updateUser({ password });
-    setLoading(false);
 
     if (updateError) {
+      setLoading(false);
       setError(updateError.message || 'Failed to set password. Please try again.');
       return;
     }
 
+    // Automatically activate staff membership so the dashboard opens directly
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('activate_team_member');
+      const activated = !rpcError && (rpcData as any)?.success;
+      if (!activated) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          await supabase
+            .from('team_members')
+            .update({
+              status: 'active',
+              joined_at: new Date().toISOString(),
+              member_id: user.id,
+            })
+            .or(`member_id.eq.${user.id},invite_email.ilike.${user.email.toLowerCase()}`);
+        }
+      }
+    } catch (_err) {
+      // Non-fatal, AppLayout setup modal handles as backup
+    }
+
+    setLoading(false);
     setDone(true);
     setTimeout(() => navigate('/app/dashboard'), 2000);
   }
