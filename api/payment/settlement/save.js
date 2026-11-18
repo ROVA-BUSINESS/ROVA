@@ -72,18 +72,10 @@ export default async function handler(req, res) {
       .single();
 
     if (dbError) {
-      console.error('DB upsert error:', dbError.message);
-      // Return success with the in-memory record so the UI still works
-      return res.status(200).json({
-        success: true,
-        account: {
-          ...record,
-          id: null,
-          is_primary: false,
-          metadata: {},
-          created_at: new Date().toISOString(),
-        },
-        warning: 'Account saved locally; database sync pending.',
+      console.error('DB upsert error:', dbError.message, dbError.code);
+      return res.status(500).json({
+        success: false,
+        error: `Database error: ${dbError.message}. Please ensure the settlement_accounts table exists in Supabase.`,
       });
     }
 
