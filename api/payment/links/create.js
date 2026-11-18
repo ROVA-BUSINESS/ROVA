@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     }
 
     const slug = `rova-${Math.random().toString(36).substring(2, 9).toLowerCase()}`;
-    let paymentUrl = `https://paystack.com/pay/${slug}`;
+    let paymentUrl = `https://www.rovabusiness.com/pay/${slug}`;
     let providerLinkId = `PLK_${slug.toUpperCase()}`;
 
     // If live Paystack secret key is configured, create an official Paystack Page
@@ -65,19 +65,23 @@ export default async function handler(req, res) {
         user_id: userId,
         provider,
         provider_link_id: providerLinkId,
+        provider_slug: slug,
         title,
         description,
         amount: allowCustomAmount ? null : Number(amount),
         currency,
         allow_custom_amount: allowCustomAmount,
-        url: paymentUrl,
+        payment_url: paymentUrl,
         status: 'active',
+        total_collected: 0,
+        payments_count: 0,
         metadata: { generated_by: 'rova_unified_payment_tab' },
       })
       .select()
       .single();
 
     if (dbError) {
+      console.warn('Database insert error in payment_links, returning memory link fallback:', dbError.message);
       return res.status(200).json({
         success: true,
         link: {
@@ -85,19 +89,31 @@ export default async function handler(req, res) {
           user_id: userId,
           provider,
           provider_link_id: providerLinkId,
+          provider_slug: slug,
           title,
           description,
           amount: allowCustomAmount ? null : Number(amount),
           currency,
           allow_custom_amount: allowCustomAmount,
-          url: paymentUrl,
+          payment_url: paymentUrl,
           status: 'active',
+          total_collected: 0,
+          payments_count: 0,
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
       });
     }
 
-    return res.status(201).json({ success: true, link: linkRecord });
+    return res.status(201).json({
+      success: true,
+      link: {
+        ...linkRecord,
+        payment_url: linkRecord.payment_url || paymentUrl,
+        total_collected: Number(linkRecord.total_collected || 0),
+        payments_count: Number(linkRecord.payments_count || 0),
+      },
+    });
   } catch (err) {
     console.error('Create link error:', err);
     return res.status(500).json({ success: false, error: 'Internal server error' });

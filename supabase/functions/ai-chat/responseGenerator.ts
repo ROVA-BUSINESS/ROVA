@@ -27,7 +27,7 @@ export class ResponseGenerator {
   ): Promise<string> {
     // If no tool was executed or if clarification was requested, return summary directly
     if (!toolResult) {
-      return "Hi! I'm ROVA AI, your business financial assistant. How can I help with your transactions, stock, or invoices today?";
+      return "I didn't quite catch that. Could you clarify what you'd like to do? For example, you can ask to record an expense, check your stock levels, or review unpaid invoices.";
     }
 
     if (toolResult.requiresClarification) {

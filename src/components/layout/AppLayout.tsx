@@ -362,7 +362,7 @@ export default function AppLayout() {
               }}
               title={waComingSoon ? 'WhatsApp transaction logging is coming soon' : 'WhatsApp'}
             >
-              <WhatsAppIcon size={18} color={waComingSoon ? '#25D366' : 'currentColor'} />
+              <WhatsAppIcon size={20} color={waComingSoon ? '#25D366' : 'currentColor'} />
               {waComingSoon && <span>Coming Soon</span>}
             </button>
 

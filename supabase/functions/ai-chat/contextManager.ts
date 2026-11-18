@@ -258,7 +258,7 @@ Use this context to personalise responses naturally. Do NOT announce that you ar
   static detectClarificationAnswer(
     messages: ChatMessage[],
     currentUserText: string
-  ): { isAnswer: boolean; itemContext?: string; previousQuestion?: string } | null {
+  ): { isAnswer: boolean; itemContext?: string; categoryContext?: string; previousQuestion?: string } | null {
     if (messages.length < 2) return null;
 
     // Find the last assistant message
@@ -270,15 +270,19 @@ Use this context to personalise responses naturally. Do NOT announce that you ar
 
     if (!isQuestion) return null;
 
-    // Match item if the assistant asked "How much did you spend on [Item]?"
-    const matchItem = lastAssistantMsg.content.match(/how much did you spend on (.*?)(?:\?|$)/i) ||
-                      lastAssistantMsg.content.match(/how much was (?:the )?(.*?)(?:\?|$)/i);
+    // Match item if the assistant asked "How much did you spend on [Item]?" or "How much did you pay for [Item]?"
+    const matchItem =
+      lastAssistantMsg.content.match(/(?:how much did you (?:spend on|pay for|spend for|buy)|how much was)\s+(?:the\s+|an?\s+)?(.*?)(?:\?|\.|\s+once|$)/i);
+
+    const matchCat = lastAssistantMsg.content.match(/record it as an? (?:expense|income) under (.*?)(?:\.|$)/i);
 
     const itemContext = matchItem ? matchItem[1].trim() : undefined;
+    const categoryContext = matchCat ? matchCat[1].trim() : undefined;
 
     return {
       isAnswer: true,
       itemContext,
+      categoryContext,
       previousQuestion: lastAssistantMsg.content,
     };
   }
