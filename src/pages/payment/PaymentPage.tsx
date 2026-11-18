@@ -40,12 +40,10 @@ import {
   syncProviderTransactions,
   classifyPaymentTransaction,
   importStatementRecords,
-  recordDirectPayment,
   getSettlementAccounts,
 } from '../../lib/paymentService';
 import SettlementAccountSection from '../../components/payment/SettlementAccountSection';
 import MyBankingTab from '../../components/payment/MyBankingTab';
-import { generatePaymentRef, openPaystackPopup } from '../../lib/paystack';
 import {
   parseCSVText,
   autoDetectMapping,
@@ -66,7 +64,7 @@ type ActiveTab = 'overview' | 'providers' | 'links' | 'transactions' | 'import' 
 type DateFilter = 'today' | '7days' | 'month' | 'custom';
 
 export default function PaymentPage() {
-  const { user, profile, isStaff, staffData } = useAuth();
+  const { user, isStaff, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
 
   // Tabs
@@ -77,13 +75,6 @@ export default function PaymentPage() {
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
-  // Direct Pay (Pay into Rova via Paystack) state
-  const [showDirectPayModal, setShowDirectPayModal] = useState(false);
-  const [directPayAmount, setDirectPayAmount] = useState('5000');
-  const [directPayPurpose, setDirectPayPurpose] = useState('Payment for Goods');
-  const [directPayEmail, setDirectPayEmail] = useState('');
-  const [directPayName, setDirectPayName] = useState('');
-  const [directPayProcessing, setDirectPayProcessing] = useState(false);
 
   // Data states
   const [configs, setConfigs] = useState<Record<PaymentProvider, PaymentProviderConfig | null>>({
@@ -309,76 +300,6 @@ export default function PaymentPage() {
     return configs[provider]?.status === 'connected';
   }
 
-  // ── Handlers: Direct Pay into Rova ─────────────────────────────────────────
-  function openDirectPayModal() {
-    setDirectPayEmail(user?.email || '');
-    setDirectPayName(profile?.full_name || profile?.business_name || '');
-    setDirectPayAmount('5000');
-    setDirectPayPurpose('Payment for Goods');
-    setShowDirectPayModal(true);
-  }
-
-  async function handleExecuteDirectPayment(e: FormEvent) {
-    e.preventDefault();
-    if (!effectiveUserId) return;
-
-    const amt = parseFloat(directPayAmount);
-    if (isNaN(amt) || amt <= 0) {
-      showNotice('error', 'Please enter a valid amount greater than 0.');
-      return;
-    }
-
-    if (!directPayEmail.trim()) {
-      showNotice('error', 'Please enter a valid email address.');
-      return;
-    }
-
-    setDirectPayProcessing(true);
-    const ref = generatePaymentRef('PAY');
-
-    try {
-      await openPaystackPopup({
-        email: directPayEmail.trim(),
-        amountNaira: amt,
-        reference: ref,
-        metadata: {
-          userId: effectiveUserId,
-          purpose: directPayPurpose,
-          payerName: directPayName,
-        },
-        onSuccess: async (returnedRef) => {
-          try {
-            await recordDirectPayment({
-              userId: effectiveUserId,
-              provider: 'paystack',
-              reference: returnedRef || ref,
-              amount: amt,
-              description: directPayPurpose || 'Payment into Rova via Paystack',
-              payerName: directPayName,
-              payerEmail: directPayEmail,
-              metadata: {
-                payment_method: 'paystack_inline',
-                settlement_type: 'direct_goods_payment',
-              },
-            });
-            showNotice('success', `Payment of ${formatCurrency(amt)} successfully processed! Ref: ${returnedRef || ref}`);
-            setShowDirectPayModal(false);
-            await loadAllData();
-          } catch (err: any) {
-            showNotice('error', 'Payment succeeded but error recording transaction: ' + err.message);
-          } finally {
-            setDirectPayProcessing(false);
-          }
-        },
-        onClose: () => {
-          setDirectPayProcessing(false);
-        },
-      });
-    } catch (err: any) {
-      setDirectPayProcessing(false);
-      showNotice('error', err.message || 'Unable to open Paystack payment popup.');
-    }
-  }
 
   // ── Handlers: Create Payment Link ─────────────────────────────────────────
   async function handleCreateLink(e: FormEvent) {
@@ -708,16 +629,16 @@ export default function PaymentPage() {
           <Button
             variant="secondary"
             size="sm"
-            icon={<Plus size={14} />}
-            onClick={() => setShowCreateLinkModal(true)}
+            icon={<Building2 size={14} />}
+            onClick={() => setActiveTab('banking')}
           >
-            Create Payment Link
+            My Banking
           </Button>
           <Button
             variant="primary"
             size="sm"
-            icon={<CreditCard size={14} />}
-            onClick={openDirectPayModal}
+            icon={<Plus size={14} />}
+            onClick={() => setShowCreateLinkModal(true)}
             style={{
               background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
               borderColor: 'var(--accent-primary)',
@@ -726,7 +647,7 @@ export default function PaymentPage() {
               boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
             }}
           >
-            Pay with Paystack
+            Create Payment Link
           </Button>
         </div>
       </div>
@@ -976,11 +897,11 @@ export default function PaymentPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {provider === 'paystack' && isConnected && (
                           <button
-                            onClick={openDirectPayModal}
+                            onClick={() => setShowCreateLinkModal(true)}
                             style={{
                               background: 'rgba(124, 58, 237, 0.12)',
                               border: '1px solid rgba(124, 58, 237, 0.3)',
-                              color: '#7c3aed',
+                              color: 'var(--accent-primary)',
                               fontWeight: 700,
                               cursor: 'pointer',
                               padding: '2px 8px',
@@ -991,8 +912,8 @@ export default function PaymentPage() {
                               gap: 4,
                             }}
                           >
-                            <CreditCard size={11} />
-                            Pay Now
+                            <Plus size={11} />
+                            Create Link
                           </button>
                         )}
                         <button
@@ -1240,17 +1161,17 @@ export default function PaymentPage() {
                       <Button
                         variant="primary"
                         size="sm"
-                        icon={<CreditCard size={14} />}
-                        onClick={openDirectPayModal}
+                        icon={<Plus size={14} />}
+                        onClick={() => setShowCreateLinkModal(true)}
                         style={{
                           flex: 1,
-                          background: '#7c3aed',
-                          borderColor: '#7c3aed',
-                          color: '#09090b',
+                          background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+                          borderColor: 'var(--accent-primary)',
+                          color: '#ffffff',
                           fontWeight: 700,
                         }}
                       >
-                        Pay with Paystack
+                        Create Payment Link
                       </Button>
                     ) : (
                       <div
@@ -1962,138 +1883,6 @@ export default function PaymentPage() {
         </div>
       )}
 
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* MODAL: DIRECT PAY INTO ROVA (VIA PAYSTACK)                          */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      <Modal
-        open={showDirectPayModal}
-        onClose={() => !directPayProcessing && setShowDirectPayModal(false)}
-        title="Pay into Rova via Paystack"
-        size="md"
-      >
-        <form onSubmit={handleExecuteDirectPayment} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              background: 'rgba(124, 58, 237, 0.08)',
-              border: '1px solid rgba(124, 58, 237, 0.25)',
-              fontSize: 12,
-              lineHeight: 1.5,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: '#7c3aed',
-                color: '#000',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <CreditCard size={16} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Instant Paystack Checkout</div>
-              <div style={{ color: 'var(--text-secondary)' }}>
-                Pay securely with Debit Card, Bank Transfer, USSD, or Apple Pay. Funds are verified and recorded in your Rova ledger.
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-              Amount to Pay (₦) *
-            </label>
-            <Input
-              type="number"
-              placeholder="e.g. 5000"
-              value={directPayAmount}
-              onChange={e => setDirectPayAmount(e.target.value)}
-              required
-              min="100"
-            />
-            {/* Quick Amount Chips */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-              {['1000', '2500', '5000', '10000', '20000', '50000'].map(preset => (
-                <button
-                  type="button"
-                  key={preset}
-                  onClick={() => setDirectPayAmount(preset)}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: directPayAmount === preset ? '1px solid #7c3aed' : '1px solid var(--bg-border)',
-                    background: directPayAmount === preset ? 'rgba(124, 58, 237, 0.15)' : 'var(--bg-elevated)',
-                    color: directPayAmount === preset ? '#7c3aed' : 'var(--text-primary)',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  ₦{Number(preset).toLocaleString()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <Input
-            label="Payment Purpose / Description"
-            placeholder="e.g. Payment for Goods, Business Deposit, Client Invoice"
-            value={directPayPurpose}
-            onChange={e => setDirectPayPurpose(e.target.value)}
-          />
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Input
-              label="Payer / Customer Name"
-              placeholder="e.g. John Doe"
-              value={directPayName}
-              onChange={e => setDirectPayName(e.target.value)}
-            />
-            <Input
-              label="Payer Email *"
-              type="email"
-              placeholder="name@example.com"
-              value={directPayEmail}
-              onChange={e => setDirectPayEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--bg-border)' }}>
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => setShowDirectPayModal(false)}
-              disabled={directPayProcessing}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              loading={directPayProcessing}
-              icon={<CreditCard size={14} />}
-              style={{
-                background: '#7c3aed',
-                borderColor: '#7c3aed',
-                color: '#09090b',
-                fontWeight: 700,
-              }}
-            >
-              {directPayProcessing ? 'Opening Paystack...' : `Pay ${directPayAmount ? `₦${Number(directPayAmount).toLocaleString()}` : ''}`}
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* MODAL: CREATE PAYMENT LINK                                          */}
