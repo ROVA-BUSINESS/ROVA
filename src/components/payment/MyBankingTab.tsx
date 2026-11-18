@@ -4,7 +4,6 @@ import {
   ExternalLink,
   ShieldCheck,
   Building2,
-  Smartphone,
   CheckCircle2,
   Info,
 } from 'lucide-react';
@@ -15,17 +14,35 @@ interface BankingPortal {
   portalUrl: string;
   tagline: string;
   color: string;
+  logo: string;
   rovaConnected?: boolean;
 }
 
 const BANKING_PORTALS: BankingPortal[] = [
   // Commercial Banks
   {
+    name: 'Guaranty Trust Bank (GTBank)',
+    category: 'commercial',
+    portalUrl: 'https://www.gtbank.com/',
+    tagline: 'GTWorld & GTCash Online Banking',
+    color: '#e4572e',
+    logo: '/banks/gtbank.png',
+  },
+  {
+    name: 'Zenith Bank',
+    category: 'commercial',
+    portalUrl: 'https://ibank.zenithbank.com/InternetBanking/',
+    tagline: 'Zenith Corporate & Personal Internet Banking',
+    color: '#a61c1c',
+    logo: '/banks/zenith.png',
+  },
+  {
     name: 'Access Bank',
     category: 'commercial',
     portalUrl: 'https://ibank.accessbankplc.com',
     tagline: 'AccessOnline Corporate & Retail Banking',
     color: '#ff6200',
+    logo: '/banks/access.png',
   },
   {
     name: 'First Bank of Nigeria',
@@ -33,13 +50,7 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://ibank.firstbanknigeria.com',
     tagline: 'FirstOnline & Corporate i-Bank',
     color: '#003366',
-  },
-  {
-    name: 'Guaranty Trust Bank (GTBank)',
-    category: 'commercial',
-    portalUrl: 'https://ibank.gtbank.com',
-    tagline: 'GTWorld & GTCash Online Banking',
-    color: '#e4572e',
+    logo: '/banks/firstbank.png',
   },
   {
     name: 'United Bank for Africa (UBA)',
@@ -47,20 +58,15 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://ibank.ubagroup.com',
     tagline: 'UBA Internet Banking & Leo',
     color: '#d41426',
-  },
-  {
-    name: 'Zenith Bank',
-    category: 'commercial',
-    portalUrl: 'https://ibank.zenithbank.com',
-    tagline: 'Zenith Corporate & Personal Internet Banking',
-    color: '#a61c1c',
+    logo: '/banks/uba.png',
   },
   {
     name: 'Stanbic IBTC Bank',
     category: 'commercial',
-    portalUrl: 'https://ibank.stanbicibtcbank.com',
+    portalUrl: 'https://smebanking.stanbicibtc.com/auth/',
     tagline: 'Stanbic IBTC Business Online & Enterprise Banking',
     color: '#0051a3',
+    logo: '/banks/stanbic.png',
   },
   {
     name: 'First City Monument Bank (FCMB)',
@@ -68,13 +74,15 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://ibank.fcmb.com',
     tagline: 'FCMB Online & Business Zone',
     color: '#5b2c6f',
+    logo: '/banks/fcmb.png',
   },
   {
     name: 'Fidelity Bank',
     category: 'commercial',
-    portalUrl: 'https://ibank.fidelitybank.ng',
+    portalUrl: 'https://online.fidelitybank.ng/',
     tagline: 'Fidelity Online & Fidelity Corporate Banking',
     color: '#008542',
+    logo: '/banks/fidelity.png',
   },
   {
     name: 'Union Bank of Nigeria',
@@ -82,41 +90,47 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://ibank.unionbankng.com',
     tagline: 'UnionOnline & UnionEnterprise Banking',
     color: '#0099cc',
+    logo: '/banks/union.png',
   },
   {
     name: 'Sterling Bank',
     category: 'commercial',
-    portalUrl: 'https://ibank.sterlingbank.com',
+    portalUrl: 'https://sterling.ng/',
     tagline: 'Sterling Pro & OneBank Portal',
     color: '#c0392b',
+    logo: '/banks/sterling.png',
   },
   {
     name: 'Polaris Bank',
     category: 'commercial',
-    portalUrl: 'https://ibank.polarisbanklimited.com',
+    portalUrl: 'https://elogin.polarisbanklimited.com/',
     tagline: 'Polaris Xperience & Corporate Banking',
     color: '#1a5276',
+    logo: '/banks/polaris.png',
   },
   {
     name: 'Wema Bank',
     category: 'commercial',
-    portalUrl: 'https://ibank.wemabank.com',
+    portalUrl: 'https://online.alat.ng/',
     tagline: 'ALAT by Wema & Corporate Portal',
     color: '#8e44ad',
+    logo: '/banks/wema.png',
   },
   {
     name: 'Providus Bank',
     category: 'commercial',
-    portalUrl: 'https://providusbank.com/ebanking',
+    portalUrl: 'https://ibank.providusbank.com/provipay/',
     tagline: 'Providus Corporate Internet Banking',
     color: '#1b2631',
+    logo: '/banks/providus.png',
   },
   {
     name: 'Keystone Bank',
     category: 'commercial',
-    portalUrl: 'https://ibank.keystonebankng.com',
+    portalUrl: 'https://retailibank.keystonebankng.com/',
     tagline: 'KeyOnline Corporate & Retail',
     color: '#117864',
+    logo: '/banks/keystone.png',
   },
   {
     name: 'Unity Bank',
@@ -124,6 +138,7 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://ibank.unitybankng.com',
     tagline: 'Unity Online Business Portal',
     color: '#27ae60',
+    logo: '/banks/unity.svg',
   },
   {
     name: 'Ecobank Nigeria',
@@ -131,20 +146,23 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://ecobank.com/ng/personal/digital-banking',
     tagline: 'Omni Lite Corporate Banking',
     color: '#005580',
+    logo: '/banks/ecobank.png',
   },
   {
     name: 'Coronation Merchant Bank',
     category: 'commercial',
-    portalUrl: 'https://ibank.coronationbank.com.ng',
+    portalUrl: 'https://ibanking.coronationmb.com/',
     tagline: 'Coronation Corporate Banking Platform',
     color: '#b7950b',
+    logo: '/banks/coronation.png',
   },
   {
     name: 'Standard Chartered Bank',
     category: 'commercial',
-    portalUrl: 'https://www.sc.com/ng/banking/straight2bank/',
+    portalUrl: 'https://www.sc.com/ng/online-banking-login/',
     tagline: 'Straight2Bank Corporate & Institutional Gateway',
     color: '#026928',
+    logo: '/banks/standardchartered.png',
   },
   {
     name: 'Titan Trust Bank',
@@ -152,31 +170,26 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://www.titantrustbank.com',
     tagline: 'Titan Digital Corporate Banking Portal',
     color: '#900c3f',
+    logo: '/banks/titantrust.png',
   },
 
   // Digital / Neo-Banks
   {
-    name: 'Kuda Business',
-    category: 'digital',
-    portalUrl: 'https://business.kuda.com',
-    tagline: 'Corporate Banking, Invoicing & Payroll by Kuda',
-    color: '#40196d',
-    rovaConnected: true,
-  },
-  {
-    name: 'OPay Business',
-    category: 'digital',
-    portalUrl: 'https://business.opayweb.com',
-    tagline: 'Merchant Dashboard, Cashier & POS Collections',
-    color: '#1bb774',
-    rovaConnected: true,
-  },
-  {
     name: 'Moniepoint Business',
     category: 'digital',
-    portalUrl: 'https://business.moniepoint.com',
+    portalUrl: 'https://atm.moniepoint.com/',
     tagline: 'All-in-One SME Bank, Terminals & Accounts',
     color: '#0033aa',
+    logo: '/banks/moniepoint.png',
+    rovaConnected: true,
+  },
+  {
+    name: 'Kuda Business',
+    category: 'digital',
+    portalUrl: 'https://app.kuda.com/',
+    tagline: 'Corporate Banking, Invoicing & Accounts by Kuda',
+    color: '#40196d',
+    logo: '/banks/kuda.png',
     rovaConnected: true,
   },
   {
@@ -185,6 +198,7 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://business.palmpay.com',
     tagline: 'PalmPay Merchant Services & Agent Portal',
     color: '#00c853',
+    logo: '/banks/palmpay.png',
   },
   {
     name: 'VFD (V-Bank)',
@@ -192,27 +206,7 @@ const BANKING_PORTALS: BankingPortal[] = [
     portalUrl: 'https://www.v-bank.com',
     tagline: 'V-Bank Corporate & Digital Banking',
     color: '#e67e22',
-  },
-  {
-    name: 'Carbon',
-    category: 'digital',
-    portalUrl: 'https://carbon.ng/app',
-    tagline: 'Carbon SME Business Accounts & Credit',
-    color: '#16a085',
-  },
-  {
-    name: 'FairMoney Business',
-    category: 'digital',
-    portalUrl: 'https://fairmoney.io/app',
-    tagline: 'FairMoney SME Bank & Commercial Loans',
-    color: '#e91e63',
-  },
-  {
-    name: 'Renmoney Business',
-    category: 'digital',
-    portalUrl: 'https://app.renmoney.com',
-    tagline: 'Renmoney Commercial Digital Services',
-    color: '#34495e',
+    logo: '/banks/vfd.svg',
   },
 ];
 
@@ -450,24 +444,40 @@ export default function MyBankingTab() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div
                       style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 'var(--radius-sm)',
-                        background: `${bank.color}15`,
-                        border: `1px solid ${bank.color}35`,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 'var(--radius-md)',
+                        background: '#ffffff',
+                        border: '1px solid var(--bg-border)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: bank.color,
-                        fontWeight: 800,
-                        fontSize: 14,
+                        overflow: 'hidden',
+                        padding: 4,
+                        flexShrink: 0,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                       }}
                     >
-                      {bank.category === 'commercial' ? (
-                        <Building2 size={18} />
-                      ) : (
-                        <Smartphone size={18} />
-                      )}
+                      <img
+                        src={bank.logo}
+                        alt={`${bank.name} logo`}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                        }}
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.style.background = `${bank.color}15`;
+                            parent.style.borderColor = `${bank.color}35`;
+                            parent.style.color = bank.color;
+                            parent.innerHTML = `<span style="font-weight: 800; font-size: 13px;">${bank.name.slice(0, 2).toUpperCase()}</span>`;
+                          }
+                        }}
+                      />
                     </div>
                     <div>
                       <h4
