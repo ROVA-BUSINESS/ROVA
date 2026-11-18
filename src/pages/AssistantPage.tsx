@@ -88,105 +88,7 @@ const STARTER_PROMPTS = [
   },
 ];
 
-// ── Audio Player Component ───────────────────────────────────────────────────
-
-function VoiceMessagePlayer({ audioUrl, duration }: { audioUrl: string; duration?: number }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('ended', onEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('ended', onEnded);
-    };
-  }, []);
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
-  };
-
-  const formatSecs = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '6px 12px',
-        borderRadius: 'var(--radius-full)',
-        background: 'rgba(255, 255, 255, 0.08)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        marginBottom: 6,
-        userSelect: 'none',
-      }}
-    >
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      <button
-        type="button"
-        onClick={togglePlay}
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          background: 'var(--accent-primary)',
-          color: 'white',
-          border: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        {isPlaying ? <Pause size={13} /> : <Play size={13} style={{ marginLeft: 2 }} />}
-      </button>
-
-      {/* Simulated waveform bars */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
-        {[4, 8, 14, 10, 16, 7, 12, 18, 9, 13, 6, 11].map((h, i) => (
-          <div
-            key={i}
-            style={{
-              width: 3,
-              height: `${h}px`,
-              borderRadius: 1,
-              background: isPlaying ? 'var(--accent-light)' : 'rgba(255, 255, 255, 0.4)',
-              transition: 'height 0.15s ease',
-            }}
-          />
-        ))}
-      </div>
-
-      <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(255, 255, 255, 0.8)' }}>
-        {formatSecs(currentTime || duration || 0)}
-      </span>
-    </div>
-  );
-}
+import VoiceMessagePlayer from '../components/assistant/VoiceMessagePlayer';
 
 // ── Action Button Component ──────────────────────────────────────────────────
 
@@ -235,7 +137,7 @@ function ActionButton({ action, onAction }: { action: ChatAction; onAction: (act
         e.currentTarget.style.transform = 'none';
       }}
     >
-      <Icon size={isWhatsApp ? 18 : 14} color={isWhatsApp ? '#25D366' : color} />
+      <Icon size={isWhatsApp ? 22 : 14} color={isWhatsApp ? '#25D366' : color} />
       <span>{isWhatsApp && clicked ? 'Coming Soon' : action.label.replace(/^💬\s*/, '')}</span>
       {isWhatsApp && (
         <span style={{ fontSize: 10, background: 'rgba(37, 211, 102, 0.25)', color: '#4ade80', padding: '2px 6px', borderRadius: 4, marginLeft: 4 }}>Soon</span>
@@ -924,7 +826,7 @@ export default function AssistantPage() {
               transition: 'all 0.15s ease',
             }}
           >
-            <WhatsAppIcon size={16} color="#25D366" />
+            <WhatsAppIcon size={22} color="#25D366" />
             <span style={{ flex: 1 }}>{waPromoComingSoon ? 'Coming Soon' : 'WhatsApp Voice & OCR'}</span>
             {waPromoComingSoon ? (
               <span style={{ fontSize: 10, background: 'rgba(37, 211, 102, 0.25)', padding: '2px 6px', borderRadius: 4 }}>Soon</span>

@@ -233,7 +233,9 @@ export async function transcribeAudioBlob(
   formData.append('audio', blob, fileName);
 
   try {
-    const response = await fetch('/api/ai/transcribe', {
+    const backendUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || '';
+    const endpoint = backendUrl ? `${backendUrl.replace(/\/$/, '')}/api/ai/transcribe` : '/api/ai/transcribe';
+    const response = await fetch(endpoint, {
       method: 'POST',
       body: formData,
     });
