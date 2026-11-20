@@ -58,3 +58,31 @@ export function cleanDescription(desc: string | null | undefined): string {
   return desc;
 }
 
+export function extractAmountFromText(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const kMatch = text.match(/\b(\d+(?:\.\d+)?)\s*k\b/i);
+  if (kMatch) {
+    const val = parseFloat(kMatch[1]) * 1000;
+    if (!isNaN(val) && val > 0) return val;
+  }
+  const nairaMatch = text.match(/(?:(?:₦|ngn|naira)\s*([0-9,]+(?:\.[0-9]{1,2})?))|([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ngn|naira)/i);
+  if (nairaMatch) {
+    const raw = (nairaMatch[1] || nairaMatch[2] || '').replace(/,/g, '');
+    const val = parseFloat(raw);
+    if (!isNaN(val) && val > 0) return val;
+  }
+  const actionMatch = text.match(/\b(?:for|worth|cost|paid|spent|sold|amount|price)\s+(?:of\s+)?(?:₦|ngn|naira)?\s*([0-9,]+(?:\.[0-9]{1,2})?)/i);
+  if (actionMatch) {
+    const raw = actionMatch[1].replace(/,/g, '');
+    const val = parseFloat(raw);
+    if (!isNaN(val) && val > 0) return val;
+  }
+  const numMatch = text.match(/(?:^|\s)(?:₦)?([1-9][0-9]{2,}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)(?:\s|$)/);
+  if (numMatch) {
+    const raw = numMatch[1].replace(/,/g, '');
+    const val = parseFloat(raw);
+    if (!isNaN(val) && val > 0) return val;
+  }
+  return null;
+}
+

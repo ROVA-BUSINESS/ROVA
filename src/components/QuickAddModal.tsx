@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { autoClassify } from '../lib/categorise';
 import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 import { classifyTransaction, applyInventoryIntent, applyPayrollIntent, type ClassifyResult } from '../lib/deepseekClient';
+import { extractAmountFromText } from '../lib/format';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -72,9 +73,14 @@ export default function QuickAddModal({ open, onClose }: Props) {
   }, [open, effectiveUserId]);
 
   function handleDescriptionChange(desc: string) {
-    // Instant keyword fallback
+    const extractedAmount = extractAmountFromText(desc);
+
+    // Instant keyword fallback & price extraction
     setForm(prev => {
       const updated = { ...prev, description: desc };
+      if (extractedAmount && (!prev.amount || prev.amount === '0' || prev.amount === '')) {
+        updated.amount = String(extractedAmount);
+      }
       if (desc.length >= 3) {
         const result = autoClassify(desc);
         if (result.categoryName) {
@@ -178,6 +184,28 @@ export default function QuickAddModal({ open, onClose }: Props) {
       }
 
       const insertedRecord = txData?.[0];
+
+      // Record in activity_logs
+      if (currentUserId && insertedRecord) {
+        try {
+          await supabase.from('activity_logs').insert({
+            owner_id: currentUserId,
+            user_id: user?.id || currentUserId,
+            action: 'created',
+            entity_type: 'transaction',
+            entity_id: insertedRecord.id,
+            entity_label: `${form.description.trim() || 'Transaction'} — Price: ₦${amt.toLocaleString()}`,
+            metadata: {
+              amount: amt,
+              type: form.type,
+              category_id: form.category_id,
+              source: 'quick_add',
+            },
+          });
+        } catch (actErr) {
+          console.warn('Activity log error:', actErr);
+        }
+      }
 
       // Apply intents if confirmed
       if (intentConfirmed && aiResult && insertedRecord) {

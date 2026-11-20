@@ -73,6 +73,22 @@ export class DatabaseService {
     }
 
     console.log(`💾 Transaction saved: ${data.id}`);
+
+    // Log to activity_logs
+    await supabase.from('activity_logs').insert({
+      owner_id: userId,
+      user_id: userId,
+      action: 'created',
+      entity_type: 'transaction',
+      entity_id: data.id,
+      entity_label: `${extracted.description || 'WhatsApp Transaction'} — Price: ₦${Number(extracted.amount).toLocaleString()}`,
+      metadata: {
+        amount: extracted.amount,
+        type: dbType,
+        source: 'whatsapp',
+      },
+    }).catch(err => console.warn(`Failed to write activity log: ${err.message}`));
+
     return data.id;
   }
 

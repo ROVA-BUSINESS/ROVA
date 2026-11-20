@@ -76,7 +76,7 @@ export default function TransactionsPage() {
     return () => window.removeEventListener('rova-reminder-settings-updated', handleReminderUpdated);
   }, [effectiveUserId]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<'description' | 'category' | null>(null);
+  const [editingField, setEditingField] = useState<'description' | 'category' | 'amount' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [expandedDescId, setExpandedDescId] = useState<string | null>(null);
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
@@ -109,8 +109,13 @@ export default function TransactionsPage() {
         date: editTxDate || editTxModal.date,
         account_id: editTxAccountId || null,
       };
+      const oldAmount = editTxModal.amount;
+      let amountChanged = false;
       if (editTxAmount && !isNaN(Number(editTxAmount)) && Number(editTxAmount) > 0) {
         updates.amount = Number(editTxAmount);
+        if (updates.amount !== oldAmount) {
+          amountChanged = true;
+        }
       }
       const { error } = await supabase.from('transactions').update(updates).eq('id', editTxModal.id);
       if (!error) {
@@ -125,6 +130,48 @@ export default function TransactionsPage() {
           category,
           account: account || t.account,
         } : t));
+
+        // Activity log recording
+        if (effectiveUserId) {
+          const actionLabel = amountChanged
+            ? `${updates.description} — Price updated from ₦${oldAmount?.toLocaleString()} to ₦${updates.amount?.toLocaleString()}`
+            : `${updates.description} (₦${(updates.amount || oldAmount)?.toLocaleString()})`;
+          try {
+            await supabase.from('activity_logs').insert({
+              owner_id: effectiveUserId,
+              user_id: user?.id || effectiveUserId,
+              action: 'updated',
+              entity_type: 'transaction',
+              entity_id: editTxModal.id,
+              entity_label: actionLabel,
+              metadata: {
+                old_amount: oldAmount,
+                new_amount: updates.amount || oldAmount,
+                amount_changed: amountChanged,
+                description: updates.description,
+                date: updates.date,
+              },
+            });
+          } catch (logErr) {
+            console.warn('Failed to insert activity log:', logErr);
+          }
+        }
+
+        // Also sync inventory if transaction is linked to inventory_transactions
+        if (amountChanged && updates.amount) {
+          try {
+            await supabase
+              .from('inventory_transactions')
+              .update({
+                total_cost: updates.amount,
+                unit_cost: updates.amount,
+              })
+              .eq('transaction_id', editTxModal.id);
+          } catch (invErr) {
+            console.warn('Inventory sync error:', invErr);
+          }
+        }
+
         setEditTxModal(null);
       } else {
         alert('Failed to update transaction: ' + error.message);
@@ -208,7 +255,7 @@ export default function TransactionsPage() {
     const queryTag = duplicateReason ? `[ROVA Sync Query Verified: ${duplicateReason === 'separate' ? 'Separate transaction' : 'Different account/split'}]` : '';
     const notesWithActor = [form.notes, methodTag, loanTag, queryTag, `Performed by: ${actorText}`].filter(Boolean).join(' | ');
 
-    const { error } = await supabase.from('transactions').insert({
+    const { data: insertedTx, error } = await supabase.from('transactions').insert({
       user_id: effectiveUserId,
       description: form.description,
       amount: Number(form.amount),
@@ -217,31 +264,116 @@ export default function TransactionsPage() {
       category_id: form.category_id || null,
       account_id: form.account_id || null,
       notes: notesWithActor,
-    });
+    }).select().single();
     setSaving(false);
     if (error) { setFormError('Failed to save transaction.'); return; }
+
+    if (effectiveUserId && insertedTx) {
+      try {
+        await supabase.from('activity_logs').insert({
+          owner_id: effectiveUserId,
+          user_id: user?.id || effectiveUserId,
+          action: 'created',
+          entity_type: 'transaction',
+          entity_id: insertedTx.id,
+          entity_label: `${form.description || 'Transaction'} — Price: ₦${Number(form.amount).toLocaleString()}`,
+          metadata: {
+            amount: Number(form.amount),
+            type: form.type,
+            description: form.description,
+          },
+        });
+      } catch (logErr) {
+        console.warn('Activity log error:', logErr);
+      }
+    }
     setShowModal(false);
     resetForm();
     loadData();
   }
 
-  async function handleSaveEdit(txId: string, field: 'description' | 'category_id', value: string) {
+  async function handleSaveEdit(txId: string, field: 'description' | 'category_id' | 'amount', value: string) {
     if (field === 'description' && !value.trim()) {
       setEditingId(null);
       setEditingField(null);
       return;
     }
-    const { error } = await supabase.from('transactions').update({ [field]: value || null }).eq('id', txId);
+    const targetTx = transactions.find(t => t.id === txId);
+    let updateValue: any = value || null;
+
+    if (field === 'amount') {
+      const num = parseFloat(value.replace(/[^0-9.]/g, ''));
+      if (isNaN(num) || num <= 0) {
+        setEditingId(null);
+        setEditingField(null);
+        return;
+      }
+      updateValue = num;
+    }
+
+    const { error } = await supabase.from('transactions').update({ [field]: updateValue }).eq('id', txId);
     if (!error) {
       if (field === 'category_id') {
         const category = categories.find(c => c.id === value) || undefined;
-        const targetTx = transactions.find(t => t.id === txId);
         if (category && targetTx && effectiveUserId) {
           learnUserCategoryPreference(targetTx.description, category.name, effectiveUserId);
         }
         setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category_id: value || null, category } : t));
+      } else if (field === 'amount') {
+        const oldAmount = targetTx?.amount || 0;
+        setTransactions(prev => prev.map(t => t.id === txId ? { ...t, amount: updateValue } : t));
+
+        // Log to activity_logs
+        if (effectiveUserId) {
+          try {
+            await supabase.from('activity_logs').insert({
+              owner_id: effectiveUserId,
+              user_id: user?.id || effectiveUserId,
+              action: 'updated',
+              entity_type: 'transaction',
+              entity_id: txId,
+              entity_label: `${targetTx?.description || 'Transaction'} — Price updated to ₦${Number(updateValue).toLocaleString()}`,
+              metadata: {
+                field: 'amount',
+                old_amount: oldAmount,
+                new_amount: updateValue,
+                description: targetTx?.description,
+              },
+            });
+          } catch (logErr) {
+            console.warn('Activity log error:', logErr);
+          }
+        }
+
+        // Also sync inventory if transaction is linked to inventory_transactions
+        try {
+          await supabase
+            .from('inventory_transactions')
+            .update({
+              total_cost: updateValue,
+              unit_cost: updateValue,
+            })
+            .eq('transaction_id', txId);
+        } catch (invErr) {
+          console.warn('Inventory sync error:', invErr);
+        }
       } else {
-        setTransactions(prev => prev.map(t => t.id === txId ? { ...t, [field]: value } : t));
+        setTransactions(prev => prev.map(t => t.id === txId ? { ...t, [field]: updateValue } : t));
+        if (effectiveUserId && field === 'description') {
+          try {
+            await supabase.from('activity_logs').insert({
+              owner_id: effectiveUserId,
+              user_id: user?.id || effectiveUserId,
+              action: 'updated',
+              entity_type: 'transaction',
+              entity_id: txId,
+              entity_label: `Updated description: ${updateValue}`,
+              metadata: { field: 'description', old_desc: targetTx?.description, new_desc: updateValue },
+            });
+          } catch (logErr) {
+            console.warn('Activity log error:', logErr);
+          }
+        }
       }
     }
     setEditingId(null);
@@ -250,8 +382,28 @@ export default function TransactionsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this transaction?')) return;
+    const targetTx = transactions.find(t => t.id === id);
     await supabase.from('transactions').delete().eq('id', id);
     setTransactions(prev => prev.filter(t => t.id !== id));
+    if (effectiveUserId) {
+      try {
+        await supabase.from('activity_logs').insert({
+          owner_id: effectiveUserId,
+          user_id: user?.id || effectiveUserId,
+          action: 'deleted',
+          entity_type: 'transaction',
+          entity_id: id,
+          entity_label: `${targetTx?.description || 'Transaction'} — ₦${targetTx?.amount?.toLocaleString()}`,
+          metadata: {
+            amount: targetTx?.amount,
+            type: targetTx?.type,
+            description: targetTx?.description,
+          },
+        });
+      } catch (logErr) {
+        console.warn('Activity log error:', logErr);
+      }
+    }
   }
 
   async function toggleVerify(tx: Transaction) {
@@ -741,7 +893,61 @@ export default function TransactionsPage() {
                     </div>
                   </td>
                   <td className="mobile-tight-td" style={{ padding: '12px 16px', fontWeight: 600, fontSize: 13, color: tx.type === 'income' ? 'var(--success)' : 'var(--error)', fontFamily: 'Space Grotesk, sans-serif', whiteSpace: 'nowrap' }}>
-                    {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
+                    {editingId === tx.id && editingField === 'amount' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <input
+                          autoFocus
+                          type="number"
+                          step="0.01"
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          onBlur={() => handleSaveEdit(tx.id, 'amount', editValue)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveEdit(tx.id, 'amount', editValue);
+                            if (e.key === 'Escape') { setEditingId(null); setEditingField(null); }
+                          }}
+                          style={{
+                            width: 100,
+                            padding: '4px 6px',
+                            borderRadius: 4,
+                            border: '1px solid var(--accent-primary)',
+                            background: 'var(--bg-elevated)',
+                            color: 'var(--text-primary)',
+                            outline: 'none',
+                            fontSize: 13,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span>{tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}</span>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setEditingId(tx.id);
+                              setEditingField('amount');
+                              setEditValue(String(tx.amount || ''));
+                            }}
+                            style={{
+                              padding: 3,
+                              color: 'var(--text-muted)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              opacity: 0.6,
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}
+                            title="Edit Price/Amount"
+                          >
+                            <Edit2 size={11} />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="mobile-hide" style={{ padding: '12px 16px' }}>
                     <Badge variant={tx.is_verified ? 'success' : 'default'}>

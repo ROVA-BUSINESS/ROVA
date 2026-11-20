@@ -16,6 +16,7 @@ import {
 import { createInvoice } from '../lib/invoiceService';
 import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 import { getNextSku } from '../lib/inventoryService';
+import { extractAmountFromText } from '../lib/format';
 import {
   type ChatMessage,
   type Conversation,
@@ -895,6 +896,115 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           break;
         }
 
+        case 'record_transaction': {
+          const payload = action.payload || {};
+          const amount = Number(payload.amount || payload.price || 0);
+          const description = (payload.description || payload.item || 'Transaction').trim();
+          const type = (payload.type || 'expense') as 'income' | 'expense' | 'transfer';
+          const date = payload.date || new Date().toISOString().split('T')[0];
+          const categoryName = payload.category || (type === 'income' ? 'Sales Revenue' : 'Operating Expense');
+
+          if (amount <= 0) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `tx-err-${Date.now()}`,
+                role: 'assistant',
+                content: `Please specify a valid price/amount for **${description}** before recording.`,
+                timestamp: new Date(),
+              },
+            ]);
+            break;
+          }
+
+          setTyping(true);
+          const loadingMsgId = `tx-loading-${Date.now()}`;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: loadingMsgId,
+              role: 'assistant',
+              content: `⏳ Recording transaction of **₦${amount.toLocaleString()}** for **${description}**…`,
+              timestamp: new Date(),
+            },
+          ]);
+
+          try {
+            let categoryId: string | null = null;
+            const existingCat = categories.find(
+              (c) => c.name.toLowerCase() === categoryName.toLowerCase() && (c.type === type || c.type === 'both')
+            );
+            if (existingCat) {
+              categoryId = existingCat.id;
+            }
+
+            const { data: newTx, error: txError } = await supabase
+              .from('transactions')
+              .insert({
+                user_id: effectiveUserId,
+                amount,
+                type,
+                description,
+                date,
+                category_id: categoryId,
+                ai_category: categoryName,
+                is_verified: true,
+                notes: 'Recorded via ROVA AI Assistant',
+              })
+              .select()
+              .single();
+
+            if (txError) throw txError;
+
+            // Log to activity_logs
+            if (effectiveUserId && newTx) {
+              try {
+                await supabase.from('activity_logs').insert({
+                  owner_id: effectiveUserId,
+                  user_id: user?.id || effectiveUserId,
+                  action: 'created',
+                  entity_type: 'transaction',
+                  entity_id: newTx.id,
+                  entity_label: `${description} — Price: ₦${amount.toLocaleString()}`,
+                  metadata: {
+                    amount,
+                    type,
+                    description,
+                    source: 'ai_assistant',
+                  },
+                });
+              } catch (actErr) {
+                console.warn('Activity log error:', actErr);
+              }
+            }
+
+            setMessages((prev) =>
+              prev.filter((m) => m.id !== loadingMsgId).concat({
+                id: `tx-ok-${Date.now()}`,
+                role: 'assistant',
+                content: `✅ Transaction recorded successfully!\n\n• **Item / Description:** ${description}\n• **Price / Amount:** ₦${amount.toLocaleString()}\n• **Type:** ${type === 'income' ? 'Money In (Revenue)' : 'Money Out (Expense)'}\n• **Category:** ${categoryName}\n• **Date:** ${date}`,
+                timestamp: new Date(),
+                actions: [
+                  { type: 'view_report', label: '📊 View Transactions', payload: { page: 'transactions' } },
+                ],
+              })
+            );
+            loadData();
+          } catch (err: any) {
+            setMessages((prev) =>
+              prev.filter((m) => m.id !== loadingMsgId).concat({
+                id: `tx-err-${Date.now()}`,
+                role: 'assistant',
+                content: `❌ Failed to record transaction: ${err.message || err}`,
+                timestamp: new Date(),
+              })
+            );
+          } finally {
+            setTyping(false);
+          }
+          break;
+        }
+
         case 'cancel_action': {
           setPendingToolCall(null);
           setMessages((prev) => [
@@ -1003,10 +1113,43 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           controller.signal
         );
 
+        const attachedActions: ChatAction[] = [];
+        const textToCheck = cleanText;
+        const amountExtracted = extractAmountFromText(textToCheck);
+        const isRecordIntent = /\b(record|log|add|save|track|bought|purchased|sold|paid|spent|cost)\b/i.test(textToCheck);
+
+        if (isRecordIntent && amountExtracted && amountExtracted > 0) {
+          const isSale = /\b(sold|sale|income|revenue|earned|collected|received)\b/i.test(textToCheck);
+          const type = isSale ? 'income' : 'expense';
+          let itemDesc = textToCheck
+            .replace(/\b(please\s+)?(record|log|add|save|track|i\s+just|i\s+bought|i\s+paid|i\s+sold|i\s+spent|an\s+expense\s+of|a\s+sale\s+of)\b/gi, '')
+            .replace(/(?:(?:₦|ngn|naira)\s*[0-9,]+(?:\.[0-9]{1,2})?)|(?:[0-9,]+(?:\.[0-9]{1,2})?\s*(?:ngn|naira))/gi, '')
+            .replace(/\b\d+(?:\.\d+)?\s*k\b/gi, '')
+            .replace(/\b(?:for|worth|cost|paid|spent|sold|amount|price)\s+(?:of\s+)?/gi, '')
+            .trim();
+          if (!itemDesc || itemDesc.length < 2) itemDesc = isSale ? 'Sales Revenue' : 'Business Expense';
+          itemDesc = itemDesc.charAt(0).toUpperCase() + itemDesc.slice(1);
+
+          attachedActions.push({
+            type: 'record_transaction',
+            label: `💾 Record ${type === 'income' ? 'Income' : 'Expense'}: ₦${amountExtracted.toLocaleString()} (${itemDesc})`,
+            payload: {
+              amount: amountExtracted,
+              description: itemDesc,
+              type,
+            },
+          });
+        }
+
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantMsgId
-              ? { ...m, content: finalReply || m.content, status: 'sent' }
+              ? {
+                  ...m,
+                  content: finalReply || m.content,
+                  status: 'sent',
+                  actions: attachedActions.length > 0 ? attachedActions : m.actions,
+                }
               : m
           )
         );

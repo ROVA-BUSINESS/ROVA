@@ -129,7 +129,8 @@ export type ChatAction = {
     | 'send_invoice'
     | 'select_inventory_item'
     | 'confirm_action'
-    | 'cancel_action';
+    | 'cancel_action'
+    | 'record_transaction';
   label: string;
   payload?: Record<string, any>;
 };

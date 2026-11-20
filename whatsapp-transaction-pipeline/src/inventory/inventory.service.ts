@@ -92,7 +92,7 @@ export class InventoryService {
     // Check for existing inventory item
     const { data: existing } = await supabase
       .from('inventory_items')
-      .select('id, quantity_on_hand')
+      .select('id, current_stock')
       .eq('user_id', userId)
       .ilike('name', item.name.trim())
       .limit(1)
@@ -102,12 +102,12 @@ export class InventoryService {
 
     if (existing) {
       itemId = existing.id;
-      const newQty = (existing.quantity_on_hand || 0) + item.quantity;
+      const newQty = (existing.current_stock || 0) + item.quantity;
       await supabase
         .from('inventory_items')
         .update({
-          quantity_on_hand: newQty,
-          unit_cost: item.unit_price,
+          current_stock: newQty,
+          cost_price: item.unit_price,
           updated_at: new Date().toISOString(),
         })
         .eq('id', itemId);
@@ -118,8 +118,9 @@ export class InventoryService {
           user_id: userId,
           supplier_id: supplierId,
           name: item.name.trim(),
-          quantity_on_hand: item.quantity,
-          unit_cost: item.unit_price,
+          current_stock: item.quantity,
+          cost_price: item.unit_price,
+          selling_price: item.unit_price,
           reorder_level: 5,
         })
         .select('id')

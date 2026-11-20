@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   X, Minus, Send, Mic, Maximize2,
   ChevronRight, FileText, Package, Users, TrendingUp, HelpCircle,
-  RotateCcw, Sparkles
+  RotateCcw
 } from 'lucide-react';
 import { useAssistant, type PendingMediaAttachment } from '../../contexts/AssistantContext';
 import { useMobile } from '../../hooks/useMobile';
