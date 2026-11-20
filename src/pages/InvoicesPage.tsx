@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download, Package, Share2 } from 'lucide-react';
+import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download, Package, Share2, Link2 } from 'lucide-react';
 import ShareDocumentModal, { type ShareDocumentData } from '../components/ShareDocumentModal';
 import { supabase, type Invoice, type InventoryItem, type InvoicePayment } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -570,13 +570,21 @@ export default function InvoicesPage() {
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Invoices</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Create and manage customer invoices</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <Button variant="secondary" icon={<Download size={14} />} onClick={() => {
             const rows = invoices.map(inv => [inv.invoice_number, inv.client_name, inv.client_email, formatDate(inv.issue_date), formatDate(inv.due_date), inv.status, inv.subtotal, inv.tax_amount, inv.total]);
             downloadCSV(`invoices-${new Date().toISOString().split('T')[0]}.csv`, ['Invoice #', 'Customer', 'Email', 'Issue Date', 'Due Date', 'Status', 'Subtotal', 'Tax', 'Total (NGN)'], rows);
           }}>Export CSV</Button>
+          <Button
+            variant="secondary"
+            icon={<Link2 size={14} />}
+            onClick={() => navigate('/app/payment?tab=links')}
+            title="Payment Links in Banking & Payments"
+          >
+            Payment Links
+          </Button>
           <Button variant="primary" icon={<Plus size={14} />} onClick={() => { resetForm(); setShowModal(true); }}>
-            New Invoice
+            Create Invoice
           </Button>
         </div>
       </div>
@@ -1082,8 +1090,20 @@ export default function InvoicesPage() {
 
           <Input label="Notes" placeholder="Payment terms, bank details, etc." value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
 
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
             <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button
+              variant="secondary"
+              type="button"
+              icon={<Link2 size={14} />}
+              onClick={() => {
+                setShowModal(false);
+                navigate('/app/payment?tab=links');
+              }}
+              title="Go to Payment Links in Banking & Payments"
+            >
+              Payment Links
+            </Button>
             <Button variant="primary" loading={saving} type="submit">Create Invoice</Button>
           </div>
         </form>
