@@ -92,6 +92,8 @@ export type Transaction = {
   account?: Account;
 };
 
+export type InvoiceStatus = 'draft' | 'sent' | 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
+
 export type Invoice = {
   id: string;
   user_id: string;
@@ -101,7 +103,7 @@ export type Invoice = {
   client_address: string;
   issue_date: string;
   due_date: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  status: InvoiceStatus;
   subtotal: number;
   discount_rate?: number;
   discount_amount?: number;
@@ -113,6 +115,27 @@ export type Invoice = {
   currency: string;
   created_at: string;
   items?: InvoiceItem[];
+  allow_partial_payments?: boolean;
+  partial_payment_type?: 'any' | 'minimum' | 'fixed_deposit';
+  minimum_partial_amount?: number | null;
+  fixed_deposit_amount?: number | null;
+};
+
+export type InvoicePayment = {
+  id: string;
+  user_id: string;
+  invoice_id: string;
+  amount: number;
+  currency: string;
+  payment_method: string;
+  payment_reference: string;
+  payment_date: string;
+  status: 'pending' | 'verified' | 'failed' | 'refunded';
+  transaction_id?: string | null;
+  payer_name?: string | null;
+  payer_email?: string | null;
+  notes?: string | null;
+  created_at: string;
 };
 
 export type InvoiceItem = {

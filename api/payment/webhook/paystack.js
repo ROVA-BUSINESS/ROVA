@@ -45,6 +45,27 @@ export default async function handler(req, res) {
       } = data;
 
       const userId = metadata?.userId || metadata?.user_id;
+      const invoiceId = metadata?.invoice_id || metadata?.invoiceId;
+      const amountNaira = Number(amount) / 100;
+      const payerName = customer?.first_name ? `${customer.first_name} ${customer.last_name || ''}`.trim() : customer?.email;
+
+      // 1. If linked to an invoice, record the instalment atomically
+      if (invoiceId && reference) {
+        try {
+          await supabase.rpc('record_invoice_payment_atomic', {
+            p_invoice_id: invoiceId,
+            p_amount: amountNaira,
+            p_payment_reference: reference,
+            p_payment_method: channel ? `Paystack (${channel})` : 'Paystack',
+            p_payer_name: payerName,
+            p_payer_email: customer?.email || null,
+            p_notes: metadata?.notes || `Online payment via Paystack (${reference})`,
+            p_raw_payload: data,
+          });
+        } catch (invPaymentErr) {
+          console.error('Failed to atomically record invoice payment from webhook:', invPaymentErr);
+        }
+      }
 
       if (userId && reference) {
         await supabase
@@ -54,11 +75,11 @@ export default async function handler(req, res) {
               user_id: userId,
               provider: 'paystack',
               provider_reference: reference,
-              amount: Number(amount) / 100,
+              amount: amountNaira,
               currency: currency || 'NGN',
               type: 'credit',
-              description: metadata?.title || `Paystack Payment ${reference}`,
-              counterparty_name: customer?.first_name ? `${customer.first_name} ${customer.last_name || ''}`.trim() : customer?.email,
+              description: metadata?.title || (invoiceId ? `Invoice payment ${reference}` : `Paystack Payment ${reference}`),
+              counterparty_name: payerName,
               counterparty_email: customer?.email || null,
               provider_status: 'success',
               verification_status: 'verified',
@@ -69,6 +90,7 @@ export default async function handler(req, res) {
                 gateway_response: data.gateway_response,
                 fees: data.fees ? Number(data.fees) / 100 : 0,
                 paid_at,
+                invoice_id: invoiceId || null,
               },
               transacted_at: paid_at || new Date().toISOString(),
             },

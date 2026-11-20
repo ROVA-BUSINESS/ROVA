@@ -50,6 +50,31 @@ serve(async (req) => {
     if (eventType === 'charge.success') {
       const reference = data.reference;
       if (reference) {
+        const metadataInvoiceId = data.metadata?.invoice_id || data.metadata?.invoiceId;
+
+        // If this charge is for an invoice instalment
+        if (metadataInvoiceId) {
+          const amountNaira = data.amount ? Number(data.amount) / 100 : 0;
+          const payerName = data.customer?.first_name ? `${data.customer.first_name} ${data.customer.last_name || ''}`.trim() : (data.customer?.name || data.customer?.email || 'Customer');
+          
+          try {
+            await supabaseClient.rpc('record_invoice_payment_atomic', {
+              p_invoice_id: metadataInvoiceId,
+              p_amount: amountNaira,
+              p_payment_reference: reference,
+              p_payment_method: data.channel ? `Paystack (${data.channel})` : 'Paystack',
+              p_payer_name: payerName,
+              p_payer_email: data.customer?.email || null,
+              p_notes: data.metadata?.notes || `Online payment via Paystack (${reference})`,
+              p_raw_payload: data,
+            });
+            return new Response('Invoice payment recorded successfully', { status: 200 });
+          } catch (rpcErr: any) {
+            console.error('Error recording invoice payment atomic:', rpcErr);
+            // Continue processing or return
+          }
+        }
+
         // Idempotency check:
         const { data: existing } = await supabaseClient
           .from('rova_payment_history')

@@ -46,6 +46,7 @@ import BillingPage from './pages/billing/BillingPage';
 import NoSubscriptionPage from './pages/billing/NoSubscriptionPage';
 import AutomationStudioPage from './pages/admin/AutomationStudioPage';
 import PublicCheckoutPage from './pages/payment/PublicCheckoutPage';
+import PublicInvoicePaymentPage from './pages/payment/PublicInvoicePaymentPage';
 
 // ── Auth guards ──────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -142,6 +143,9 @@ export default function App() {
           <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
           <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route path="/auth/callback/gmail" element={<ProtectedRoute><GmailCallbackPage /></ProtectedRoute>} />
+          <Route path="/pay/invoice/:id" element={<PublicInvoicePaymentPage />} />
+          <Route path="/invoice/pay/:id" element={<PublicInvoicePaymentPage />} />
+          <Route path="/invoice/:id/pay" element={<PublicInvoicePaymentPage />} />
           <Route path="/pay/:slug" element={<PublicCheckoutPage />} />
 
           {/* Protected app — wrapped in SubscriptionProvider */}

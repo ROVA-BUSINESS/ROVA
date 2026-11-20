@@ -11,6 +11,10 @@ export interface CreateInvoiceInput {
   notes?: string;
   payment_status: 'unpaid' | 'paid_in_full' | 'part_payment';
   amount_paid?: number;
+  allow_partial_payments?: boolean;
+  partial_payment_type?: 'any' | 'minimum' | 'fixed_deposit';
+  minimum_partial_amount?: number | null;
+  fixed_deposit_amount?: number | null;
   items: {
     description: string;
     quantity: number;
@@ -57,7 +61,7 @@ export async function createInvoice(input: CreateInvoiceInput) {
   }
 
   let initialAmountPaid = 0;
-  let status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' = 'sent';
+  let status: 'draft' | 'sent' | 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled' = 'sent';
 
   if (input.payment_status === 'paid_in_full') {
     initialAmountPaid = total;
@@ -66,6 +70,8 @@ export async function createInvoice(input: CreateInvoiceInput) {
     initialAmountPaid = input.amount_paid ?? 0;
     if (initialAmountPaid >= total) {
       status = 'paid';
+    } else if (initialAmountPaid > 0) {
+      status = 'partially_paid';
     }
   }
 
@@ -85,6 +91,10 @@ export async function createInvoice(input: CreateInvoiceInput) {
     subtotal,
     total,
     amount_paid: initialAmountPaid,
+    allow_partial_payments: Boolean(input.allow_partial_payments),
+    partial_payment_type: input.partial_payment_type || 'any',
+    minimum_partial_amount: input.minimum_partial_amount || null,
+    fixed_deposit_amount: input.fixed_deposit_amount || null,
     notes: input.notes || null,
     status,
   }).select().maybeSingle();
@@ -159,20 +169,121 @@ export async function createInvoice(input: CreateInvoiceInput) {
     }
   }
 
-  // Insert payment transactions if paid immediately or part payment
+  // Insert payment transactions and invoice_payment entry if paid immediately or part payment
   if (initialAmountPaid > 0) {
-    await supabase.from('transactions').insert({
+    const paymentRef = `INIT-${invoiceNumber}-${Date.now().toString().slice(-4)}`;
+    const { data: tx } = await supabase.from('transactions').insert({
       user_id: input.userId,
       amount: initialAmountPaid,
       type: 'income',
       description: `Payment for ${invoiceNumber}`,
-      reference: invoiceNumber,
+      reference: paymentRef,
       date: new Date().toISOString().split('T')[0],
+      is_verified: true,
+      ai_category: 'Sales Revenue',
       notes: input.payment_status === 'paid_in_full' 
         ? `Full immediate payment from ${input.client_name}` 
         : `Initial part payment from ${input.client_name}`,
+    }).select('id').maybeSingle();
+
+    await supabase.from('invoice_payments').insert({
+      user_id: input.userId,
+      invoice_id: inv.id,
+      amount: initialAmountPaid,
+      currency: 'NGN',
+      payment_method: 'Direct/Immediate',
+      payment_reference: paymentRef,
+      payment_date: new Date().toISOString(),
+      status: 'verified',
+      transaction_id: tx?.id || null,
+      payer_name: input.client_name,
+      payer_email: input.client_email || null,
+      notes: input.payment_status === 'paid_in_full' ? 'Initial payment in full' : 'Initial deposit / partial payment',
     });
   }
 
   return inv;
+}
+
+/**
+ * Fetches all payment instalments recorded for an invoice
+ */
+export async function getInvoicePayments(invoiceId: string) {
+  const { data, error } = await supabase
+    .from('invoice_payments')
+    .select('*')
+    .eq('invoice_id', invoiceId)
+    .order('payment_date', { ascending: false });
+
+  if (error) {
+    console.warn('Error fetching invoice payments:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
+/**
+ * Executes atomic invoice payment recording
+ */
+export async function recordInvoicePayment(params: {
+  invoiceId: string;
+  amount: number;
+  paymentReference: string;
+  paymentMethod?: string;
+  payerName?: string;
+  payerEmail?: string;
+  notes?: string;
+  rawPayload?: any;
+}) {
+  const { data, error } = await supabase.rpc('record_invoice_payment_atomic', {
+    p_invoice_id: params.invoiceId,
+    p_amount: params.amount,
+    p_payment_reference: params.paymentReference,
+    p_payment_method: params.paymentMethod || 'Paystack',
+    p_payer_name: params.payerName || null,
+    p_payer_email: params.payerEmail || null,
+    p_notes: params.notes || null,
+    p_raw_payload: params.rawPayload || {},
+  });
+
+  if (error) throw error;
+  if (!data?.success) {
+    throw new Error(data?.error || 'Failed to record invoice payment');
+  }
+  return data;
+}
+
+export type PublicInvoiceResponse = Awaited<ReturnType<typeof getPublicInvoice>>;
+
+/**
+ * Fetches invoice and its line items for public or authenticated payment checkout
+ */
+export async function getPublicInvoice(idOrSlug: string) {
+  // Support lookup by UUID or invoice_number
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+  let invQuery = supabase.from('invoices').select('*');
+  if (isUUID) {
+    invQuery = invQuery.eq('id', idOrSlug);
+  } else {
+    invQuery = invQuery.ilike('invoice_number', idOrSlug);
+  }
+
+  const { data: inv, error: invError } = await invQuery.maybeSingle();
+  if (invError || !inv) {
+    throw new Error('Invoice not found.');
+  }
+
+  const [itemsRes, paymentsRes, profileRes] = await Promise.all([
+    supabase.from('invoice_items').select('*').eq('invoice_id', inv.id),
+    supabase.from('invoice_payments').select('*').eq('invoice_id', inv.id).order('payment_date', { ascending: false }),
+    supabase.from('profiles').select('business_name, full_name, phone').eq('id', inv.user_id).maybeSingle(),
+  ]);
+
+  return {
+    ...inv,
+    items: itemsRes.data || [],
+    payments: paymentsRes.data || [],
+    merchant_name: profileRes.data?.business_name || profileRes.data?.full_name || 'ROVA Business Merchant',
+    merchant_phone: profileRes.data?.phone || '',
+  };
 }

@@ -263,6 +263,37 @@ export async function verifyPaymentOnServer(params: {
 }
 
 /**
+ * Server-side invoice payment verification call.
+ * Verifies Paystack transaction and atomically records instalment on invoice and ledger.
+ */
+export async function verifyInvoicePaymentOnServer(params: {
+  reference: string;
+  invoiceId: string;
+  amount?: number;
+  payerName?: string;
+  payerEmail?: string;
+}): Promise<{ success: boolean; error?: string; invoice?: any; data?: any; alreadyProcessed?: boolean }> {
+  try {
+    const res = await fetch('/api/payment/invoices/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+    const err = await res.json().catch(() => ({ error: 'Verification failed' }));
+    return { success: false, error: err.error || 'Payment verification failed' };
+  } catch (err: any) {
+    console.error('Invoice verification error:', err);
+    return { success: false, error: err.message || 'Verification error' };
+  }
+}
+
+
+/**
  * Server-side subscription cancellation call.
  */
 export async function cancelSubscriptionOnServer(subscriptionId: string): Promise<{ success: boolean; error?: string; message?: string }> {

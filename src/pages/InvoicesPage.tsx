@@ -2,7 +2,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Receipt, Send, Check, Eye, Trash2, X, Download, Package, Share2 } from 'lucide-react';
 import ShareDocumentModal, { type ShareDocumentData } from '../components/ShareDocumentModal';
-import { supabase, type Invoice, type InventoryItem } from '../lib/supabase';
+import { supabase, type Invoice, type InventoryItem, type InvoicePayment } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../lib/format';
 import { downloadCSV } from '../lib/export';
@@ -12,12 +12,18 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import { useMobile } from '../hooks/useMobile';
-import { createInvoice } from '../lib/invoiceService';
+import { createInvoice, getInvoicePayments, recordInvoicePayment } from '../lib/invoiceService';
 
 type InvoiceStatus = Invoice['status'];
 
 const statusVariant: Record<InvoiceStatus, 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'> = {
-  draft: 'default', sent: 'info', paid: 'success', overdue: 'error', cancelled: 'error',
+  draft: 'default',
+  sent: 'info',
+  unpaid: 'warning',
+  partially_paid: 'purple',
+  paid: 'success',
+  overdue: 'error',
+  cancelled: 'error',
 };
 
 function downloadInvoicePDF(inv: Invoice, businessName: string) {
@@ -32,7 +38,7 @@ function downloadInvoicePDF(inv: Invoice, businessName: string) {
   `).join('');
 
   const statusColor: Record<InvoiceStatus, string> = {
-    draft: '#6b7280', sent: '#3b82f6', paid: '#22c55e', overdue: '#ef4444', cancelled: '#ef4444',
+    draft: '#6b7280', sent: '#3b82f6', unpaid: '#f59e0b', partially_paid: '#8b5cf6', paid: '#22c55e', overdue: '#ef4444', cancelled: '#ef4444',
   };
 
   const html = `<!DOCTYPE html>
@@ -171,7 +177,9 @@ export default function InvoicesPage() {
   const [nextReminderDate, setNextReminderDate] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
+  const [viewInvoicePayments, setViewInvoicePayments] = useState<InvoicePayment[]>([]);
   const [shareData, setShareData] = useState<ShareDocumentData | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -181,6 +189,10 @@ export default function InvoicesPage() {
   const [form, setForm] = useState({
     client_name: '', client_email: '', client_address: '',
     due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid' as 'unpaid' | 'paid_in_full' | 'part_payment', amount_paid: '', repayment_reminder_date: '',
+    allow_partial_payments: false,
+    partial_payment_type: 'any' as 'any' | 'minimum' | 'fixed_deposit',
+    minimum_partial_amount: '',
+    fixed_deposit_amount: '',
   });
   const [items, setItems] = useState<{ description: string; quantity: string; unit_price: string; inventory_item_id: string; addToInventory?: boolean }[]>([
     { description: '', quantity: '1', unit_price: '', inventory_item_id: '' }
@@ -253,12 +265,15 @@ export default function InvoicesPage() {
   async function loadInvoiceWithItems(id: string) {
     const { data: inv } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     const { data: itemsData } = await supabase.from('invoice_items').select('*').eq('invoice_id', id);
+    const paymentsData = await getInvoicePayments(id);
     setViewInvoice(inv ? { ...inv, items: itemsData || [] } : null);
+    setViewInvoicePayments(paymentsData || []);
   }
 
   function openShareInvoice(inv: Invoice) {
     setShareData({
       type: 'invoice',
+      documentId: inv.id,
       documentNumber: inv.invoice_number,
       recipientName: inv.client_name,
       recipientPhone: '',
@@ -307,6 +322,10 @@ export default function InvoicesPage() {
         payment_status: form.payment_status,
         amount_paid: Number(form.amount_paid) || 0,
         items: validItems,
+        allow_partial_payments: form.allow_partial_payments,
+        partial_payment_type: form.allow_partial_payments ? form.partial_payment_type : 'any',
+        minimum_partial_amount: form.allow_partial_payments && form.minimum_partial_amount ? Number(form.minimum_partial_amount) : undefined,
+        fixed_deposit_amount: form.allow_partial_payments && form.fixed_deposit_amount ? Number(form.fixed_deposit_amount) : undefined,
       });
 
 
@@ -403,35 +422,49 @@ export default function InvoicesPage() {
     setSaving(true);
 
     const amount = Number(paymentAmount);
-    if (amount <= 0) return;
+    if (amount <= 0) {
+      setSaving(false);
+      return;
+    }
 
-    const newAmountPaid = (viewInvoice.amount_paid || 0) + amount;
-    const newStatus = newAmountPaid >= viewInvoice.total ? 'paid' : viewInvoice.status;
+    try {
+      const manualRef = `ROVA_MAN_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+      const result = await recordInvoicePayment({
+        invoiceId: viewInvoice.id,
+        amount,
+        paymentReference: manualRef,
+        paymentMethod: 'Direct Payment / Bank Transfer',
+        payerName: viewInvoice.client_name,
+        notes: nextReminderDate ? `Manual payment received. Next reminder: ${nextReminderDate}` : 'Manual payment recorded by merchant',
+      });
 
-    await supabase.from('invoices').update({
-      amount_paid: newAmountPaid,
-      status: newStatus
-    }).eq('id', viewInvoice.id);
+      if (result.success && result.invoice) {
+        setInvoices(prev => prev.map(inv => inv.id === viewInvoice.id ? { ...inv, amount_paid: result.invoice.amount_paid, status: result.invoice.status } : inv));
+        await loadInvoiceWithItems(viewInvoice.id);
+      } else {
+        const newAmountPaid = (viewInvoice.amount_paid || 0) + amount;
+        const newStatus = newAmountPaid >= viewInvoice.total ? 'paid' : 'partially_paid';
+        await supabase.from('invoices').update({ amount_paid: newAmountPaid, status: newStatus }).eq('id', viewInvoice.id);
+        setInvoices(prev => prev.map(inv => inv.id === viewInvoice.id ? { ...inv, amount_paid: newAmountPaid, status: newStatus } : inv));
+        await loadInvoiceWithItems(viewInvoice.id);
+      }
 
-    await supabase.from('transactions').insert({
-      user_id: user!.id,
-      amount: amount,
-      type: 'income',
-      description: `Payment for ${viewInvoice.invoice_number}`,
-      reference: viewInvoice.invoice_number,
-      date: new Date().toISOString().split('T')[0],
-      notes: `Partial/Full payment received`,
-    });
-
-    setInvoices(prev => prev.map(inv => inv.id === viewInvoice.id ? { ...inv, amount_paid: newAmountPaid, status: newStatus } : inv));
-    setViewInvoice(prev => prev ? { ...prev, amount_paid: newAmountPaid, status: newStatus } : null);
-    setShowPaymentModal(false);
-    setPaymentAmount('');
-    setSaving(false);
+      setShowPaymentModal(false);
+      setPaymentAmount('');
+      setNextReminderDate('');
+    } catch (err: any) {
+      console.error('Error recording payment:', err);
+      alert('Failed to record payment');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function resetForm() {
-    setForm({ client_name: '', client_email: '', client_address: '', due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '', repayment_reminder_date: '' });
+    setForm({
+      client_name: '', client_email: '', client_address: '', due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '', repayment_reminder_date: '',
+      allow_partial_payments: false, partial_payment_type: 'any', minimum_partial_amount: '', fixed_deposit_amount: '',
+    });
     setItems([{ description: '', quantity: '1', unit_price: '', inventory_item_id: '' }]);
   }
 
@@ -520,8 +553,8 @@ export default function InvoicesPage() {
       </div>
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--bg-border)', display: 'flex', gap: 6 }}>
-          {(['all', 'draft', 'sent', 'paid', 'overdue'] as const).map(s => (
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--bg-border)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(['all', 'draft', 'sent', 'partially_paid', 'paid', 'overdue'] as const).map(s => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -533,7 +566,7 @@ export default function InvoicesPage() {
                 transition: 'all 0.15s', textTransform: 'capitalize',
               }}
             >
-              {s}
+              {s === 'partially_paid' ? 'Partially Paid' : s}
             </button>
           ))}
         </div>
@@ -883,6 +916,126 @@ export default function InvoicesPage() {
             )}
           </div>
 
+          {/* Customer Online Payment / Instalments Settings */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Customer Online Instalments</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  Allow your customer to pay this invoice in instalments via Paystack
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={form.allow_partial_payments}
+                  onChange={e => setForm(p => ({ ...p, allow_partial_payments: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 600, color: form.allow_partial_payments ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                  {form.allow_partial_payments ? 'Partial Payments Allowed' : 'Full Payment Only'}
+                </span>
+              </label>
+            </div>
+
+            {form.allow_partial_payments && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 10, borderTop: '1px solid var(--bg-border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Instalment Rule:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                  <label style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${form.partial_payment_type === 'any' ? 'var(--accent-primary)' : 'var(--bg-border)'}`,
+                    background: form.partial_payment_type === 'any' ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <input
+                      type="radio"
+                      name="partial_type"
+                      checked={form.partial_payment_type === 'any'}
+                      onChange={() => setForm(p => ({ ...p, partial_payment_type: 'any' }))}
+                    />
+                    <span>Any Amount</span>
+                  </label>
+
+                  <label style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${form.partial_payment_type === 'minimum' ? 'var(--accent-primary)' : 'var(--bg-border)'}`,
+                    background: form.partial_payment_type === 'minimum' ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <input
+                      type="radio"
+                      name="partial_type"
+                      checked={form.partial_payment_type === 'minimum'}
+                      onChange={() => setForm(p => ({ ...p, partial_payment_type: 'minimum' }))}
+                    />
+                    <span>Minimum Amount</span>
+                  </label>
+
+                  <label style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${form.partial_payment_type === 'fixed_deposit' ? 'var(--accent-primary)' : 'var(--bg-border)'}`,
+                    background: form.partial_payment_type === 'fixed_deposit' ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <input
+                      type="radio"
+                      name="partial_type"
+                      checked={form.partial_payment_type === 'fixed_deposit'}
+                      onChange={() => setForm(p => ({ ...p, partial_payment_type: 'fixed_deposit' }))}
+                    />
+                    <span>Fixed Deposit</span>
+                  </label>
+                </div>
+
+                {form.partial_payment_type === 'minimum' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Minimum Payment per Instalment (₦)</label>
+                    <input
+                      type="number"
+                      min="100"
+                      step="100"
+                      placeholder="e.g. 5000"
+                      value={form.minimum_partial_amount}
+                      onChange={e => setForm(p => ({ ...p, minimum_partial_amount: e.target.value }))}
+                      style={{ padding: '8px 12px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                  </div>
+                )}
+
+                {form.partial_payment_type === 'fixed_deposit' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Required Initial Deposit Amount (₦)</label>
+                    <input
+                      type="number"
+                      min="100"
+                      step="100"
+                      placeholder="e.g. 20000"
+                      value={form.fixed_deposit_amount}
+                      onChange={e => setForm(p => ({ ...p, fixed_deposit_amount: e.target.value }))}
+                      style={{ padding: '8px 12px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <Input label="Notes" placeholder="Payment terms, bank details, etc." value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -983,6 +1136,114 @@ export default function InvoicesPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, color: 'var(--warning)', marginTop: 4 }}>
                 <span>Balance Due</span><span>{formatCurrency(viewInvoice.total - (viewInvoice.amount_paid || 0))}</span>
               </div>
+
+              {/* Progress bar */}
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--bg-border)' }}>
+                <div style={{ width: '100%', height: 6, background: 'var(--bg-border)', borderRadius: 999, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      background: 'var(--success)',
+                      width: `${viewInvoice.total > 0 ? Math.min(100, Math.round(((viewInvoice.amount_paid || 0) / viewInvoice.total) * 100)) : 0}%`,
+                      transition: 'width 0.3s ease',
+                      borderRadius: 999,
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                  <span>{viewInvoice.total > 0 ? Math.min(100, Math.round(((viewInvoice.amount_paid || 0) / viewInvoice.total) * 100)) : 0}% Paid</span>
+                  <span>
+                    {viewInvoice.allow_partial_payments
+                      ? `Instalments Allowed (${viewInvoice.partial_payment_type === 'minimum' ? `Min ₦${viewInvoice.minimum_partial_amount}` : viewInvoice.partial_payment_type === 'fixed_deposit' ? `Deposit ₦${viewInvoice.fixed_deposit_amount}` : 'Any amount'})`
+                      : 'Full Payment Only'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Online Payment Link Box */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Customer Online Payment Link</span>
+                <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 600 }}>
+                  {viewInvoice.allow_partial_payments ? '💳 Pay in Instalments' : '💳 Pay Full'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/pay/invoice/${viewInvoice.id}`}
+                  style={{
+                    flex: 1, padding: '6px 10px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)',
+                    borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--text-secondary)', outline: 'none'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/pay/invoice/${viewInvoice.id}`);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  style={{
+                    padding: '6px 12px', background: 'var(--accent-dim)', color: 'var(--accent-light)',
+                    border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  {copiedLink ? 'Copied!' : 'Copy Link'}
+                </button>
+                <a
+                  href={`/pay/invoice/${viewInvoice.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    padding: '6px 12px', background: 'var(--bg-base)', color: 'var(--text-primary)',
+                    border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center'
+                  }}
+                >
+                  Open
+                </a>
+              </div>
+            </div>
+
+            {/* Payment History Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Payment History ({viewInvoicePayments.length})
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)' }}>
+                  Total Collected: {formatCurrency(viewInvoice.amount_paid || 0)}
+                </span>
+              </div>
+
+              {viewInvoicePayments.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  No instalment records yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                  {viewInvoicePayments.map((p, idx) => (
+                    <div key={p.id || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--bg-border)', fontSize: 12 }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(p.amount)}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                          {formatDate(p.payment_date)} &bull; {p.payment_method || 'Online'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'var(--success-dim)', color: 'var(--success)', fontWeight: 600 }}>
+                          {p.status || 'success'}
+                        </span>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 2 }}>
+                          {p.payment_reference}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {viewInvoice.notes && (

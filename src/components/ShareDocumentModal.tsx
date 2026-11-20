@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from '../lib/format';
 
 export interface ShareDocumentData {
   type: 'invoice' | 'receipt';
+  documentId?: string;
   documentNumber: string;
   recipientName: string;
   recipientPhone?: string;
@@ -47,6 +48,9 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
   // Generate formatted message text
   const isInvoice = data.type === 'invoice';
   const docTitle = isInvoice ? 'Invoice' : 'Payment Receipt';
+  const paymentUrl = isInvoice && data.documentId 
+    ? `${window.location.origin}/pay/invoice/${data.documentId}`
+    : '';
   
   const shareText = isInvoice
     ? `Hello ${data.recipientName || 'Customer'},\n\nHere is your official invoice from ${data.businessName || 'ROVA Business'}:\n\n` +
@@ -57,6 +61,7 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
       (data.amountPaid !== undefined ? `✅ Amount Paid: ${formatCurrency(data.amountPaid)}\n` : '') +
       (data.balanceDue !== undefined && data.balanceDue > 0 ? `⚠️ Balance Due: ${formatCurrency(data.balanceDue)}\n` : '') +
       (data.status ? `📌 Status: ${data.status.toUpperCase()}\n` : '') +
+      (paymentUrl && (data.balanceDue === undefined || data.balanceDue > 0) ? `\n💳 Pay Online or in Instalments:\n${paymentUrl}\n` : '') +
       (data.notes ? `\nNote: ${data.notes}\n` : '') +
       `\nThank you for your business! Please let us know once payment has been processed.`
     : `Hello ${data.recipientName || 'Customer'},\n\nHere is your official payment receipt from ${data.businessName || 'ROVA Business'}:\n\n` +
