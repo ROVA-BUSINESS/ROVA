@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   CreditCard,
   Link as LinkIcon,
@@ -69,8 +70,39 @@ export default function PaymentPage() {
   const { user, isStaff, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
 
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
   // Tabs
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+
+  // Handle incoming redirect from Invoices page or external links
+  useEffect(() => {
+    const locState = (location.state as any) || {};
+    const tabParam = searchParams.get('tab') || locState.tab;
+    const shouldOpenModal = locState.openCreateLink || searchParams.get('create') === 'true';
+    const invoice = locState.invoice;
+    const invId = searchParams.get('invoice_id') || locState.invoiceId || invoice?.id;
+
+    if (tabParam === 'links' || shouldOpenModal || invId) {
+      setActiveTab('links');
+    }
+
+    if (shouldOpenModal && (invoice || invId)) {
+      setShowCreateLinkModal(true);
+      if (invoice) {
+        setLinkTitle(`Invoice #${invoice.invoice_number} - ${invoice.client_name}`);
+        setLinkDesc(`Payment for Invoice #${invoice.invoice_number}`);
+        setLinkAmount(String(Math.max(0, Number(invoice.total || 0) - Number(invoice.amount_paid || 0))));
+        setLinkCustomerName(invoice.client_name || '');
+        setLinkCustomerEmail(invoice.client_email || '');
+        setLinkInvoiceId(invoice.id);
+        setLinkCustomAmount(Boolean(invoice.allow_partial_payments));
+      } else if (invId) {
+        setLinkInvoiceId(invId);
+      }
+    }
+  }, [location.state, searchParams]);
 
   // Loading & notification states
   const [loading, setLoading] = useState(true);
@@ -337,8 +369,21 @@ export default function PaymentPage() {
         invoiceId: linkInvoiceId || undefined,
       });
 
+      // If linked to an invoice, update the invoice record with the new payment link URL!
+      if (linkInvoiceId) {
+        try {
+          await supabase
+            .from('invoices')
+            .update({ payment_link_url: newLink.payment_url })
+            .eq('id', linkInvoiceId);
+        } catch (invLinkErr) {
+          console.warn('Could not update invoice with payment link URL:', invLinkErr);
+        }
+      }
+
       setPaymentLinks(prev => [newLink, ...prev]);
       setShowCreateLinkModal(false);
+      const isForInvoice = Boolean(linkInvoiceId);
       setLinkTitle('');
       setLinkDesc('');
       setLinkAmount('');
@@ -349,7 +394,10 @@ export default function PaymentPage() {
       setLinkCustomerPhone('');
       setLinkExpiryDate('');
       setLinkInvoiceId('');
-      showNotice('success', `Payment link "${newLink.title}" created successfully!`);
+      showNotice('success', isForInvoice
+        ? `Payment link "${newLink.title}" created and linked to your invoice! You can now copy and share it.`
+        : `Payment link "${newLink.title}" created successfully!`
+      );
     } catch (err: any) {
       showNotice('error', err.message || 'Failed to create payment link.');
     } finally {

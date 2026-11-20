@@ -10,6 +10,7 @@ import { formatCurrency, formatDate } from '../lib/format';
 export interface ShareDocumentData {
   type: 'invoice' | 'receipt';
   documentId?: string;
+  paymentLinkUrl?: string;
   documentNumber: string;
   recipientName: string;
   recipientPhone?: string;
@@ -48,9 +49,9 @@ export default function ShareDocumentModal({ open, onClose, data }: Props) {
   // Generate formatted message text
   const isInvoice = data.type === 'invoice';
   const docTitle = isInvoice ? 'Invoice' : 'Payment Receipt';
-  const paymentUrl = isInvoice && data.documentId 
+  const paymentUrl = data.paymentLinkUrl || (isInvoice && data.documentId 
     ? `${window.location.origin}/pay/invoice/${data.documentId}`
-    : '';
+    : '');
   
   const shareText = isInvoice
     ? `Hello ${data.recipientName || 'Customer'},\n\nHere is your official invoice from ${data.businessName || 'ROVA Business'}:\n\n` +

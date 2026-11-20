@@ -266,7 +266,26 @@ export default function InvoicesPage() {
     const { data: inv } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     const { data: itemsData } = await supabase.from('invoice_items').select('*').eq('invoice_id', id);
     const paymentsData = await getInvoicePayments(id);
-    setViewInvoice(inv ? { ...inv, items: itemsData || [] } : null);
+
+    let activePaymentLink = inv?.payment_link_url || null;
+    if (!activePaymentLink && inv?.id) {
+      const { data: linkData } = await supabase
+        .from('payment_links')
+        .select('payment_url, provider_slug')
+        .contains('metadata', { invoice_id: inv.id })
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (linkData?.payment_url) {
+        activePaymentLink = linkData.payment_url;
+      } else if (linkData?.provider_slug) {
+        activePaymentLink = `${window.location.origin}/pay/${linkData.provider_slug}`;
+      }
+    }
+
+    setViewInvoice(inv ? { ...inv, payment_link_url: activePaymentLink, items: itemsData || [] } : null);
     setViewInvoicePayments(paymentsData || []);
   }
 
@@ -274,6 +293,7 @@ export default function InvoicesPage() {
     setShareData({
       type: 'invoice',
       documentId: inv.id,
+      paymentLinkUrl: inv.payment_link_url || undefined,
       documentNumber: inv.invoice_number,
       recipientName: inv.client_name,
       recipientPhone: '',
@@ -310,7 +330,7 @@ export default function InvoicesPage() {
           inventory_item_id: i.inventory_item_id || null,
         }));
 
-      await createInvoice({
+      const createdInv = await createInvoice({
         userId: effectiveUserId!,
         client_name: form.client_name,
         client_email: form.client_email,
@@ -364,6 +384,14 @@ export default function InvoicesPage() {
       setShowModal(false);
       resetForm();
       loadInvoices();
+
+      // Lead to the Payment Link tab in Banking & Payment page
+      navigate('/app/payment?tab=links', {
+        state: {
+          openCreateLink: true,
+          invoice: createdInv,
+        }
+      });
     } catch (err) {
       console.error('Failed to create invoice:', err);
       alert('Error creating invoice. Please try again.');
@@ -1169,42 +1197,72 @@ export default function InvoicesPage() {
                   {viewInvoice.allow_partial_payments ? '💳 Pay in Instalments' : '💳 Pay Full'}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/pay/invoice/${viewInvoice.id}`}
-                  style={{
-                    flex: 1, padding: '6px 10px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)',
-                    borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--text-secondary)', outline: 'none'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/pay/invoice/${viewInvoice.id}`);
-                    setCopiedLink(true);
-                    setTimeout(() => setCopiedLink(false), 2000);
-                  }}
-                  style={{
-                    padding: '6px 12px', background: 'var(--accent-dim)', color: 'var(--accent-light)',
-                    border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 600, cursor: 'pointer'
-                  }}
-                >
-                  {copiedLink ? 'Copied!' : 'Copy Link'}
-                </button>
-                <a
-                  href={`/pay/invoice/${viewInvoice.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    padding: '6px 12px', background: 'var(--bg-base)', color: 'var(--text-primary)',
-                    border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center'
-                  }}
-                >
-                  Open
-                </a>
-              </div>
+              {(() => {
+                const activePaymentUrl = viewInvoice.payment_link_url || `${window.location.origin}/pay/invoice/${viewInvoice.id}`;
+                const isCustomBankingLink = Boolean(viewInvoice.payment_link_url);
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input
+                        type="text"
+                        readOnly
+                        value={activePaymentUrl}
+                        style={{
+                          flex: 1, padding: '6px 10px', background: 'var(--bg-base)', border: '1px solid var(--bg-border)',
+                          borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--text-secondary)', outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(activePaymentUrl);
+                          setCopiedLink(true);
+                          setTimeout(() => setCopiedLink(false), 2000);
+                        }}
+                        style={{
+                          padding: '6px 12px', background: 'var(--accent-dim)', color: 'var(--accent-light)',
+                          border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                        }}
+                      >
+                        {copiedLink ? 'Copied!' : 'Copy Link'}
+                      </button>
+                      <a
+                        href={activePaymentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          padding: '6px 12px', background: 'var(--bg-base)', color: 'var(--text-primary)',
+                          border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center'
+                        }}
+                      >
+                        Open
+                      </a>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: isCustomBankingLink ? 'var(--success)' : 'var(--text-muted)' }}>
+                        {isCustomBankingLink ? '✓ Using Banking & Payments Link' : 'Default Invoice Link'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate('/app/payment?tab=links', {
+                            state: {
+                              openCreateLink: true,
+                              invoice: viewInvoice,
+                            }
+                          });
+                        }}
+                        style={{
+                          background: 'none', border: 'none', color: 'var(--accent-light)', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0
+                        }}
+                      >
+                        🔗 {isCustomBankingLink ? 'Change in Banking & Payments →' : 'Create Banking & Payment Link →'}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Payment History Section */}

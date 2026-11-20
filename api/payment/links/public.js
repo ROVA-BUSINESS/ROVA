@@ -127,17 +127,33 @@ export default async function handler(req, res) {
           rovaTxId = rovaTx.id;
         }
 
-        // If this link was associated with an invoice, update invoice status
+        // If this link was associated with an invoice, record the invoice instalment atomically
         if (link.metadata?.invoice_id) {
-          await supabase
-            .from('invoices')
-            .update({
-              payment_status: 'paid_in_full',
-              amount_paid: numericAmount,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', link.metadata.invoice_id)
-            .eq('user_id', link.user_id);
+          try {
+            await supabase.rpc('record_invoice_payment_atomic', {
+              p_invoice_id: link.metadata.invoice_id,
+              p_amount: numericAmount,
+              p_payment_reference: reference,
+              p_payment_method: 'Paystack (Payment Link)',
+              p_payer_name: payerName || link.metadata?.customer_name || 'Customer',
+              p_payer_email: payerEmail || link.metadata?.customer_email || null,
+              p_notes: `Paid via Banking & Payment link: ${link.title}`,
+              p_raw_payload: req.body,
+            });
+          } catch (rpcErr) {
+            console.warn('Could not record invoice payment atomically:', rpcErr);
+            const { data: currentInv } = await supabase.from('invoices').select('amount_paid, total').eq('id', link.metadata.invoice_id).maybeSingle();
+            const newAmt = (Number(currentInv?.amount_paid) || 0) + numericAmount;
+            const newStatus = newAmt >= (Number(currentInv?.total) || 0) ? 'paid' : 'partially_paid';
+            await supabase
+              .from('invoices')
+              .update({
+                status: newStatus,
+                amount_paid: newAmt,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', link.metadata.invoice_id);
+          }
         }
       } catch (accErr) {
         console.warn('Accounting ledger record warning:', accErr.message);

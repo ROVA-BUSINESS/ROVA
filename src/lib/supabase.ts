@@ -119,6 +119,7 @@ export type Invoice = {
   partial_payment_type?: 'any' | 'minimum' | 'fixed_deposit';
   minimum_partial_amount?: number | null;
   fixed_deposit_amount?: number | null;
+  payment_link_url?: string | null;
 };
 
 export type InvoicePayment = {
