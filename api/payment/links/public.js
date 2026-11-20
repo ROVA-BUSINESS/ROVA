@@ -57,6 +57,13 @@ export default async function handler(req, res) {
           payment_url: link.payment_url,
           status: link.status,
           merchant_name: merchantName,
+          metadata: link.metadata || {},
+          subaccount_code: link.metadata?.subaccount_code || null,
+          settlement_bank: link.metadata?.settlement_bank || null,
+          customer_name: link.metadata?.customer_name || null,
+          customer_email: link.metadata?.customer_email || null,
+          customer_phone: link.metadata?.customer_phone || null,
+          expires_at: link.metadata?.expires_at || null,
         },
       });
     } catch (err) {
@@ -97,7 +104,46 @@ export default async function handler(req, res) {
         })
         .eq('id', linkId);
 
-      // 2. Insert into payment_transactions
+      // 2. Insert into Rova general accounting ledger (transactions table)
+      let rovaTxId = null;
+      try {
+        const { data: rovaTx } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: link.user_id,
+            amount: numericAmount,
+            type: 'income',
+            description: `Payment for "${link.title}" via Payment Link`,
+            reference: reference,
+            date: new Date().toISOString().split('T')[0],
+            notes: `Received from ${payerName || 'Customer'} (${payerEmail || 'no-email'}) via Paystack`,
+            is_verified: true,
+            ai_category: 'Sales & Revenue',
+          })
+          .select()
+          .maybeSingle();
+
+        if (rovaTx) {
+          rovaTxId = rovaTx.id;
+        }
+
+        // If this link was associated with an invoice, update invoice status
+        if (link.metadata?.invoice_id) {
+          await supabase
+            .from('invoices')
+            .update({
+              payment_status: 'paid_in_full',
+              amount_paid: numericAmount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', link.metadata.invoice_id)
+            .eq('user_id', link.user_id);
+        }
+      } catch (accErr) {
+        console.warn('Accounting ledger record warning:', accErr.message);
+      }
+
+      // 3. Insert into payment_transactions
       await supabase.from('payment_transactions').insert({
         user_id: link.user_id,
         provider: link.provider || 'paystack',
@@ -107,7 +153,11 @@ export default async function handler(req, res) {
         amount: numericAmount,
         currency,
         type: 'credit',
-        status: 'successful',
+        provider_status: 'success',
+        verification_status: 'verified',
+        accounting_status: 'classified_income',
+        rova_transaction_id: rovaTxId,
+        source: 'payment_link',
         description: `Payment for "${link.title}" via Payment Link`,
         counterparty_name: payerName || 'Customer',
         counterparty_email: payerEmail || null,
@@ -117,6 +167,7 @@ export default async function handler(req, res) {
           link_title: link.title,
           reference,
           via: 'rova_public_checkout',
+          subaccount_code: link.metadata?.subaccount_code || null,
         },
       });
 

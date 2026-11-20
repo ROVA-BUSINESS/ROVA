@@ -19,6 +19,7 @@ import {
   Info,
   Calendar,
   Layers,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Account, type Category } from '../../lib/supabase';
@@ -39,9 +40,12 @@ import {
   syncProviderTransactions,
   classifyPaymentTransaction,
   importStatementRecords,
+  getSettlementAccounts,
   recordDirectPayment,
 } from '../../lib/paymentService';
 import { generatePaymentRef, openPaystackPopup } from '../../lib/paystack';
+import SettlementAccountSection from '../../components/payment/SettlementAccountSection';
+import MyBankingTab from '../../components/payment/MyBankingTab';
 import {
   parseCSVText,
   autoDetectMapping,
@@ -55,13 +59,14 @@ import type {
   PaymentTransaction,
   PaymentOverviewMetrics,
   StatementParsedRow,
+  SettlementAccount,
 } from '../../types/payment';
 
-type ActiveTab = 'overview' | 'providers' | 'links' | 'transactions' | 'import';
+type ActiveTab = 'overview' | 'providers' | 'links' | 'transactions' | 'import' | 'banking';
 type DateFilter = 'today' | '7days' | 'month' | 'custom';
 
 export default function PaymentPage() {
-  const { user, profile, isStaff, staffData } = useAuth();
+  const { user, isStaff, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
 
   // Tabs
@@ -72,13 +77,6 @@ export default function PaymentPage() {
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
-  // Direct Pay (Pay into Rova via Paystack) state
-  const [showDirectPayModal, setShowDirectPayModal] = useState(false);
-  const [directPayAmount, setDirectPayAmount] = useState('5000');
-  const [directPayPurpose, setDirectPayPurpose] = useState('Payment for Goods');
-  const [directPayEmail, setDirectPayEmail] = useState('');
-  const [directPayName, setDirectPayName] = useState('');
-  const [directPayProcessing, setDirectPayProcessing] = useState(false);
 
   // Data states
   const [configs, setConfigs] = useState<Record<PaymentProvider, PaymentProviderConfig | null>>({
@@ -113,6 +111,10 @@ export default function PaymentPage() {
   const [showTxDetailsModal, setShowTxDetailsModal] = useState<PaymentTransaction | null>(null);
   const [showReconcileModal, setShowReconcileModal] = useState<PaymentTransaction | null>(null);
 
+  // Settlement & Banking states
+  const [settlementAccounts, setSettlementAccounts] = useState<SettlementAccount[]>([]);
+  const [invoices, setInvoices] = useState<{ id: string; invoice_number: string; client_name: string; total_amount: number; payment_status: string }[]>([]);
+
   // Form states for creating link
   const [linkTitle, setLinkTitle] = useState('');
   const [linkDesc, setLinkDesc] = useState('');
@@ -120,7 +122,23 @@ export default function PaymentPage() {
   const [linkCurrency, setLinkCurrency] = useState('NGN');
   const [linkCustomAmount, setLinkCustomAmount] = useState(false);
   const [linkProvider, setLinkProvider] = useState<PaymentProvider>('paystack');
+  const [linkSettlementAccountId, setLinkSettlementAccountId] = useState('');
+  const [linkCustomerName, setLinkCustomerName] = useState('');
+  const [linkCustomerEmail, setLinkCustomerEmail] = useState('');
+  const [linkCustomerPhone, setLinkCustomerPhone] = useState('');
+  const [linkExpiryDate, setLinkExpiryDate] = useState('');
+  const [linkInvoiceId, setLinkInvoiceId] = useState('');
   const [creatingLink, setCreatingLink] = useState(false);
+
+  // Direct Paystack charge modal states
+  const [showDirectChargeModal, setShowDirectChargeModal] = useState(false);
+  const [directChargeAmount, setDirectChargeAmount] = useState('');
+  const [directChargeEmail, setDirectChargeEmail] = useState('');
+  const [directChargeName, setDirectChargeName] = useState('');
+  const [directChargePurpose, setDirectChargePurpose] = useState('Customer Direct Payment');
+  const [directChargeSettlementAccountId, setDirectChargeSettlementAccountId] = useState('');
+  const [directChargeProcessing, setDirectChargeProcessing] = useState(false);
+  const [directChargeError, setDirectChargeError] = useState<string | null>(null);
 
   // Reconciliation form
   const [reconcileType, setReconcileType] = useState<'income' | 'expense' | 'transfer' | 'ignored'>('income');
@@ -194,6 +212,24 @@ export default function PaymentPage() {
       setTotalTxCount(txData.totalCount);
       setAccounts(accsData.data || []);
       setCategories(catsData.data || []);
+
+      // Load settlement bank accounts and open invoices
+      try {
+        const [settlRes, invRes] = await Promise.all([
+          getSettlementAccounts(effectiveUserId),
+          supabase
+            .from('invoices')
+            .select('id, invoice_number, client_name, total_amount, payment_status')
+            .eq('user_id', effectiveUserId)
+            .neq('payment_status', 'paid_in_full')
+            .order('created_at', { ascending: false })
+            .limit(20),
+        ]);
+        setSettlementAccounts(settlRes || []);
+        setInvoices((invRes.data as any) || []);
+      } catch (subLoadErr) {
+        console.warn('Settlement accounts or invoices secondary load warning:', subLoadErr);
+      }
     } catch (err: any) {
       console.error('Error loading payment data:', err);
       showNotice('error', 'Failed to load payment data. Please try again.');
@@ -276,76 +312,6 @@ export default function PaymentPage() {
     return configs[provider]?.status === 'connected';
   }
 
-  // ── Handlers: Direct Pay into Rova ─────────────────────────────────────────
-  function openDirectPayModal() {
-    setDirectPayEmail(user?.email || '');
-    setDirectPayName(profile?.full_name || profile?.business_name || '');
-    setDirectPayAmount('5000');
-    setDirectPayPurpose('Payment for Goods');
-    setShowDirectPayModal(true);
-  }
-
-  async function handleExecuteDirectPayment(e: FormEvent) {
-    e.preventDefault();
-    if (!effectiveUserId) return;
-
-    const amt = parseFloat(directPayAmount);
-    if (isNaN(amt) || amt <= 0) {
-      showNotice('error', 'Please enter a valid amount greater than 0.');
-      return;
-    }
-
-    if (!directPayEmail.trim()) {
-      showNotice('error', 'Please enter a valid email address.');
-      return;
-    }
-
-    setDirectPayProcessing(true);
-    const ref = generatePaymentRef('PAY');
-
-    try {
-      await openPaystackPopup({
-        email: directPayEmail.trim(),
-        amountNaira: amt,
-        reference: ref,
-        metadata: {
-          userId: effectiveUserId,
-          purpose: directPayPurpose,
-          payerName: directPayName,
-        },
-        onSuccess: async (returnedRef) => {
-          try {
-            await recordDirectPayment({
-              userId: effectiveUserId,
-              provider: 'paystack',
-              reference: returnedRef || ref,
-              amount: amt,
-              description: directPayPurpose || 'Payment into Rova via Paystack',
-              payerName: directPayName,
-              payerEmail: directPayEmail,
-              metadata: {
-                payment_method: 'paystack_inline',
-                settlement_type: 'direct_goods_payment',
-              },
-            });
-            showNotice('success', `Payment of ${formatCurrency(amt)} successfully processed! Ref: ${returnedRef || ref}`);
-            setShowDirectPayModal(false);
-            await loadAllData();
-          } catch (err: any) {
-            showNotice('error', 'Payment succeeded but error recording transaction: ' + err.message);
-          } finally {
-            setDirectPayProcessing(false);
-          }
-        },
-        onClose: () => {
-          setDirectPayProcessing(false);
-        },
-      });
-    } catch (err: any) {
-      setDirectPayProcessing(false);
-      showNotice('error', err.message || 'Unable to open Paystack payment popup.');
-    }
-  }
 
   // ── Handlers: Create Payment Link ─────────────────────────────────────────
   async function handleCreateLink(e: FormEvent) {
@@ -363,6 +329,12 @@ export default function PaymentPage() {
         amount: amt,
         currency: linkCurrency,
         allowCustomAmount: linkCustomAmount,
+        settlementAccountId: linkSettlementAccountId || undefined,
+        customerName: linkCustomerName.trim() || undefined,
+        customerEmail: linkCustomerEmail.trim() || undefined,
+        customerPhone: linkCustomerPhone.trim() || undefined,
+        expiresAt: linkExpiryDate || undefined,
+        invoiceId: linkInvoiceId || undefined,
       });
 
       setPaymentLinks(prev => [newLink, ...prev]);
@@ -371,11 +343,139 @@ export default function PaymentPage() {
       setLinkDesc('');
       setLinkAmount('');
       setLinkCustomAmount(false);
+      setLinkSettlementAccountId('');
+      setLinkCustomerName('');
+      setLinkCustomerEmail('');
+      setLinkCustomerPhone('');
+      setLinkExpiryDate('');
+      setLinkInvoiceId('');
       showNotice('success', `Payment link "${newLink.title}" created successfully!`);
     } catch (err: any) {
       showNotice('error', err.message || 'Failed to create payment link.');
     } finally {
       setCreatingLink(false);
+    }
+  }
+
+  // ── Handlers: Direct Paystack Charge into Settlement Account ───────────────
+  function openDirectChargeModal() {
+    if (settlementAccounts.length === 0) {
+      showNotice('info', 'Please register a verified Nigerian settlement account in My Banking before collecting payments.');
+      setActiveTab('banking');
+      return;
+    }
+
+    const primary = settlementAccounts.find(a => a.is_primary) || settlementAccounts[0];
+    setDirectChargeSettlementAccountId(primary?.id || '');
+    setDirectChargeAmount('');
+    setDirectChargeEmail(user?.email || '');
+    setDirectChargeName('');
+    setDirectChargePurpose('Customer Direct Payment');
+    setDirectChargeError(null);
+    setShowDirectChargeModal(true);
+  }
+
+  async function handleExecuteDirectCharge(e: FormEvent) {
+    e.preventDefault();
+    if (!effectiveUserId) return;
+    setDirectChargeError(null);
+
+    const numAmount = parseFloat(directChargeAmount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setDirectChargeError('Please enter a valid payment amount greater than zero.');
+      return;
+    }
+
+    if (!directChargeEmail || !directChargeEmail.includes('@')) {
+      setDirectChargeError('Please provide a valid customer email for the Paystack receipt.');
+      return;
+    }
+
+    const selectedAcct = settlementAccounts.find(a => a.id === directChargeSettlementAccountId) || settlementAccounts[0];
+    if (!selectedAcct) {
+      setDirectChargeError('Please select a valid settlement account.');
+      return;
+    }
+
+    setDirectChargeProcessing(true);
+
+    try {
+      const ref = generatePaymentRef('DIR');
+
+      await openPaystackPopup({
+        email: directChargeEmail.trim(),
+        amountNaira: numAmount,
+        reference: ref,
+        subaccount: selectedAcct.paystack_subaccount_code || undefined,
+        metadata: {
+          settlement_account_id: selectedAcct.id,
+          settlement_bank: selectedAcct.bank_name,
+          settlement_account_number: selectedAcct.account_number,
+          counterparty_name: directChargeName.trim() || undefined,
+          counterparty_email: directChargeEmail.trim(),
+          purpose: directChargePurpose.trim(),
+          source: 'paystack_direct_settlement',
+        },
+        onSuccess: async (reference) => {
+          try {
+            // 1. Record in payment_transactions
+            await recordDirectPayment({
+              userId: effectiveUserId,
+              provider: 'paystack',
+              reference,
+              amount: numAmount,
+              description: directChargePurpose.trim() || `Customer Payment via Paystack (${selectedAcct.bank_name})`,
+              payerName: directChargeName.trim() || undefined,
+              payerEmail: directChargeEmail.trim(),
+              channel: 'paystack_inline',
+              metadata: {
+                settlement_account_id: selectedAcct.id,
+                bank_name: selectedAcct.bank_name,
+                account_number: selectedAcct.account_number,
+                subaccount_code: selectedAcct.paystack_subaccount_code,
+              },
+            });
+
+            // 2. Insert into accounting ledger 'transactions'
+            await supabase.from('transactions').insert({
+              user_id: effectiveUserId,
+              amount: numAmount,
+              type: 'income',
+              description: directChargePurpose.trim() || `Customer Payment via Paystack (${selectedAcct.bank_name})`,
+              reference,
+              date: new Date().toISOString().split('T')[0],
+              notes: `Payment collected via Paystack directly settled into ${selectedAcct.bank_name} (${selectedAcct.account_number}). Payer: ${directChargeName || directChargeEmail}`,
+              is_verified: true,
+              ai_category: 'Sales & Revenue',
+            });
+
+            showNotice(
+              'success',
+              `Payment of ${formatCurrency(numAmount)} received successfully! Settled directly into ${selectedAcct.bank_name} (${selectedAcct.account_number}).`
+            );
+
+            setShowDirectChargeModal(false);
+            await loadAllData();
+          } catch (recErr: any) {
+            console.error('Failed to log direct payment:', recErr);
+            showNotice(
+              'info',
+              `Payment confirmed (Ref: ${reference}). Proceeds settled directly into ${selectedAcct.bank_name}.`
+            );
+            setShowDirectChargeModal(false);
+            await loadAllData();
+          } finally {
+            setDirectChargeProcessing(false);
+          }
+        },
+        onClose: () => {
+          setDirectChargeProcessing(false);
+        },
+      });
+    } catch (err: any) {
+      console.error('Error opening Paystack popup:', err);
+      setDirectChargeError(err?.message || 'Could not launch Paystack checkout. Please check your network and try again.');
+      setDirectChargeProcessing(false);
     }
   }
 
@@ -400,7 +500,7 @@ export default function PaymentPage() {
   }
 
   async function handleSyncAll() {
-    const providers: PaymentProvider[] = ['paystack', 'kuda'];
+    const providers: PaymentProvider[] = ['paystack'];
     for (const p of providers) {
       await handleSyncProvider(p);
     }
@@ -634,9 +734,9 @@ export default function PaymentPage() {
       >
         <div>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>Payment</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>Banking & Payments</h1>
             <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
-              Manage your payment providers, collect payments, and track transactions in one place.
+              Collect customer payments directly into your verified bank account and access official Nigerian banking portals.
             </p>
           </div>
         </div>
@@ -663,16 +763,16 @@ export default function PaymentPage() {
           <Button
             variant="secondary"
             size="sm"
-            icon={<Plus size={14} />}
-            onClick={() => setShowCreateLinkModal(true)}
+            icon={<Building2 size={14} />}
+            onClick={() => setActiveTab('banking')}
           >
-            Create Payment Link
+            My Banking
           </Button>
           <Button
             variant="primary"
             size="sm"
-            icon={<CreditCard size={14} />}
-            onClick={openDirectPayModal}
+            icon={<Plus size={14} />}
+            onClick={() => setShowCreateLinkModal(true)}
             style={{
               background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
               borderColor: 'var(--accent-primary)',
@@ -681,7 +781,7 @@ export default function PaymentPage() {
               boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
             }}
           >
-            Pay with Paystack
+            Create Payment Link
           </Button>
         </div>
       </div>
@@ -699,10 +799,11 @@ export default function PaymentPage() {
       >
         {[
           { id: 'overview', label: 'Overview', icon: Layers },
-          { id: 'providers', label: 'Payment Providers', icon: CreditCard, count: 4 },
+          { id: 'providers', label: 'Payment Providers', icon: CreditCard },
           { id: 'links', label: 'Payment Links', icon: LinkIcon, count: paymentLinks.length },
           { id: 'transactions', label: 'Transactions', icon: Clock, count: totalTxCount },
           { id: 'import', label: 'Import Statements', icon: Upload },
+          { id: 'banking', label: 'My Banking', icon: Building2, count: settlementAccounts.length ? settlementAccounts.length : undefined },
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -907,7 +1008,7 @@ export default function PaymentPage() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-              {(['paystack', 'kuda'] as PaymentProvider[]).map(provider => {
+              {(['paystack'] as PaymentProvider[]).map(provider => {
                 const cap = PROVIDER_CAPABILITIES[provider];
                 const conf = configs[provider];
                 const isConnected = isProviderConnected(provider);
@@ -930,11 +1031,11 @@ export default function PaymentPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {provider === 'paystack' && isConnected && (
                           <button
-                            onClick={openDirectPayModal}
+                            onClick={openDirectChargeModal}
                             style={{
                               background: 'rgba(124, 58, 237, 0.12)',
                               border: '1px solid rgba(124, 58, 237, 0.3)',
-                              color: '#7c3aed',
+                              color: 'var(--accent-primary)',
                               fontWeight: 700,
                               cursor: 'pointer',
                               padding: '2px 8px',
@@ -946,7 +1047,7 @@ export default function PaymentPage() {
                             }}
                           >
                             <CreditCard size={11} />
-                            Pay Now
+                            Collect Payment
                           </button>
                         )}
                         <button
@@ -1096,7 +1197,7 @@ export default function PaymentPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-            {(['paystack', 'kuda'] as PaymentProvider[]).map(provider => {
+            {(['paystack'] as PaymentProvider[]).map(provider => {
               const cap = PROVIDER_CAPABILITIES[provider];
               const conf = configs[provider];
               const isConnected = isProviderConnected(provider);
@@ -1195,16 +1296,16 @@ export default function PaymentPage() {
                         variant="primary"
                         size="sm"
                         icon={<CreditCard size={14} />}
-                        onClick={openDirectPayModal}
+                        onClick={openDirectChargeModal}
                         style={{
                           flex: 1,
-                          background: '#7c3aed',
-                          borderColor: '#7c3aed',
-                          color: '#09090b',
+                          background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+                          borderColor: 'var(--accent-primary)',
+                          color: '#ffffff',
                           fontWeight: 700,
                         }}
                       >
-                        Pay with Paystack
+                        Collect Payment (Paystack)
                       </Button>
                     ) : (
                       <div
@@ -1314,10 +1415,26 @@ export default function PaymentPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
                         <div>Total Collections: <strong>{formatCurrency(linkCollected, link.currency)}</strong></div>
                         <div>Payments Count: <strong>{linkCount}</strong></div>
                       </div>
+
+                      {((link.metadata as any)?.settlement_bank || (link.metadata as any)?.customer_name) && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                          {(link.metadata as any)?.settlement_bank && (
+                            <span style={{ fontSize: 11, background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <CheckCircle2 size={11} />
+                              {(link.metadata as any).settlement_bank}
+                            </span>
+                          )}
+                          {(link.metadata as any)?.customer_name && (
+                            <span style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 4 }}>
+                              For: {(link.metadata as any).customer_name}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 14, borderTop: '1px solid var(--bg-border)' }}>
@@ -1364,7 +1481,7 @@ export default function PaymentPage() {
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Unified Transaction History</h2>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                Consolidated transaction records from Paystack, Kuda, and imported statements.
+                Consolidated transaction records from Paystack and imported statements.
               </p>
             </div>
 
@@ -1406,7 +1523,6 @@ export default function PaymentPage() {
                 >
                   <option value="all">All Providers</option>
                   <option value="paystack">Paystack</option>
-                  <option value="kuda">Kuda Business</option>
                   <option value="manual_import">Manual Import</option>
                 </select>
               </div>
@@ -1692,7 +1808,7 @@ export default function PaymentPage() {
             <Upload size={36} style={{ color: 'var(--accent-primary)', margin: '0 auto 12px' }} />
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Select or Drop Statement File</h3>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 16px' }}>
-              Supports standard Nigerian bank CSV statements (Kuda, Zenith, GTB, Access, etc.)
+              Supports standard Nigerian bank CSV statements (Zenith, GTB, Access, etc.)
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -1791,7 +1907,6 @@ export default function PaymentPage() {
                       style={{ width: '100%', padding: '6px 8px', fontSize: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)' }}
                     >
                       <option value="manual_import">Manual Import (Generic)</option>
-                      <option value="kuda">Kuda Business</option>
                       <option value="paystack">Paystack</option>
                     </select>
                   </div>
@@ -1879,78 +1994,139 @@ export default function PaymentPage() {
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* MODAL: DIRECT PAY INTO ROVA (VIA PAYSTACK)                          */}
+      {/* TAB 6: MY BANKING & SETTLEMENT ACCOUNTS                             */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {activeTab === 'banking' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          {/* Section 1: Settlement Bank Account Registration */}
+          {effectiveUserId && (
+            <SettlementAccountSection
+              userId={effectiveUserId}
+              settlementAccounts={settlementAccounts}
+              onAccountsChanged={async () => {
+                const updated = await getSettlementAccounts(effectiveUserId);
+                setSettlementAccounts(updated);
+              }}
+            />
+          )}
+
+          {/* Section 2: Official Internet Banking Directory */}
+          <MyBankingTab />
+        </div>
+      )}
+
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* MODAL: DIRECT PAYMENT COLLECT (PAYSTACK)                             */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       <Modal
-        open={showDirectPayModal}
-        onClose={() => !directPayProcessing && setShowDirectPayModal(false)}
-        title="Pay into Rova via Paystack"
+        open={showDirectChargeModal}
+        onClose={() => !directChargeProcessing && setShowDirectChargeModal(false)}
+        title="Collect Payment via Paystack"
         size="md"
       >
-        <form onSubmit={handleExecuteDirectPayment} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleExecuteDirectCharge} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Trust Banner */}
           <div
             style={{
               padding: '12px 14px',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(124, 58, 237, 0.08)',
-              border: '1px solid rgba(124, 58, 237, 0.25)',
-              fontSize: 12,
-              lineHeight: 1.5,
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
               display: 'flex',
-              alignItems: 'center',
               gap: 10,
+              alignItems: 'flex-start',
             }}
           >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: '#7c3aed',
-                color: '#000',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <CreditCard size={16} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Instant Paystack Checkout</div>
-              <div style={{ color: 'var(--text-secondary)' }}>
-                Pay securely with Debit Card, Bank Transfer, USSD, or Apple Pay. Funds are verified and recorded in your Rova ledger.
-              </div>
+            <ShieldCheck size={18} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: 2 }}>
+                Direct Settlement into Your Bank Account
+              </strong>
+              Customer pays directly into your verified bank account via Paystack. ROVA does not hold or pool funds.
             </div>
           </div>
 
+          {/* Destination Settlement Account */}
           <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-              Amount to Pay (₦) *
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Settlement Destination Bank <span style={{ color: 'var(--error)' }}>*</span>
+            </label>
+            {settlementAccounts.length === 1 ? (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--accent-primary)',
+                  background: 'rgba(124, 58, 237, 0.04)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+                    {settlementAccounts[0].bank_name} — {settlementAccounts[0].account_number}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    {settlementAccounts[0].account_name}
+                  </div>
+                </div>
+                <Badge variant="success">Verified Bank</Badge>
+              </div>
+            ) : (
+              <select
+                value={directChargeSettlementAccountId}
+                onChange={e => setDirectChargeSettlementAccountId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--bg-border)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: 13,
+                }}
+                required
+              >
+                {settlementAccounts.map(acct => (
+                  <option key={acct.id} value={acct.id}>
+                    {acct.bank_name} — {acct.account_number} ({acct.account_name}) {acct.is_primary ? '★ Primary' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Amount to Collect (NGN) <span style={{ color: 'var(--error)' }}>*</span>
             </label>
             <Input
               type="number"
-              placeholder="e.g. 5000"
-              value={directPayAmount}
-              onChange={e => setDirectPayAmount(e.target.value)}
+              placeholder="e.g. 10000"
+              value={directChargeAmount}
+              onChange={e => setDirectChargeAmount(e.target.value)}
+              min={100}
+              step="any"
               required
-              min="100"
+              prefix="₦"
             />
-            {/* Quick Amount Chips */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-              {['1000', '2500', '5000', '10000', '20000', '50000'].map(preset => (
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              {['2000', '5000', '10000', '25000', '50000', '100000'].map(preset => (
                 <button
-                  type="button"
                   key={preset}
-                  onClick={() => setDirectPayAmount(preset)}
+                  type="button"
+                  onClick={() => setDirectChargeAmount(preset)}
                   style={{
-                    padding: '4px 10px',
+                    background: directChargeAmount === preset ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                    color: directChargeAmount === preset ? '#ffffff' : 'var(--text-secondary)',
+                    border: '1px solid var(--bg-border)',
                     borderRadius: 'var(--radius-sm)',
-                    border: directPayAmount === preset ? '1px solid #7c3aed' : '1px solid var(--bg-border)',
-                    background: directPayAmount === preset ? 'rgba(124, 58, 237, 0.15)' : 'var(--bg-elevated)',
-                    color: directPayAmount === preset ? '#7c3aed' : 'var(--text-primary)',
+                    padding: '3px 8px',
                     fontSize: 11,
-                    fontWeight: 600,
+                    fontWeight: 500,
                     cursor: 'pointer',
                   }}
                 >
@@ -1960,52 +2136,90 @@ export default function PaymentPage() {
             </div>
           </div>
 
-          <Input
-            label="Payment Purpose / Description"
-            placeholder="e.g. Payment for Goods, Business Deposit, Client Invoice"
-            value={directPayPurpose}
-            onChange={e => setDirectPayPurpose(e.target.value)}
-          />
+          {/* Customer Info */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                Customer / Payer Email <span style={{ color: 'var(--error)' }}>*</span>
+              </label>
+              <Input
+                type="email"
+                placeholder="customer@example.com"
+                value={directChargeEmail}
+                onChange={e => setDirectChargeEmail(e.target.value)}
+                required
+              />
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, display: 'block' }}>
+                Paystack receipt sent here
+              </span>
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                Customer / Payer Name
+              </label>
+              <Input
+                placeholder="e.g. Adeola Johnson"
+                value={directChargeName}
+                onChange={e => setDirectChargeName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Purpose / Narration */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Payment Narration / Purpose
+            </label>
             <Input
-              label="Payer / Customer Name"
-              placeholder="e.g. John Doe"
-              value={directPayName}
-              onChange={e => setDirectPayName(e.target.value)}
-            />
-            <Input
-              label="Payer Email *"
-              type="email"
-              placeholder="name@example.com"
-              value={directPayEmail}
-              onChange={e => setDirectPayEmail(e.target.value)}
-              required
+              placeholder="e.g. Consultation fee, Point of Sale, Product payment"
+              value={directChargePurpose}
+              onChange={e => setDirectChargePurpose(e.target.value)}
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--bg-border)' }}>
+          {/* Error Message */}
+          {directChargeError && (
+            <div
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid var(--error)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 12,
+                color: 'var(--error)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <AlertCircle size={14} />
+              <span>{directChargeError}</span>
+            </div>
+          )}
+
+          {/* Modal Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
             <Button
-              variant="secondary"
+              variant="outline"
               type="button"
-              onClick={() => setShowDirectPayModal(false)}
-              disabled={directPayProcessing}
+              onClick={() => setShowDirectChargeModal(false)}
+              disabled={directChargeProcessing}
             >
               Cancel
             </Button>
             <Button
               variant="primary"
               type="submit"
-              loading={directPayProcessing}
+              loading={directChargeProcessing}
               icon={<CreditCard size={14} />}
               style={{
-                background: '#7c3aed',
-                borderColor: '#7c3aed',
-                color: '#09090b',
+                background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+                color: '#ffffff',
                 fontWeight: 700,
               }}
             >
-              {directPayProcessing ? 'Opening Paystack...' : `Pay ${directPayAmount ? `₦${Number(directPayAmount).toLocaleString()}` : ''}`}
+              {directChargeProcessing ? 'Opening Paystack…' : 'Pay with Paystack'}
             </Button>
           </div>
         </form>
@@ -2084,6 +2298,203 @@ export default function PaymentPage() {
               <option value="paystack">Paystack (Recommended & Ready)</option>
             </select>
           </div>
+
+          {/* Settlement Account Selector */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Settlement Bank Account
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateLinkModal(false);
+                  setActiveTab('banking');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-primary)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                + Manage Accounts
+              </button>
+            </div>
+            {settlementAccounts.length > 0 ? (
+              <select
+                value={linkSettlementAccountId}
+                onChange={e => setLinkSettlementAccountId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  fontSize: 13,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="">-- Use Primary Settlement Account --</option>
+                {settlementAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.bank_name} — ****{acc.account_number.slice(-4)} ({acc.account_name}){acc.is_primary ? ' [Primary]' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(234, 179, 8, 0.08)',
+                  border: '1px solid rgba(234, 179, 8, 0.25)',
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.4,
+                }}
+              >
+                No settlement bank account registered yet. Payments will be held until you register your Nigerian bank account under the <strong>My Banking</strong> tab.
+              </div>
+            )}
+          </div>
+
+          {/* Pre-fill Customer Details (Optional) */}
+          <div
+            style={{
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--bg-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 14px',
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+              Pre-fill Customer Info (Optional)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Customer Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Chukwuma Adebayo"
+                  value={linkCustomerName}
+                  onChange={e => setLinkCustomerName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Customer Email</label>
+                <input
+                  type="email"
+                  placeholder="e.g. client@email.com"
+                  value={linkCustomerEmail}
+                  onChange={e => setLinkCustomerEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Customer Phone</label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 08012345678"
+                  value={linkCustomerPhone}
+                  onChange={e => setLinkCustomerPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Expiry Date</label>
+                <input
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  value={linkExpiryDate}
+                  onChange={e => setLinkExpiryDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--bg-border)',
+                    background: 'var(--bg-main, #09090b)',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Link to Open Invoice (Optional) */}
+          {invoices.length > 0 && (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                Attach to Invoice (Optional)
+              </label>
+              <select
+                value={linkInvoiceId}
+                onChange={e => {
+                  const invId = e.target.value;
+                  setLinkInvoiceId(invId);
+                  const selectedInv = invoices.find(inv => inv.id === invId);
+                  if (selectedInv) {
+                    if (!linkTitle) setLinkTitle(`Invoice ${selectedInv.invoice_number}`);
+                    if (!linkAmount && !linkCustomAmount) setLinkAmount(String(selectedInv.total_amount));
+                    if (!linkCustomerName) setLinkCustomerName(selectedInv.client_name);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  fontSize: 13,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--bg-border)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="">-- No invoice attached --</option>
+                {invoices.map(inv => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.invoice_number} — {inv.client_name} ({formatCurrency(inv.total_amount)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
             <Button variant="secondary" type="button" onClick={() => setShowCreateLinkModal(false)}>

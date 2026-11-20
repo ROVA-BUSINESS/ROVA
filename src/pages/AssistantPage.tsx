@@ -10,6 +10,7 @@ import {
   Check,
   X,
   Mic,
+  MicOff,
   Square,
   RotateCcw,
   Copy,
@@ -35,9 +36,6 @@ import {
   type PendingMediaAttachment,
 } from '../contexts/AssistantContext';
 import {
-  AudioRecorder,
-  BrowserSpeechRecognizer,
-  transcribeAudioBlob,
   uploadAndOcrDocument,
 } from '../lib/aiMediaService';
 import type { ChatAction, PendingClarification } from '../lib/deepseekClient';
@@ -317,13 +315,11 @@ export default function AssistantPage() {
   const [editTitle, setEditTitle] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Voice recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const recorderRef = useRef<AudioRecorder | null>(null);
-  const recognizerRef = useRef<BrowserSpeechRecognizer | null>(null);
+  // Voice dictation state (matching AI bubble)
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechError, setSpeechError] = useState('');
+  const recognitionRef = useRef<any>(null);
 
   // Document attachment & OCR state
   const [pendingAttachment, setPendingAttachment] = useState<PendingMediaAttachment | null>(null);
@@ -340,10 +336,88 @@ export default function AssistantPage() {
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Initialize browser SpeechRecognition
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      setSpeechSupported(true);
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      try {
+        recognition.lang = navigator.language || 'en-US';
+      } catch {
+        recognition.lang = 'en-US';
+      }
+
+      recognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript.trim()) {
+          setInput(transcript);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          setSpeechError('Microphone access denied. Please allow microphone permissions in your browser.');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  const toggleSpeechRecognition = () => {
+    if (!speechSupported) {
+      alert(
+        'Voice dictation is not natively supported in this browser. Please use Chrome, Edge, Safari, or send voice notes directly via WhatsApp!'
+      );
+      return;
+    }
+    setSpeechError('');
+    if (isListening) {
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch (err) {
+        console.error('Failed to start speech recognition:', err);
+      }
+    }
+  };
+
+  // Clean up speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+    };
+  }, []);
+
   // Auto scroll to bottom on new messages
   useEffect(() => {
     if (messages.some(m => m.role === 'user')) { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }
-  }, [messages, typing, isTranscribing, isProcessingOcr]);
+  }, [messages, typing, isProcessingOcr]);
 
   // Track scroll position to show jump-to-bottom arrow
   const handleScroll = useCallback(() => {
@@ -362,18 +436,6 @@ export default function AssistantPage() {
     }
   }, [input]);
 
-  // Clean up audio recorder and speech recognizer on unmount
-  useEffect(() => {
-    return () => {
-      if (recorderRef.current && recorderRef.current.isRecording) {
-        recorderRef.current.cancel();
-      }
-      if (recognizerRef.current) {
-        recognizerRef.current.cancel();
-      }
-    };
-  }, []);
-
   // Filter conversations
   const filteredConversations = useMemo(() => {
     if (!searchTerm.trim()) return conversations;
@@ -384,84 +446,6 @@ export default function AssistantPage() {
         c.messages.some((m) => m.content.toLowerCase().includes(term))
     );
   }, [conversations, searchTerm]);
-
-  // ── Voice Recording Handlers ───────────────────────────────────────────────
-
-  const handleStartRecording = async () => {
-    if (isRecording) return;
-    try {
-      const recorder = new AudioRecorder();
-      recorderRef.current = recorder;
-      setRecordSeconds(0);
-      setAudioLevel(0);
-      setIsRecording(true);
-
-      // Start live speech recognizer for instant speech transcription
-      const recognizer = new BrowserSpeechRecognizer((liveText) => {
-        if (liveText && !input.trim()) {
-          setInput(liveText);
-        }
-      });
-      recognizerRef.current = recognizer;
-      recognizer.start();
-
-      await recorder.start(
-        (sec) => setRecordSeconds(sec),
-        (lvl) => setAudioLevel(lvl)
-      );
-    } catch (err: any) {
-      setIsRecording(false);
-      alert(err.message || 'Microphone access failed.');
-    }
-  };
-
-  const handleStopRecording = async () => {
-    if (!recorderRef.current || !isRecording) return;
-    try {
-      setIsRecording(false);
-      setIsTranscribing(true);
-
-      const capturedSpeech = recognizerRef.current?.stop() || input.trim();
-      const result = await recorderRef.current.stop();
-
-      // Transcribe audio using server Whisper or client speech fallback
-      const transResult = await transcribeAudioBlob(result.blob, 'voice_note.webm', capturedSpeech);
-      const finalTranscript = transResult.text || capturedSpeech;
-
-      // Set as pending attachment ready to send or review
-      setPendingAttachment({
-        type: 'voice',
-        url: result.audioUrl,
-        name: `Voice note (${result.durationSeconds}s)`,
-        durationSeconds: result.durationSeconds,
-        sizeBytes: result.blob.size,
-        mimeType: result.mimeType,
-        extractedText: finalTranscript,
-        transcriptionConfidence: transResult.confidence || 0.95,
-      });
-
-      // Also pre-fill text input so user can review or edit the transcription before sending!
-      if (finalTranscript) {
-        setInput(finalTranscript);
-      }
-    } catch (err: any) {
-      console.error('Voice transcription error:', err);
-    } finally {
-      setIsTranscribing(false);
-    }
-  };
-
-  const handleCancelRecording = () => {
-    if (recorderRef.current) {
-      recorderRef.current.cancel();
-    }
-    if (recognizerRef.current) {
-      recognizerRef.current.cancel();
-    }
-    setIsRecording(false);
-    setRecordSeconds(0);
-    setAudioLevel(0);
-  };
 
   // ── Document & Image OCR Handlers ──────────────────────────────────────────
 
@@ -516,6 +500,12 @@ export default function AssistantPage() {
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isListening) {
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+      setIsListening(false);
+    }
     const cleanText = input.trim();
     if ((!cleanText && !pendingAttachment) || typing) return;
 
@@ -1334,13 +1324,6 @@ export default function AssistantPage() {
             </div>
           )}
 
-          {/* Transcription In Progress */}
-          {isTranscribing && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--accent-border)' }}>
-              <div className="upload-spinner" style={{ width: 14, height: 14, border: '2px solid rgba(102,45,145,0.2)', borderTop: '2px solid var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>Transcribing voice note with Whisper AI…</span>
-            </div>
-          )}
 
           {/* OCR In Progress */}
           {isProcessingOcr && (
@@ -1468,223 +1451,143 @@ export default function AssistantPage() {
               </div>
             )}
 
-            {/* Active Voice Recording Bar */}
-            {isRecording ? (
-              <div
+            {/* Bottom Message Input Form */}
+            <form
+              onSubmit={handleSubmit}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-lg)',
+                background: isListening ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-elevated)',
+                border: isListening ? '1px solid #ef4444' : '1px solid var(--bg-border)',
+                transition: 'border-color 0.15s ease, background 0.15s ease',
+              }}
+              onFocus={(e) => {
+                if (!isListening) e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              }}
+              onBlur={(e) => {
+                if (!isListening) e.currentTarget.style.borderColor = 'var(--bg-border)';
+              }}
+            >
+              {/* Hidden File Input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileUpload(e.target.files[0]);
+                  }
+                }}
+              />
+
+              {/* Attach Document Button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Attach receipt, invoice, or document"
                 style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  borderRadius: 'var(--radius-lg)',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  animation: 'pulse 2s infinite',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'color 0.15s',
                 }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-primary)')}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-muted)')}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      background: '#ef4444',
-                      boxShadow: '0 0 10px #ef4444',
-                    }}
-                  />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Recording voice note…
-                  </span>
-                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                    {Math.floor(recordSeconds / 60)}:{(recordSeconds % 60).toString().padStart(2, '0')} / 02:00
-                  </span>
+                <Paperclip size={18} />
+              </button>
 
-                  {/* Dynamic Audio Level Meter */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((bar) => {
-                      const isActive = audioLevel > bar * 11;
-                      return (
-                        <div
-                          key={bar}
-                          style={{
-                            width: 3,
-                            height: `${isActive ? 16 : 4}px`,
-                            borderRadius: 1,
-                            background: isActive ? '#ef4444' : 'rgba(255,255,255,0.2)',
-                            transition: 'height 0.1s ease',
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={handleCancelRecording}
-                    title="Cancel recording"
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid var(--bg-border)',
-                      color: 'var(--text-secondary)',
-                      fontSize: 12,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleStopRecording}
-                    title="Finish & transcribe"
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--accent-primary)',
-                      border: 'none',
-                      color: 'white',
-                      fontWeight: 700,
-                      fontSize: 12,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Transcribe
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Normal Input Form */
-              <form
-                onSubmit={handleSubmit}
+              {/* Voice Dictation Button (matching AI bubble) */}
+              <button
+                type="button"
+                onClick={toggleSpeechRecognition}
+                title={isListening ? 'Stop listening' : 'Dictate with voice (Speak to ROVA)'}
                 style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 'var(--radius-md)',
+                  background: isListening ? '#ef4444' : 'transparent',
+                  border: 'none',
+                  color: isListening ? '#ffffff' : 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 12px',
-                  borderRadius: 'var(--radius-lg)',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--bg-border)',
-                  transition: 'border-color 0.15s ease',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                  animation: isListening ? 'pulse 1.2s infinite' : 'none',
                 }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
-                onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--bg-border)')}
+                onMouseEnter={(e) => {
+                  if (!isListening) (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isListening) (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                }}
               >
-                {/* Hidden File Input */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      handleFileUpload(e.target.files[0]);
-                    }
-                  }}
-                />
+                {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+              </button>
 
-                {/* Attach Document Button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach receipt, invoice, or document"
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 'var(--radius-md)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    transition: 'color 0.15s',
-                  }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-primary)')}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-muted)')}
-                >
-                  <Paperclip size={18} />
-                </button>
+              {/* Multiline Text Area */}
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isListening ? 'Listening… speak now' : (speechError ? speechError : 'Ask ROVA anything about your business, attach a receipt, or dictate...')}
+                rows={1}
+                disabled={typing}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--text-primary)',
+                  fontSize: 13.5,
+                  lineHeight: 1.5,
+                  resize: 'none',
+                  maxHeight: 140,
+                  padding: '6px 4px',
+                  fontFamily: 'inherit',
+                }}
+              />
 
-                {/* Voice Note Button */}
-                <button
-                  type="button"
-                  onClick={handleStartRecording}
-                  title="Record voice note"
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 'var(--radius-md)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    transition: 'color 0.15s',
-                  }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--accent-light)')}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-muted)')}
-                >
-                  <Mic size={18} />
-                </button>
-
-                {/* Multiline Text Area */}
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask ROVA anything about your business, attach a receipt, or dictate..."
-                  rows={1}
-                  disabled={typing}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: 'var(--text-primary)',
-                    fontSize: 13.5,
-                    lineHeight: 1.5,
-                    resize: 'none',
-                    maxHeight: 140,
-                    padding: '6px 4px',
-                    fontFamily: 'inherit',
-                  }}
-                />
-
-                {/* Send Button */}
-                <button
-                  type="submit"
-                  disabled={(!input.trim() && !pendingAttachment) || typing}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 'var(--radius-md)',
-                    background:
-                      (input.trim() || pendingAttachment) && !typing
-                        ? 'var(--accent-primary)'
-                        : 'rgba(255, 255, 255, 0.05)',
-                    color: (input.trim() || pendingAttachment) && !typing ? 'white' : 'var(--text-muted)',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: (input.trim() || pendingAttachment) && !typing ? 'pointer' : 'default',
-                    flexShrink: 0,
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <Send size={15} />
-                </button>
-              </form>
-            )}
+              {/* Send Button */}
+              <button
+                type="submit"
+                disabled={(!input.trim() && !pendingAttachment) || typing}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 'var(--radius-md)',
+                  background:
+                    (input.trim() || pendingAttachment) && !typing
+                      ? 'var(--accent-primary)'
+                      : 'rgba(255, 255, 255, 0.05)',
+                  color: (input.trim() || pendingAttachment) && !typing ? 'white' : 'var(--text-muted)',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: (input.trim() || pendingAttachment) && !typing ? 'pointer' : 'default',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Send size={15} />
+              </button>
+            </form>
 
 
           </div>

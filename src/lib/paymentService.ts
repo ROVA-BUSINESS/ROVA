@@ -8,6 +8,8 @@ import type {
   PaymentOverviewMetrics,
   ProviderCapabilityInfo,
   StatementParsedRow,
+  SettlementAccount,
+  NigerianBank,
 } from '../types/payment';
 
 // ── Provider Capabilities & Official Documentation Metadata ─────────────────
@@ -201,8 +203,28 @@ export async function createPaymentLink(params: {
   amount?: number | null; // null for custom amount
   currency?: string;
   allowCustomAmount?: boolean;
+  settlementAccountId?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  expiresAt?: string;
+  invoiceId?: string;
 }): Promise<PaymentLink> {
-  const { userId, provider, title, description = '', amount, currency = 'NGN', allowCustomAmount = false } = params;
+  const {
+    userId,
+    provider,
+    title,
+    description = '',
+    amount,
+    currency = 'NGN',
+    allowCustomAmount = false,
+    settlementAccountId,
+    customerName,
+    customerEmail,
+    customerPhone,
+    expiresAt,
+    invoiceId,
+  } = params;
 
   if (!title.trim()) {
     throw new Error('Payment link title is required.');
@@ -238,6 +260,12 @@ export async function createPaymentLink(params: {
           amount,
           currency,
           allowCustomAmount,
+          settlementAccountId,
+          customerName,
+          customerEmail,
+          customerPhone,
+          expiresAt,
+          invoiceId,
         }),
       });
 
@@ -283,6 +311,12 @@ export async function createPaymentLink(params: {
     metadata: {
       generatedVia: 'Rova Payment Engine',
       clientTimestamp: new Date().toISOString(),
+      settlement_account_id: settlementAccountId || null,
+      customer_name: customerName || null,
+      customer_email: customerEmail || null,
+      customer_phone: customerPhone || null,
+      expires_at: expiresAt || null,
+      invoice_id: invoiceId || null,
     },
   };
 
@@ -762,4 +796,124 @@ export async function syncProviderTransactions(
 
     return { success: false, message };
   }
+}
+
+
+// ── Settlement Account Functions ──────────────────────────────────────────
+
+export const NIGERIAN_BANKS: NigerianBank[] = [
+  // Commercial Banks
+  { name: 'Access Bank', code: '044', category: 'commercial' },
+  { name: 'Citibank Nigeria', code: '023', category: 'commercial' },
+  { name: 'Ecobank Nigeria', code: '050', category: 'commercial' },
+  { name: 'Fidelity Bank', code: '070', category: 'commercial' },
+  { name: 'First Bank of Nigeria', code: '011', category: 'commercial' },
+  { name: 'First City Monument Bank (FCMB)', code: '214', category: 'commercial' },
+  { name: 'Globus Bank', code: '00103', category: 'commercial' },
+  { name: 'Guaranty Trust Bank (GTBank)', code: '058', category: 'commercial' },
+  { name: 'Heritage Bank', code: '030', category: 'commercial' },
+  { name: 'Keystone Bank', code: '082', category: 'commercial' },
+  { name: 'Polaris Bank', code: '076', category: 'commercial' },
+  { name: 'Providus Bank', code: '101', category: 'commercial' },
+  { name: 'Stanbic IBTC Bank', code: '221', category: 'commercial' },
+  { name: 'Standard Chartered Bank', code: '068', category: 'commercial' },
+  { name: 'Sterling Bank', code: '232', category: 'commercial' },
+  { name: 'Titan Trust Bank', code: '102', category: 'commercial' },
+  { name: 'Union Bank of Nigeria', code: '032', category: 'commercial' },
+  { name: 'United Bank for Africa (UBA)', code: '033', category: 'commercial' },
+  { name: 'Unity Bank', code: '215', category: 'commercial' },
+  { name: 'Wema Bank', code: '035', category: 'commercial' },
+  { name: 'Zenith Bank', code: '057', category: 'commercial' },
+  { name: 'Coronation Bank', code: '559', category: 'commercial' },
+  // Digital / Neo-Banks
+  { name: 'Kuda Bank', code: '50211', category: 'digital' },
+  { name: 'OPay Digital Services', code: '999992', category: 'digital' },
+  { name: 'Moniepoint MFB', code: '50515', category: 'digital' },
+  { name: 'PalmPay', code: '999991', category: 'digital' },
+  { name: 'VFD Microfinance Bank', code: '566', category: 'digital' },
+  { name: 'Carbon', code: '565', category: 'digital' },
+  { name: 'Fairmoney Microfinance Bank', code: '51318', category: 'digital' },
+  { name: 'RenMoney Microfinance Bank', code: '51049', category: 'digital' },
+  { name: 'Sparkle Microfinance Bank', code: '51310', category: 'digital' },
+  { name: 'Rubies MFB', code: '125', category: 'digital' },
+  { name: 'Tangerine Money', code: '51269', category: 'digital' },
+  { name: 'ALAT by WEMA', code: '035A', category: 'digital' },
+  { name: '9mobile 9Payment Service Bank', code: '120001', category: 'digital' },
+  { name: 'Airtel Smartcash PSB', code: '120004', category: 'digital' },
+  { name: 'MTN Momo PSB', code: '120003', category: 'digital' },
+];
+
+export async function getSettlementAccounts(userId: string): Promise<SettlementAccount[]> {
+  const { data, error } = await supabase
+    .from('settlement_accounts')
+    .select('*')
+    .eq('user_id', userId)
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.warn('Error fetching settlement accounts:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
+export async function verifyBankAccount(params: {
+  accountNumber: string;
+  bankCode: string;
+}): Promise<{ success: boolean; accountName?: string; error?: string }> {
+  try {
+    const res = await fetch('/api/payment/settlement/verify-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { success: false, error: 'Could not verify account. Please check your connection.' };
+  }
+}
+
+export async function saveSettlementAccount(params: {
+  userId: string;
+  bankName: string;
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+}): Promise<{ success: boolean; account?: SettlementAccount; error?: string }> {
+  try {
+    const res = await fetch('/api/payment/settlement/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { success: false, error: 'Failed to save account.' };
+  }
+}
+
+export async function setPrimarySettlementAccount(userId: string, accountId: string): Promise<void> {
+  // Clear primary on all accounts
+  await supabase
+    .from('settlement_accounts')
+    .update({ is_primary: false })
+    .eq('user_id', userId);
+
+  // Set primary on selected
+  await supabase
+    .from('settlement_accounts')
+    .update({ is_primary: true })
+    .eq('id', accountId)
+    .eq('user_id', userId);
+}
+
+export async function deleteSettlementAccount(userId: string, accountId: string): Promise<void> {
+  await supabase
+    .from('settlement_accounts')
+    .delete()
+    .eq('id', accountId)
+    .eq('user_id', userId);
 }

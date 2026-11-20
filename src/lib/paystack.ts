@@ -20,6 +20,9 @@ export interface PaystackSetupOptions {
   currency: string;
   ref: string;
   plan?: string;  // Included ONLY for daily recurring plans!
+  subaccount?: string; // Paystack subaccount for direct merchant settlement
+  transaction_charge?: number; // Flat fee Rova takes (0 for direct settlement)
+  bearer?: 'account' | 'subaccount'; // Who pays Paystack transaction fee
   metadata?: Record<string, unknown>;
   callback: (response: { reference: string; trans?: string; status?: string; message?: string }) => void;
   onClose: () => void;
@@ -31,6 +34,7 @@ export interface PaystackPaymentOptions {
   reference: string;
   planKey?: PlanKey;
   planCode?: string;         // Paystack plan code (for daily recurring)
+  subaccount?: string;       // Paystack subaccount code for direct settlement into merchant bank account
   metadata?: Record<string, unknown>;
   onSuccess: (reference: string) => void;
   onClose: () => void;
@@ -184,6 +188,13 @@ export async function openPaystackPopup(options: PaystackPaymentOptions): Promis
   // Only attach plan for daily recurring plans
   if (isDailyRecurring && planCode) {
     setupOptions.plan = planCode;
+  }
+
+  // Attach subaccount for direct merchant settlement (Rova takes 0 cut)
+  if (options.subaccount) {
+    setupOptions.subaccount = options.subaccount;
+    setupOptions.bearer = 'subaccount';
+    setupOptions.transaction_charge = 0;
   }
 
   const handler = window.PaystackPop.setup(setupOptions);
