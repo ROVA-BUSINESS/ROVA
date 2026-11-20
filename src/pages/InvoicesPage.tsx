@@ -184,11 +184,13 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  const getDefaultDueDate = () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [form, setForm] = useState({
     client_name: '', client_email: '', client_address: '',
-    due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid' as 'unpaid' | 'paid_in_full' | 'part_payment', amount_paid: '', repayment_reminder_date: '',
+    due_date: getDefaultDueDate(), tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid' as 'unpaid' | 'paid_in_full' | 'part_payment', amount_paid: '', repayment_reminder_date: '',
     allow_partial_payments: false,
     partial_payment_type: 'any' as 'any' | 'minimum' | 'fixed_deposit',
     minimum_partial_amount: '',
@@ -321,21 +323,35 @@ export default function InvoicesPage() {
     e.preventDefault();
     setSaving(true);
     try {
+      if (!form.client_name.trim()) {
+        alert('Please enter a Customer / Client name.');
+        setSaving(false);
+        return;
+      }
+
       const validItems = items
-        .filter(i => i.description && Number(i.unit_price) > 0)
+        .filter(i => i.description?.trim() && Number(i.unit_price) > 0)
         .map(i => ({
-          description: i.description,
-          quantity: Number(i.quantity),
+          description: i.description.trim(),
+          quantity: Math.max(1, Number(i.quantity) || 1),
           unit_price: Number(i.unit_price),
           inventory_item_id: i.inventory_item_id || null,
         }));
 
+      if (validItems.length === 0) {
+        alert('Please add at least one line item with a description and unit price greater than 0.');
+        setSaving(false);
+        return;
+      }
+
+      const effectiveDueDate = form.due_date || getDefaultDueDate();
+
       const createdInv = await createInvoice({
         userId: effectiveUserId!,
-        client_name: form.client_name,
-        client_email: form.client_email,
-        client_address: form.client_address,
-        due_date: form.due_date,
+        client_name: form.client_name.trim(),
+        client_email: form.client_email?.trim() || '',
+        client_address: form.client_address?.trim() || '',
+        due_date: effectiveDueDate,
         tax_rate: Number(form.tax_rate) || 0,
         discount_rate: Number(form.discount_rate) || 0,
         notes: form.repayment_reminder_date ? (form.notes ? `${form.notes} | Repayment Reminder: ${form.repayment_reminder_date}` : `Repayment Reminder: ${form.repayment_reminder_date}`) : form.notes,
@@ -392,9 +408,9 @@ export default function InvoicesPage() {
           invoice: createdInv,
         }
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create invoice:', err);
-      alert('Error creating invoice. Please try again.');
+      alert(err?.message || 'Error creating invoice. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -490,7 +506,7 @@ export default function InvoicesPage() {
 
   function resetForm() {
     setForm({
-      client_name: '', client_email: '', client_address: '', due_date: '', tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '', repayment_reminder_date: '',
+      client_name: '', client_email: '', client_address: '', due_date: getDefaultDueDate(), tax_rate: '0', discount_rate: '0', notes: '', payment_status: 'unpaid', amount_paid: '', repayment_reminder_date: '',
       allow_partial_payments: false, partial_payment_type: 'any', minimum_partial_amount: '', fixed_deposit_amount: '',
     });
     setItems([{ description: '', quantity: '1', unit_price: '', inventory_item_id: '' }]);
