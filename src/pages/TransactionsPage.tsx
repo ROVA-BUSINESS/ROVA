@@ -709,7 +709,7 @@ export default function TransactionsPage() {
                     <button
                       onClick={() => handleDelete(tx.id)}
                       title="Delete"
-                      style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', cursor: 'pointer' }}
+                      style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--error)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', cursor: 'pointer' }}
                     >
                       <Trash2 size={13} />
                     </button>
@@ -719,16 +719,29 @@ export default function TransactionsPage() {
             ))}
           </div>
         ) : (
-          <div className="mobile-table-container">
-            <table className="transaction-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="mobile-table-container" style={{ width: '100%', overflowX: 'auto' }}>
+            <table className="transaction-table" style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg-elevated)' }}>
                 {[
                   { label: 'Date' }, { label: 'Description' }, 
                   { label: 'Category', hideMobile: true }, { label: 'Account', hideMobile: true }, 
-                  { label: 'Amount' }, { label: 'Status', hideMobile: true }, { label: '', className: 'mobile-actions' }
-                ].map(h => (
-                  <th key={h.label} className={`${h.hideMobile ? "mobile-hide" : ""} ${h.className || ""}`} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  { label: 'Amount' }, { label: 'Status', hideMobile: true }, { label: 'Actions', className: 'mobile-actions', align: 'right' }
+                ].map((h, idx) => (
+                  <th 
+                    key={h.label || idx} 
+                    className={`${h.hideMobile ? "mobile-hide" : ""} ${h.className || ""}`} 
+                    style={{ 
+                      padding: '10px 16px', 
+                      textAlign: (h as any).align || 'left', 
+                      fontSize: 11, 
+                      fontWeight: 600, 
+                      color: 'var(--text-muted)', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '0.5px',
+                      ...(h.className?.includes('mobile-actions') ? { width: 140, minWidth: 140 } : {})
+                    }}
+                  >
                     {h.label}
                   </th>
                 ))}
@@ -954,45 +967,54 @@ export default function TransactionsPage() {
                       {tx.is_verified ? 'Verified' : 'Pending'}
                     </Badge>
                   </td>
-                  <td className="mobile-tight-td mobile-actions" style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                  <td 
+                    className="mobile-tight-td mobile-actions" 
+                    style={{ 
+                      padding: '12px 16px', 
+                      textAlign: 'right',
+                      width: 140,
+                      minWidth: 140,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
                       {tx.type === 'income' && (
                         <button
                           onClick={() => navigate('/app/receipts', { state: { openCreateModal: true, transactionId: tx.id } })}
                           title="Generate Receipt"
-                          style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--accent-light)', transition: 'all 0.15s' }}
+                          style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--accent-light)', transition: 'all 0.15s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-primary)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)'; }}
                         >
-                          <Receipt size={13} />
+                          <Receipt size={14} />
                         </button>
                       )}
                       <button
                         onClick={() => openEditModal(tx)}
                         title="Edit Transaction & Category"
-                        style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s' }}
+                        style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
                       >
-                        <Edit2 size={13} />
+                        <Edit2 size={14} />
                       </button>
                       <button
                         onClick={() => toggleVerify(tx)}
                         title={tx.is_verified ? 'Mark as unverified' : 'Mark as verified'}
-                        style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: tx.is_verified ? 'var(--success)' : 'var(--text-muted)', transition: 'all 0.15s' }}
+                        style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: tx.is_verified ? 'var(--success)' : 'var(--text-muted)', transition: 'all 0.15s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-border)'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                       >
-                        <Check size={13} />
+                        <Check size={14} />
                       </button>
                       <button
                         onClick={() => handleDelete(tx.id)}
-                        title="Delete"
-                        style={{ padding: 5, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: 'all 0.15s' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--error-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--error)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+                        title="Delete Transaction"
+                        style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--error)', transition: 'all 0.15s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--error-dim)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>

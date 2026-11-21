@@ -227,7 +227,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   /* Compact transaction table for mobile */
   .mobile-table-container {
     width: 100%;
-    overflow: hidden; /* Prevent scrolling completely, ensure it fits */
+    overflow-x: auto !important; /* Allow smooth horizontal scroll */
+    -webkit-overflow-scrolling: touch;
   }
 
   .transaction-table {
@@ -252,7 +253,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   }
 
   .mobile-actions {
-    width: 60px; /* Constrain actions column width */
+    min-width: 120px !important;
+    width: 120px !important;
     padding-right: 8px !important;
   }
 }
