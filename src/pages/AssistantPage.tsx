@@ -1162,108 +1162,110 @@ export default function AssistantPage() {
                     </div>
                   )}
 
-                  {/* Message Bubble */}
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                      background: isError
-                        ? 'rgba(239, 68, 68, 0.15)'
-                        : isUser
-                        ? 'linear-gradient(135deg, var(--accent-primary), #7c3aed)'
-                        : 'var(--bg-card)',
-                      border: isError
-                        ? '1px solid rgba(239, 68, 68, 0.4)'
-                        : isUser
-                        ? 'none'
-                        : '1px solid var(--bg-border)',
-                      color: isError ? '#fca5a5' : (isUser ? '#ffffff' : 'var(--text-primary)'),
-                      fontSize: 13.5,
-                      lineHeight: 1.6,
-                      whiteSpace: 'pre-line',
-                      boxShadow: isUser ? '0 4px 14px rgba(102, 45, 145, 0.25)' : '0 2px 8px rgba(0,0,0,0.1)',
-                      position: 'relative',
-                    }}
-                  >
-                    {msg.content ? renderFormattedContent(msg.content) : null}
+                  {/* Message Text Bubble - only render if there is actual text */}
+                  {msg.content?.trim() ? (
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                        background: isError
+                          ? 'rgba(239, 68, 68, 0.15)'
+                          : isUser
+                          ? 'linear-gradient(135deg, var(--accent-primary), #7c3aed)'
+                          : 'var(--bg-card)',
+                        border: isError
+                          ? '1px solid rgba(239, 68, 68, 0.4)'
+                          : isUser
+                          ? 'none'
+                          : '1px solid var(--bg-border)',
+                        color: isError ? '#fca5a5' : (isUser ? '#ffffff' : 'var(--text-primary)'),
+                        fontSize: 13.5,
+                        lineHeight: 1.6,
+                        whiteSpace: 'pre-line',
+                        boxShadow: isUser ? '0 4px 14px rgba(102, 45, 145, 0.25)' : '0 2px 8px rgba(0,0,0,0.1)',
+                        position: 'relative',
+                      }}
+                    >
+                      {renderFormattedContent(msg.content)}
+                    </div>
+                  ) : null}
 
-                    {/* Recorded Transactions Card */}
-                    {msg.recordedTransactions && msg.recordedTransactions.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: msg.content ? 10 : 0 }}>
-                        {msg.recordedTransactions.map((tx: any, idx: number) => {
-                          const isIncome = tx.type === 'income';
-                          const amt = Number(tx.amount || 0);
-                          return (
-                            <div
-                              key={tx.id || idx}
-                              style={{
-                                padding: '12px 14px',
-                                borderRadius: 'var(--radius-md)',
-                                background: isIncome ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                                border: isIncome ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontSize: 14, fontWeight: 700, color: isIncome ? '#10b981' : '#f87171' }}>
-                                    {isIncome ? '+₦' : '-₦'}{amt.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                  <span style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 'var(--radius-full)', background: isIncome ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: isIncome ? '#10b981' : '#f87171', fontWeight: 600 }}>
-                                    {isIncome ? 'Money In' : 'Money Out'}
-                                  </span>
-                                </div>
-                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                  📅 {tx.date}
+                  {/* Recorded Transactions Card */}
+                  {msg.recordedTransactions && msg.recordedTransactions.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: msg.content?.trim() ? 10 : 0 }}>
+                      {msg.recordedTransactions.map((tx: any, idx: number) => {
+                        const isIncome = tx.type === 'income';
+                        const amt = Number(tx.amount || 0);
+                        return (
+                          <div
+                            key={tx.id || idx}
+                            style={{
+                              padding: '12px 14px',
+                              borderRadius: 'var(--radius-md)',
+                              background: isIncome ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                              border: isIncome ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 6,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 14, fontWeight: 700, color: isIncome ? '#10b981' : '#f87171' }}>
+                                  {isIncome ? '+₦' : '-₦'}{amt.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                                <span style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 'var(--radius-full)', background: isIncome ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: isIncome ? '#10b981' : '#f87171', fontWeight: 600 }}>
+                                  {isIncome ? 'Money In' : 'Money Out'}
                                 </span>
                               </div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {tx.description}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                                <span>🏷️ {tx.ai_category || 'General'}</span>
-                                {tx.reference && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ref: {tx.reference}</span>}
-                              </div>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                📅 {tx.date}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {tx.description}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                              <span>🏷️ {tx.ai_category || 'General'}</span>
+                              {tx.reference && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ref: {tx.reference}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                    {/* Interactive Financial Confirmation Card */}
-                    {msg.requiresConfirmation && (
-                      <div
-                        style={{
-                          marginTop: 12,
-                          padding: '12px 14px',
-                          borderRadius: 'var(--radius-md)',
-                          background: 'rgba(245, 158, 11, 0.1)',
-                          border: '1px solid rgba(245, 158, 11, 0.3)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 6,
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f59e0b', fontWeight: 700, fontSize: 12 }}>
-                          <AlertCircle size={15} />
-                          <span>Confirmation Required</span>
-                        </div>
-                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
-                          {msg.confirmationSummary || 'Please verify the transaction details above before proceeding.'}
-                        </p>
+                  {/* Interactive Financial Confirmation Card */}
+                  {msg.requiresConfirmation && (
+                    <div
+                      style={{
+                        marginTop: msg.content?.trim() ? 12 : 0,
+                        padding: '12px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f59e0b', fontWeight: 700, fontSize: 12 }}>
+                        <AlertCircle size={15} />
+                        <span>Confirmation Required</span>
                       </div>
-                    )}
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+                        {msg.confirmationSummary || 'Please verify the transaction details above before proceeding.'}
+                      </p>
+                    </div>
+                  )}
 
-                    {/* Success Indicator if tool executed */}
-                    {msg.toolExecuted && (!msg.recordedTransactions || msg.recordedTransactions.length === 0) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, color: '#10b981', fontSize: 11.5, fontWeight: 600 }}>
-                        <CheckCircle2 size={13} />
-                        <span>Action verified and executed securely</span>
-                      </div>
-                    )}
-                  </div>
+                  {/* Success Indicator if tool executed */}
+                  {msg.toolExecuted && (!msg.recordedTransactions || msg.recordedTransactions.length === 0) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, color: '#10b981', fontSize: 11.5, fontWeight: 600 }}>
+                      <CheckCircle2 size={13} />
+                      <span>Action verified and executed securely</span>
+                    </div>
+                  )}
 
                   {/* Message Actions / Controls */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, paddingLeft: 4 }}>
@@ -1271,7 +1273,7 @@ export default function AssistantPage() {
                       {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
 
-                    {!isUser && (
+                    {!isUser && msg.content?.trim() && (
                       <button
                         onClick={() => copyMessage(msg.id, msg.content)}
                         title="Copy message"

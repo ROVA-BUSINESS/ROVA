@@ -667,7 +667,7 @@ export default function FloatingAssistant() {
                         <VoiceMessagePlayer audioUrl={msg.mediaUrl} duration={msg.mediaMetadata?.durationSeconds} />
                       )}
 
-                      {msg.content ? (
+                      {msg.content?.trim() ? (
                         <div
                           style={{
                             padding: '9px 13px',
