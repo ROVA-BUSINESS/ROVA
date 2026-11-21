@@ -47,6 +47,8 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   clarify_transaction: HelpCircle,
   view_report: TrendingUp,
   open_whatsapp_bot: MessageCircle,
+  confirm_large_transaction: CheckCircle2,
+  undo_transaction: RotateCcw,
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -56,6 +58,8 @@ const ACTION_COLORS: Record<string, string> = {
   clarify_transaction: '#60a5fa',
   view_report: '#a78bfa',
   open_whatsapp_bot: '#25D366',
+  confirm_large_transaction: '#10b981',
+  undo_transaction: '#f87171',
 };
 
 const STARTER_PROMPTS = [
@@ -1181,7 +1185,52 @@ export default function AssistantPage() {
                       position: 'relative',
                     }}
                   >
-                    {renderFormattedContent(msg.content)}
+                    {msg.content ? renderFormattedContent(msg.content) : null}
+
+                    {/* Recorded Transactions Card */}
+                    {msg.recordedTransactions && msg.recordedTransactions.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: msg.content ? 10 : 0 }}>
+                        {msg.recordedTransactions.map((tx: any, idx: number) => {
+                          const isIncome = tx.type === 'income';
+                          const amt = Number(tx.amount || 0);
+                          return (
+                            <div
+                              key={tx.id || idx}
+                              style={{
+                                padding: '12px 14px',
+                                borderRadius: 'var(--radius-md)',
+                                background: isIncome ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                                border: isIncome ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 6,
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 14, fontWeight: 700, color: isIncome ? '#10b981' : '#f87171' }}>
+                                    {isIncome ? '+₦' : '-₦'}{amt.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                  <span style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 'var(--radius-full)', background: isIncome ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: isIncome ? '#10b981' : '#f87171', fontWeight: 600 }}>
+                                    {isIncome ? 'Money In' : 'Money Out'}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                  📅 {tx.date}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {tx.description}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                                <span>🏷️ {tx.ai_category || 'General'}</span>
+                                {tx.reference && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ref: {tx.reference}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Interactive Financial Confirmation Card */}
                     {msg.requiresConfirmation && (
@@ -1208,7 +1257,7 @@ export default function AssistantPage() {
                     )}
 
                     {/* Success Indicator if tool executed */}
-                    {msg.toolExecuted && (
+                    {msg.toolExecuted && (!msg.recordedTransactions || msg.recordedTransactions.length === 0) && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, color: '#10b981', fontSize: 11.5, fontWeight: 600 }}>
                         <CheckCircle2 size={13} />
                         <span>Action verified and executed securely</span>

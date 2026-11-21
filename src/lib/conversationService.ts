@@ -10,6 +10,8 @@ export interface ChatMessage {
   requiresConfirmation?: boolean;
   confirmationSummary?: string;
   pendingToolCall?: { name: string; parameters: Record<string, any> } | null;
+  pendingTransactions?: any[];
+  recordedTransactions?: any[];
   toolExecuted?: boolean;
   // Media attachments
   mediaType?: 'voice' | 'image' | 'document' | 'none';

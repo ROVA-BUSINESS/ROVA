@@ -6,6 +6,7 @@ import {
   classifyTransaction,
   streamChatWithAssistant,
   confirmPendingAction,
+  confirmLargeTransaction,
   fetchPendingClarifications,
   resolveClarification,
   dismissClarification,
@@ -16,7 +17,6 @@ import {
 import { createInvoice } from '../lib/invoiceService';
 import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 import { getNextSku } from '../lib/inventoryService';
-import { extractAmountFromText } from '../lib/format';
 import {
   type ChatMessage,
   type Conversation,
@@ -1005,6 +1005,85 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           break;
         }
 
+        case 'confirm_large_transaction': {
+          const payload = action.payload || {};
+          const txs = payload.transactions || [];
+          if (!txs || txs.length === 0) break;
+          setTyping(true);
+          try {
+            const result = await confirmLargeTransaction({
+              userId: effectiveUserId!,
+              pendingTransactions: txs,
+            });
+            const recorded = result?.recordedTransactions || [];
+            loadData();
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `large-confirmed-${Date.now()}`,
+                role: 'assistant',
+                content: '',
+                timestamp: new Date(),
+                recordedTransactions: recorded,
+                toolExecuted: true,
+                actions: [
+                  { type: 'view_report', label: '📊 View Transactions', payload: { page: 'transactions' } },
+                ],
+              },
+            ]);
+          } catch (err: any) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `large-err-${Date.now()}`,
+                role: 'assistant',
+                content: `❌ Failed to record transaction: ${err.message || err}`,
+                timestamp: new Date(),
+              },
+            ]);
+          } finally {
+            setTyping(false);
+          }
+          break;
+        }
+
+        case 'undo_transaction': {
+          const txId = action.payload?.transactionId;
+          if (!txId) break;
+          setTyping(true);
+          try {
+            const { error: delErr } = await supabase
+              .from('transactions')
+              .delete()
+              .eq('id', txId)
+              .eq('user_id', effectiveUserId!);
+            if (delErr) throw delErr;
+            loadData();
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `undo-ok-${Date.now()}`,
+                role: 'assistant',
+                content: '↩️ Transaction was undone and removed from your records.',
+                timestamp: new Date(),
+              },
+            ]);
+          } catch (err: any) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `undo-err-${Date.now()}`,
+                role: 'assistant',
+                content: `❌ Could not undo transaction: ${err.message || err}`,
+                timestamp: new Date(),
+              },
+            ]);
+          } finally {
+            setTyping(false);
+          }
+          break;
+        }
+
         case 'cancel_action': {
           setPendingToolCall(null);
           setMessages((prev) => [
@@ -1096,7 +1175,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
       abortControllerRef.current = controller;
 
       try {
-        const finalReply = await streamChatWithAssistant(
+        const result = await streamChatWithAssistant(
           {
             messages: history,
             userId: effectiveUserId || '',
@@ -1113,32 +1192,26 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           controller.signal
         );
 
-        const attachedActions: ChatAction[] = [];
-        const textToCheck = cleanText;
-        const amountExtracted = extractAmountFromText(textToCheck);
-        const isRecordIntent = /\b(record|log|add|save|track|bought|purchased|sold|paid|spent|cost)\b/i.test(textToCheck);
+        const recordedTxs = result.recordedTransactions || [];
+        const hasRecorded = Array.isArray(recordedTxs) && recordedTxs.length > 0;
+        if (hasRecorded) {
+          loadData();
+        }
 
-        if (isRecordIntent && amountExtracted && amountExtracted > 0) {
-          const isSale = /\b(sold|sale|income|revenue|earned|collected|received)\b/i.test(textToCheck);
-          const type = isSale ? 'income' : 'expense';
-          let itemDesc = textToCheck
-            .replace(/\b(please\s+)?(record|log|add|save|track|i\s+just|i\s+bought|i\s+paid|i\s+sold|i\s+spent|an\s+expense\s+of|a\s+sale\s+of)\b/gi, '')
-            .replace(/(?:(?:₦|ngn|naira)\s*[0-9,]+(?:\.[0-9]{1,2})?)|(?:[0-9,]+(?:\.[0-9]{1,2})?\s*(?:ngn|naira))/gi, '')
-            .replace(/\b\d+(?:\.\d+)?\s*k\b/gi, '')
-            .replace(/\b(?:for|worth|cost|paid|spent|sold|amount|price)\s+(?:of\s+)?/gi, '')
-            .trim();
-          if (!itemDesc || itemDesc.length < 2) itemDesc = isSale ? 'Sales Revenue' : 'Business Expense';
-          itemDesc = itemDesc.charAt(0).toUpperCase() + itemDesc.slice(1);
-
+        const attachedActions: ChatAction[] = [...(result.actions || [])];
+        if (hasRecorded) {
           attachedActions.push({
-            type: 'record_transaction',
-            label: `💾 Record ${type === 'income' ? 'Income' : 'Expense'}: ₦${amountExtracted.toLocaleString()} (${itemDesc})`,
-            payload: {
-              amount: amountExtracted,
-              description: itemDesc,
-              type,
-            },
+            type: 'view_report',
+            label: '📊 View Transactions',
+            payload: { page: 'transactions' },
           });
+          for (const tx of recordedTxs) {
+            attachedActions.push({
+              type: 'undo_transaction',
+              label: `↩️ Undo ${tx.description} (₦${Number(tx.amount || 0).toLocaleString()})`,
+              payload: { transactionId: tx.id },
+            });
+          }
         }
 
         setMessages((prev) =>
@@ -1146,8 +1219,12 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
             m.id === assistantMsgId
               ? {
                   ...m,
-                  content: finalReply || m.content,
+                  content: result.reply ?? m.content,
                   status: 'sent',
+                  recordedTransactions: recordedTxs,
+                  requiresConfirmation: result.requiresConfirmation,
+                  pendingTransactions: result.pendingTransactions,
+                  toolExecuted: result.toolExecuted || hasRecorded,
                   actions: attachedActions.length > 0 ? attachedActions : m.actions,
                 }
               : m

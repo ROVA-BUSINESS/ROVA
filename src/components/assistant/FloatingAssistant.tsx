@@ -18,6 +18,7 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   record_payroll: Users,
   clarify_transaction: HelpCircle,
   view_report: TrendingUp,
+  undo_transaction: RotateCcw,
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -27,6 +28,8 @@ const ACTION_COLORS: Record<string, string> = {
   clarify_transaction: '#60a5fa',
   view_report: '#a78bfa',
   open_whatsapp_bot: '#25D366',
+  confirm_large_transaction: '#10b981',
+  undo_transaction: '#f87171',
 };
 
 // Map current pathname to human-readable page name and contextual suggestions
@@ -664,23 +667,64 @@ export default function FloatingAssistant() {
                         <VoiceMessagePlayer audioUrl={msg.mediaUrl} duration={msg.mediaMetadata?.durationSeconds} />
                       )}
 
-                      <div
-                        style={{
-                          padding: '9px 13px',
-                          borderRadius:
-                            msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                          background:
-                            msg.role === 'user' ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-                          color: 'var(--text-primary)',
-                          fontSize: 12.5,
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-line',
-                          border: msg.role === 'assistant' ? '1px solid var(--bg-border)' : 'none',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        {msg.content}
-                      </div>
+                      {msg.content ? (
+                        <div
+                          style={{
+                            padding: '9px 13px',
+                            borderRadius:
+                              msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                            background:
+                              msg.role === 'user' ? 'var(--accent-primary)' : 'var(--bg-elevated)',
+                            color: 'var(--text-primary)',
+                            fontSize: 12.5,
+                            lineHeight: 1.5,
+                            whiteSpace: 'pre-line',
+                            border: msg.role === 'assistant' ? '1px solid var(--bg-border)' : 'none',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {msg.content}
+                        </div>
+                      ) : null}
+
+                      {/* Recorded Transactions Card */}
+                      {msg.recordedTransactions && msg.recordedTransactions.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: msg.content ? 6 : 0 }}>
+                          {msg.recordedTransactions.map((tx: any, idx: number) => {
+                            const isIncome = tx.type === 'income';
+                            const amt = Number(tx.amount || 0);
+                            return (
+                              <div
+                                key={tx.id || idx}
+                                style={{
+                                  padding: '9px 12px',
+                                  borderRadius: 'var(--radius-md)',
+                                  background: isIncome ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                                  border: isIncome ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 4,
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: isIncome ? '#10b981' : '#f87171' }}>
+                                    {isIncome ? '+₦' : '-₦'}{amt.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                    📅 {tx.date}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                  {tx.description}
+                                </div>
+                                <div style={{ fontSize: 10.5, color: 'var(--text-secondary)' }}>
+                                  🏷️ {tx.ai_category || 'General'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Action buttons */}
                       {msg.actions && msg.actions.length > 0 && (

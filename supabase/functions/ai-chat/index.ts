@@ -1,5 +1,15 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  RECORD_TRANSACTIONS_TOOL,
+  RECORDING_PROMPT_ADDON,
+  lagosToday,
+  lagosWeekday,
+  cleanTransactions,
+  saveTransactions,
+  LARGE_AMOUNT_THRESHOLD,
+} from "./recordTransactions.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -683,8 +693,54 @@ serve(async (req: Request) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { messages, message, prompt, stream } = body;
+    const { messages, message, prompt, stream, confirmed, pendingTransactions } = body;
     const isStream = Boolean(stream);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+
+    // Resolve user / actor authentication
+    const authHeader = req.headers.get("Authorization");
+    let actorId = null;
+    if (authHeader) {
+      try {
+        const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user } } = await userClient.auth.getUser();
+        if (user) actorId = user.id;
+      } catch (_e) {
+        // fallback
+      }
+    }
+    const ownerId = body.userId || actorId;
+
+    // ── Handle Pre-confirmed Large Transaction ─────────────────────────────────
+    if (confirmed && Array.isArray(pendingTransactions) && pendingTransactions.length > 0 && ownerId) {
+      const db = createClient(supabaseUrl, supabaseServiceKey);
+      const saveResults = await saveTransactions(db, ownerId, actorId || ownerId, pendingTransactions);
+      const savedTxs = saveResults.filter((r) => r.success).map((r) => r.transaction);
+
+      return new Response(
+        JSON.stringify({
+          reply: "",
+          recordedTransactions: savedTxs,
+          toolExecuted: true,
+          actions: [
+            {
+              type: "view_report",
+              label: "📊 View Transactions",
+              payload: { page: "transactions" },
+            },
+          ],
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        }
+      );
+    }
 
     // ── Build normalized message array ─────────────────────────────────────────
     let inputMessages: { role: string; content: string }[] = [];
@@ -710,7 +766,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Sanitize and filter messages (sensible context management: keep up to last 20 messages)
+    // Sanitize and filter messages (keep up to last 20 messages)
     const sanitizedMessages = inputMessages
       .filter((m) => m && typeof m.content === "string" && m.content.trim().length > 0)
       .slice(-20)
@@ -719,13 +775,15 @@ serve(async (req: Request) => {
         content: m.content.trim(),
       }));
 
-    // Prepend master system prompt
+    // Prepend master system prompt + dynamic Lagos-date transaction recording rules
+    const today = lagosToday();
+    const weekday = lagosWeekday();
     const finalMessages = [
-      { role: "system", content: MASTER_SYSTEM_PROMPT },
+      { role: "system", content: MASTER_SYSTEM_PROMPT + RECORDING_PROMPT_ADDON(today, weekday) },
       ...sanitizedMessages,
     ];
 
-    // ── Call official DeepSeek API directly ────────────────────────────────────
+    // ── Call official DeepSeek API directly with Tool Calling ─────────────────
     const deepseekResponse = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
       headers: {
@@ -735,8 +793,10 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         model: "deepseek-chat",
         messages: finalMessages,
-        temperature: 0.7,
-        stream: isStream,
+        temperature: 0.3,
+        tools: [RECORD_TRANSACTIONS_TOOL],
+        tool_choice: "auto",
+        stream: false,
       }),
     });
 
@@ -764,21 +824,83 @@ serve(async (req: Request) => {
       );
     }
 
-    // ── Handle SSE Streaming ───────────────────────────────────────────────────
-    if (isStream && deepseekResponse.body) {
-      return new Response(deepseekResponse.body, {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      });
+    const data = await deepseekResponse.json();
+    const messageObj = data.choices?.[0]?.message;
+    const toolCalls = messageObj?.tool_calls;
+
+    // ── Check if DeepSeek identified a transaction to record ──────────────────
+    const recordToolCall = Array.isArray(toolCalls)
+      ? toolCalls.find((tc: any) => tc.function?.name === "record_transactions")
+      : null;
+
+    if (recordToolCall && ownerId) {
+      let parsedArgs: any = {};
+      try {
+        parsedArgs = JSON.parse(recordToolCall.function.arguments);
+      } catch (_e) {
+        parsedArgs = { transactions: [] };
+      }
+
+      const { valid, invalid } = cleanTransactions(parsedArgs.transactions, today);
+
+      if (valid.length > 0) {
+        // Large-amount threshold check (> 500,000 NGN)
+        const largeItem = valid.find((t) => t.amount >= LARGE_AMOUNT_THRESHOLD);
+        if (largeItem && !confirmed) {
+          return new Response(
+            JSON.stringify({
+              reply: `⚠️ Please confirm: You requested to record ₦${largeItem.amount.toLocaleString("en-NG")} for "${largeItem.description}". Would you like me to record this transaction?`,
+              requiresConfirmation: true,
+              pendingTransactions: valid,
+              actions: [
+                {
+                  type: "confirm_large_transaction",
+                  label: `✅ Yes, Record ₦${largeItem.amount.toLocaleString("en-NG")}`,
+                  payload: { transactions: valid },
+                },
+                {
+                  type: "cancel_action",
+                  label: "❌ Cancel",
+                  payload: {},
+                },
+              ],
+            }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            }
+          );
+        }
+
+        // Save transactions directly to the database
+        const db = createClient(supabaseUrl, supabaseServiceKey);
+        const saveResults = await saveTransactions(db, ownerId, actorId || ownerId, valid);
+        const savedTxs = saveResults.filter((r) => r.success).map((r) => r.transaction);
+
+        // Per user instruction: If recording anything, do not reply with chatty conversational text.
+        return new Response(
+          JSON.stringify({
+            reply: "",
+            recordedTransactions: savedTxs,
+            toolExecuted: true,
+            actions: [
+              {
+                type: "view_report",
+                label: "📊 View Transactions",
+                payload: { page: "transactions" },
+              },
+            ],
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
+        );
+      }
     }
 
-    // ── Handle Standard JSON Completion ───────────────────────────────────────
-    const data = await deepseekResponse.json();
-    const reply = data.choices?.[0]?.message?.content ?? "";
+    // ── Non-recording message: return standard conversational AI reply ────────
+    const reply = messageObj?.content ?? "";
 
     return new Response(
       JSON.stringify({

@@ -130,6 +130,8 @@ export type ChatAction = {
     | 'select_inventory_item'
     | 'confirm_action'
     | 'cancel_action'
+    | 'confirm_large_transaction'
+    | 'undo_transaction'
     | 'record_transaction';
   label: string;
   payload?: Record<string, any>;
@@ -174,6 +176,16 @@ export async function chatWithAssistant(payload: ChatPayload): Promise<ChatRespo
 
 // ── Streaming Chat with ROVA AI ───────────────────────────────────────────────
 
+export type StreamAssistantResult = {
+  reply: string;
+  recordedTransactions?: any[];
+  requiresConfirmation?: boolean;
+  confirmationSummary?: string;
+  pendingTransactions?: any[];
+  actions?: ChatAction[];
+  toolExecuted?: boolean;
+};
+
 export async function streamChatWithAssistant(
   payload: {
     messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
@@ -181,7 +193,7 @@ export async function streamChatWithAssistant(
   },
   onToken: (fullText: string) => void,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<StreamAssistantResult> {
   const supabaseUrl =
     (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || '';
   const supabaseAnonKey =
@@ -213,11 +225,19 @@ export async function streamChatWithAssistant(
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('text/event-stream') || !response.body) {
-      // Non-streaming fallback
+      // Non-streaming / Tool execution response
       const data = await response.json();
       const reply = data.reply || data.content || '';
       onToken(reply);
-      return reply;
+      return {
+        reply,
+        recordedTransactions: data.recordedTransactions,
+        requiresConfirmation: data.requiresConfirmation,
+        confirmationSummary: data.confirmationSummary,
+        pendingTransactions: data.pendingTransactions,
+        actions: data.actions || [],
+        toolExecuted: data.toolExecuted,
+      };
     }
 
     const reader = response.body.getReader();
@@ -264,7 +284,7 @@ export async function streamChatWithAssistant(
       } catch (_e) {}
     }
 
-    return accumulated;
+    return { reply: accumulated };
   } catch (err: any) {
     if (signal?.aborted) throw err;
     console.warn('[ROVA AI] Streaming failed, falling back to standard invoke:', err.message);
@@ -273,8 +293,27 @@ export async function streamChatWithAssistant(
       context: { userId: payload.userId || '' },
     });
     onToken(res.reply);
-    return res.reply;
+    return {
+      reply: res.reply,
+      actions: res.actions,
+      toolExecuted: res.toolExecuted,
+    };
   }
+}
+
+export async function confirmLargeTransaction(params: {
+  userId: string;
+  pendingTransactions: any[];
+}): Promise<any> {
+  const { data, error } = await supabase.functions.invoke('ai-chat', {
+    body: {
+      userId: params.userId,
+      confirmed: true,
+      pendingTransactions: params.pendingTransactions,
+    },
+  });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // ── Confirm a pending AI action ───────────────────────────────────────────────
