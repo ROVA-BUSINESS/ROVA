@@ -1339,9 +1339,11 @@ export default function AssistantPage() {
                   {/* Action Buttons attached to this message */}
                   {msg.actions && msg.actions.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingLeft: 2 }}>
-                      {msg.actions.map((action, i) => (
-                        <ActionButton key={i} action={action} onAction={handleAction} />
-                      ))}
+                      {msg.actions
+                        .filter((action, idx, arr) => arr.findIndex(a => a.type === action.type && a.label === action.label) === idx)
+                        .map((action, i) => (
+                          <ActionButton key={i} action={action} onAction={handleAction} />
+                        ))}
                     </div>
                   )}
                 </div>

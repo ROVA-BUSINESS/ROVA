@@ -1200,11 +1200,13 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
 
         const attachedActions: ChatAction[] = [...(result.actions || [])];
         if (hasRecorded) {
-          attachedActions.push({
-            type: 'view_report',
-            label: '📊 View Transactions',
-            payload: { page: 'transactions' },
-          });
+          if (!attachedActions.some((a) => a.type === 'view_report')) {
+            attachedActions.push({
+              type: 'view_report',
+              label: '📊 View Transactions',
+              payload: { page: 'transactions' },
+            });
+          }
           for (const tx of recordedTxs) {
             attachedActions.push({
               type: 'undo_transaction',
@@ -1213,6 +1215,10 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
             });
           }
         }
+
+        const uniqueActions = attachedActions.filter(
+          (a, index, self) => index === self.findIndex((b) => b.type === a.type && b.label === a.label)
+        );
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -1225,7 +1231,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
                   requiresConfirmation: result.requiresConfirmation,
                   pendingTransactions: result.pendingTransactions,
                   toolExecuted: result.toolExecuted || hasRecorded,
-                  actions: attachedActions.length > 0 ? attachedActions : m.actions,
+                  actions: uniqueActions.length > 0 ? uniqueActions : m.actions,
                 }
               : m
           )
