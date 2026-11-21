@@ -335,16 +335,6 @@ export default function SettingsPage() {
                         <option value="unregistered">Unregistered Business</option>
                       </select>
                     </div>
-
-                    {profileForm.registration_type === 'registered' && (
-                      <div style={{ flex: 1 }}>
-                        <Input
-                          label="RC / BN Registration Number"
-                          value={profileForm.rc_bn_number}
-                          onChange={e => setProfileForm({ ...profileForm, rc_bn_number: e.target.value })}
-                        />
-                      </div>
-                    )}
                   </div>
 
                   {/* Business Logo Upload */}

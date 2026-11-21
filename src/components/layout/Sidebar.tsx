@@ -273,11 +273,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#111827' : '#fafafa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140, lineHeight: '1.2' }}>
                     {displayName}
                   </span>
-                  {profile?.rc_bn_number && (
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, lineHeight: '1.2' }}>
-                      {profile.rc_bn_number}
-                    </span>
-                  )}
                 </div>
               )}
             </div>
