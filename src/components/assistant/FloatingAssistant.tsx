@@ -3,9 +3,9 @@ import RobotIcon from "../ui/RobotIcon";
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  X, Minus, Send, Mic, MicOff, Maximize2,
+  X, Minus, Send, Mic, Maximize2,
   ChevronRight, FileText, Package, Users, TrendingUp, HelpCircle,
-  RotateCcw
+  RotateCcw, Check, Plus
 } from 'lucide-react';
 import { useAssistant, type PendingMediaAttachment } from '../../contexts/AssistantContext';
 import { useMobile } from '../../hooks/useMobile';
@@ -107,6 +107,7 @@ export default function FloatingAssistant() {
 
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
   const [speechError, setSpeechError] = useState('');
   const [pendingAttachment, setPendingAttachment] = useState<PendingMediaAttachment | null>(null);
@@ -306,7 +307,7 @@ export default function FloatingAssistant() {
           transcript += event.results[i][0].transcript;
         }
         if (transcript.trim()) {
-          setInput(transcript);
+          setVoiceTranscript(transcript.trim());
         }
       };
 
@@ -326,6 +327,27 @@ export default function FloatingAssistant() {
     }
   }, []);
 
+  const confirmVoiceRecording = () => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+    setIsListening(false);
+    if (voiceTranscript.trim()) {
+      setInput(prev => (prev.trim() ? `${prev.trim()} ${voiceTranscript.trim()}` : voiceTranscript.trim()));
+    }
+    setVoiceTranscript('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const cancelVoiceRecording = () => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+    setIsListening(false);
+    setVoiceTranscript('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
   const toggleSpeechRecognition = () => {
     if (!speechSupported) {
       alert(
@@ -335,11 +357,9 @@ export default function FloatingAssistant() {
     }
     setSpeechError('');
     if (isListening) {
-      try {
-        recognitionRef.current?.stop();
-      } catch {}
-      setIsListening(false);
+      confirmVoiceRecording();
     } else {
+      setVoiceTranscript('');
       try {
         recognitionRef.current?.start();
         setIsListening(true);
@@ -896,11 +916,12 @@ export default function FloatingAssistant() {
                     display: 'flex',
                     gap: 6,
                     alignItems: 'center',
-                    padding: '6px 10px',
-                    borderRadius: 'var(--radius-lg)',
-                    background: isListening ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-elevated)',
-                    border: isListening ? '1px solid #ef4444' : '1px solid var(--bg-border)',
-                    transition: 'border-color 0.15s ease, background 0.15s ease',
+                    padding: isListening ? '5px 8px' : '6px 10px',
+                    borderRadius: isListening ? '24px' : 'var(--radius-lg)',
+                    background: isListening ? 'rgba(32, 34, 38, 0.95)' : 'var(--bg-elevated)',
+                    border: isListening ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid var(--bg-border)',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    minHeight: 42,
                   }}
                   onFocus={e => {
                     if (!isListening) e.currentTarget.style.borderColor = 'var(--accent-primary)';
@@ -909,76 +930,182 @@ export default function FloatingAssistant() {
                     if (!isListening) e.currentTarget.style.borderColor = 'var(--bg-border)';
                   }}
                 >
-                  {/* Voice Dictation Button (matching AI bubble) */}
-                  <button
-                    type="button"
-                    onClick={toggleSpeechRecognition}
-                    disabled={typing}
-                    title={isListening ? 'Stop listening' : 'Dictate with voice (Speak to ROVA)'}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 'var(--radius-md)',
-                      background: isListening ? '#ef4444' : 'transparent',
-                      border: 'none',
-                      color: isListening ? '#ffffff' : 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      transition: 'all 0.15s ease',
-                      animation: isListening ? 'pulse 1.2s infinite' : 'none',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isListening) (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)';
-                    }}
-                    onMouseLeave={e => {
-                      if (!isListening) (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                    }}
-                  >
-                    {isListening ? <MicOff size={16} /> : <Mic size={16} />}
-                  </button>
+                  {isListening ? (
+                    /* Sleek Voice Transcription Interface */
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        gap: 8,
+                        padding: '1px 2px',
+                      }}
+                    >
+                      {/* Left: Plus Icon + Italicized Listening / Text */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                        <span
+                          style={{
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Plus size={16} />
+                        </span>
 
-                  {/* Text input */}
-                  <input
-                    ref={inputRef}
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    placeholder={isListening ? 'Listening… speak now' : (speechError ? speechError : `Ask about ${pageContext.title.toLowerCase()} or dictate…`)}
-                    disabled={typing}
-                    style={{
-                      flex: 1,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      color: 'var(--text-primary)',
-                      fontSize: 13,
-                      minWidth: 0,
-                    }}
-                  />
+                        <span
+                          style={{
+                            fontStyle: 'italic',
+                            fontSize: 12.5,
+                            color: voiceTranscript ? 'var(--text-primary)' : 'rgba(255, 255, 255, 0.7)',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis',
+                            overflow: 'hidden',
+                            userSelect: 'none',
+                          }}
+                        >
+                          {voiceTranscript || 'Listening...'}
+                        </span>
+                      </div>
 
-                  {/* Send Button */}
-                  <button
-                    type="submit"
-                    disabled={(!input.trim() && !pendingAttachment) || typing}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 'var(--radius-md)',
-                      background: (input.trim() || pendingAttachment) && !typing ? 'var(--accent-primary)' : 'transparent',
-                      color: (input.trim() || pendingAttachment) && !typing ? 'white' : 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: 'none',
-                      cursor: (input.trim() || pendingAttachment) && !typing ? 'pointer' : 'default',
-                      flexShrink: 0,
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <Send size={15} />
-                  </button>
+                      {/* Center-Right: Animated Dotted Waveform */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2.5, flexShrink: 0 }}>
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                          <span
+                            key={i}
+                            style={{
+                              width: 2,
+                              height: 2,
+                              borderRadius: '50%',
+                              backgroundColor: 'rgba(255, 255, 255, 0.65)',
+                              animation: 'pulseDot 1.4s infinite ease-in-out',
+                              animationDelay: `${i * 0.08}s`,
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Right: [X] Cancel and [✓] Confirm buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={cancelVoiceRecording}
+                          title="Cancel dictation"
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 6,
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <X size={13} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={confirmVoiceRecording}
+                          title="Done - insert transcribed text"
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 6,
+                            background: 'rgba(255, 255, 255, 0.14)',
+                            border: '1px solid rgba(255, 255, 255, 0.16)',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <Check size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Voice Dictation Button */}
+                      <button
+                        type="button"
+                        onClick={toggleSpeechRecognition}
+                        disabled={typing}
+                        title="Dictate with voice (Speak to ROVA)"
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 'var(--radius-md)',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)';
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                      >
+                        <Mic size={16} />
+                      </button>
+
+                      {/* Text input */}
+                      <input
+                        ref={inputRef}
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        placeholder={speechError ? speechError : `Ask about ${pageContext.title.toLowerCase()} or dictate…`}
+                        disabled={typing}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: 'none',
+                          outline: 'none',
+                          color: 'var(--text-primary)',
+                          fontSize: 13,
+                          minWidth: 0,
+                        }}
+                      />
+
+                      {/* Send Button */}
+                      <button
+                        type="submit"
+                        disabled={(!input.trim() && !pendingAttachment) || typing}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 'var(--radius-md)',
+                          background: (input.trim() || pendingAttachment) && !typing ? 'var(--accent-primary)' : 'transparent',
+                          color: (input.trim() || pendingAttachment) && !typing ? 'white' : 'var(--text-muted)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: 'none',
+                          cursor: (input.trim() || pendingAttachment) && !typing ? 'pointer' : 'default',
+                          flexShrink: 0,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Send size={15} />
+                      </button>
+                    </>
+                  )}
                 </form>
               </div>
             </>

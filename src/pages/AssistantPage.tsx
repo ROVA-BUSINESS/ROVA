@@ -10,7 +10,6 @@ import {
   Check,
   X,
   Mic,
-  MicOff,
   Square,
   RotateCcw,
   Copy,
@@ -339,6 +338,7 @@ export default function AssistantPage() {
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
 
   // Initialize browser SpeechRecognition
   useEffect(() => {
@@ -364,7 +364,7 @@ export default function AssistantPage() {
           transcript += event.results[i][0].transcript;
         }
         if (transcript.trim()) {
-          setInput(transcript);
+          setVoiceTranscript(transcript.trim());
         }
       };
 
@@ -384,6 +384,27 @@ export default function AssistantPage() {
     }
   }, []);
 
+  const confirmVoiceRecording = () => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+    setIsListening(false);
+    if (voiceTranscript.trim()) {
+      setInput((prev) => (prev.trim() ? `${prev.trim()} ${voiceTranscript.trim()}` : voiceTranscript.trim()));
+    }
+    setVoiceTranscript('');
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
+  const cancelVoiceRecording = () => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+    setIsListening(false);
+    setVoiceTranscript('');
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
   const toggleSpeechRecognition = () => {
     if (!speechSupported) {
       alert(
@@ -393,11 +414,9 @@ export default function AssistantPage() {
     }
     setSpeechError('');
     if (isListening) {
-      try {
-        recognitionRef.current?.stop();
-      } catch {}
-      setIsListening(false);
+      confirmVoiceRecording();
     } else {
+      setVoiceTranscript('');
       try {
         recognitionRef.current?.start();
         setIsListening(true);
@@ -1509,11 +1528,13 @@ export default function AssistantPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-lg)',
-                background: isListening ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-elevated)',
-                border: isListening ? '1px solid #ef4444' : '1px solid var(--bg-border)',
-                transition: 'border-color 0.15s ease, background 0.15s ease',
+                padding: isListening ? '6px 10px' : '8px 12px',
+                borderRadius: isListening ? '28px' : 'var(--radius-lg)',
+                background: isListening ? 'rgba(32, 34, 38, 0.95)' : 'var(--bg-elevated)',
+                border: isListening ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid var(--bg-border)',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                minHeight: 48,
+                boxShadow: isListening ? '0 4px 20px rgba(0, 0, 0, 0.35)' : 'none',
               }}
               onFocus={(e) => {
                 if (!isListening) e.currentTarget.style.borderColor = 'var(--accent-primary)';
@@ -1522,122 +1543,253 @@ export default function AssistantPage() {
                 if (!isListening) e.currentTarget.style.borderColor = 'var(--bg-border)';
               }}
             >
-              {/* Hidden File Input */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileUpload(e.target.files[0]);
-                  }
-                }}
-              />
+              {isListening ? (
+                /* Sleek Voice Transcription Interface */
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    gap: 12,
+                    padding: '2px 4px',
+                  }}
+                >
+                  {/* Left: Plus Icon + Italicized Listening / Text */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Attach file"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        padding: 0,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Plus size={18} />
+                    </button>
 
-              {/* Attach Document Button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                title="Attach receipt, invoice, or document"
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 'var(--radius-md)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  transition: 'color 0.15s',
-                }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-primary)')}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-muted)')}
-              >
-                <Paperclip size={18} />
-              </button>
+                    <span
+                      style={{
+                        fontStyle: 'italic',
+                        fontSize: 14,
+                        color: voiceTranscript ? 'var(--text-primary)' : 'rgba(255, 255, 255, 0.7)',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                        userSelect: 'none',
+                      }}
+                    >
+                      {voiceTranscript || 'Listening...'}
+                    </span>
+                  </div>
 
-              {/* Voice Dictation Button (matching AI bubble) */}
-              <button
-                type="button"
-                onClick={toggleSpeechRecognition}
-                title={isListening ? 'Stop listening' : 'Dictate with voice (Speak to ROVA)'}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 'var(--radius-md)',
-                  background: isListening ? '#ef4444' : 'transparent',
-                  border: 'none',
-                  color: isListening ? '#ffffff' : 'var(--text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease',
-                  animation: isListening ? 'pulse 1.2s infinite' : 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isListening) (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isListening) (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                }}
-              >
-                {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
+                  {/* Center-Right: Animated Dotted Waveform */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3.5, flexShrink: 0 }}>
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((i) => (
+                      <span
+                        key={i}
+                        style={{
+                          width: 2.5,
+                          height: 2.5,
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                          animation: 'pulseDot 1.4s infinite ease-in-out',
+                          animationDelay: `${i * 0.08}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
 
-              {/* Multiline Text Area */}
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={isListening ? 'Listening… speak now' : (speechError ? speechError : 'Ask ROVA anything about your business, attach a receipt, or dictate...')}
-                rows={1}
-                disabled={typing}
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'var(--text-primary)',
-                  fontSize: 13.5,
-                  lineHeight: 1.5,
-                  resize: 'none',
-                  maxHeight: 140,
-                  padding: '6px 4px',
-                  fontFamily: 'inherit',
-                }}
-              />
+                  {/* Right: [X] Cancel and [✓] Confirm buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={cancelVoiceRecording}
+                      title="Cancel dictation"
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: 'rgba(255, 255, 255, 0.8)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                        e.currentTarget.style.color = '#ef4444';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)';
+                      }}
+                    >
+                      <X size={15} />
+                    </button>
 
-              {/* Send Button */}
-              <button
-                type="submit"
-                disabled={(!input.trim() && !pendingAttachment) || typing}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 'var(--radius-md)',
-                  background:
-                    (input.trim() || pendingAttachment) && !typing
-                      ? 'var(--accent-primary)'
-                      : 'rgba(255, 255, 255, 0.05)',
-                  color: (input.trim() || pendingAttachment) && !typing ? 'white' : 'var(--text-muted)',
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: (input.trim() || pendingAttachment) && !typing ? 'pointer' : 'default',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <Send size={15} />
-              </button>
+                    <button
+                      type="button"
+                      onClick={confirmVoiceRecording}
+                      title="Done - insert transcribed text"
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: 'rgba(255, 255, 255, 0.12)',
+                        border: '1px solid rgba(255, 255, 255, 0.16)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)';
+                        e.currentTarget.style.color = '#10b981';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                        e.currentTarget.style.color = '#ffffff';
+                      }}
+                    >
+                      <Check size={16} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Hidden File Input */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleFileUpload(e.target.files[0]);
+                      }
+                    }}
+                  />
+
+                  {/* Attach Document Button */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach receipt, invoice, or document"
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 'var(--radius-md)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      transition: 'color 0.15s',
+                    }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-primary)')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--text-muted)')}
+                  >
+                    <Paperclip size={18} />
+                  </button>
+
+                  {/* Voice Dictation Button */}
+                  <button
+                    type="button"
+                    onClick={toggleSpeechRecognition}
+                    title="Dictate with voice (Speak to ROVA)"
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 'var(--radius-md)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--accent-light)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                    }}
+                  >
+                    <Mic size={18} />
+                  </button>
+
+                  {/* Multiline Text Area */}
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={speechError ? speechError : 'Ask ROVA anything about your business, attach a receipt, or dictate...'}
+                    rows={1}
+                    disabled={typing}
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: 'var(--text-primary)',
+                      fontSize: 13.5,
+                      lineHeight: 1.5,
+                      resize: 'none',
+                      maxHeight: 140,
+                      padding: '6px 4px',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+
+                  {/* Send Button */}
+                  <button
+                    type="submit"
+                    disabled={(!input.trim() && !pendingAttachment) || typing}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 'var(--radius-md)',
+                      background:
+                        (input.trim() || pendingAttachment) && !typing
+                          ? 'var(--accent-primary)'
+                          : 'rgba(255, 255, 255, 0.05)',
+                      color: (input.trim() || pendingAttachment) && !typing ? 'white' : 'var(--text-muted)',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: (input.trim() || pendingAttachment) && !typing ? 'pointer' : 'default',
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Send size={15} />
+                  </button>
+                </>
+              )}
             </form>
 
 
@@ -1647,6 +1799,10 @@ export default function AssistantPage() {
 
       {/* Global animations */}
       <style>{`
+        @keyframes pulseDot {
+          0%, 100% { opacity: 0.25; transform: scale(0.85); }
+          50% { opacity: 1; transform: scale(1.35); }
+        }
         @keyframes bounce {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-4px); }
