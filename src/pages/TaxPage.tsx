@@ -413,7 +413,7 @@ export default function TaxPage() {
                 {netProfit >= 0 ? 'Surplus' : 'Deficit'}
               </span>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netProfit >= 0 ? colors.greenText : colors.redText, marginBottom: 4 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary, marginBottom: 4 }}>
               {formatCurrency(Math.abs(netProfit))}
             </div>
             <div style={{ fontSize: 11.5, color: colors.textMuted }}>Revenue minus expenses</div>

@@ -543,12 +543,8 @@ export default function BillingPage() {
           Subscription Overview
         </h2>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-          gap: 16,
-        }}>
-          {/* Card 1: Current Plan */}
+        <div>
+          {/* Current Plan Card */}
           <div style={{
             background: colors.cardBg,
             borderRadius: 20,
@@ -558,9 +554,9 @@ export default function BillingPage() {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            minHeight: 140,
+            minHeight: 130,
           }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, marginBottom: 8 }}>
                   Current Plan
@@ -631,69 +627,6 @@ export default function BillingPage() {
                 </button>
               </div>
             )}
-          </div>
-
-          {/* Card 2: Usage Summary */}
-          <div style={{
-            background: colors.cardBg,
-            borderRadius: 20,
-            border: colors.cardBorder,
-            boxShadow: colors.cardShadow,
-            padding: '24px 26px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            minHeight: 140,
-          }}>
-            <div>
-              <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, marginBottom: 14 }}>
-                Usage Summary
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                {/* Metric 1 */}
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: colors.textPrimary, fontFamily: 'Space Grotesk, sans-serif' }}>
-                    142 <span style={{ fontSize: 13, color: colors.textMuted, fontWeight: 500 }}>/ 500</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 4, fontWeight: 500 }}>
-                    Monthly Transactions
-                  </div>
-                  {/* Progress bar */}
-                  <div style={{
-                    width: '100%', height: 6, borderRadius: 4,
-                    background: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
-                    marginTop: 8, overflow: 'hidden'
-                  }}>
-                    <div style={{ width: '28%', height: '100%', background: '#3b82f6', borderRadius: 4 }} />
-                  </div>
-                  <div style={{ fontSize: 10, color: colors.textMuted, textAlign: 'right', marginTop: 3 }}>
-                    28%
-                  </div>
-                </div>
-
-                {/* Metric 2 */}
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: colors.textPrimary, fontFamily: 'Space Grotesk, sans-serif' }}>
-                    2 <span style={{ fontSize: 13, color: colors.textMuted, fontWeight: 500 }}>/ 5</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 4, fontWeight: 500 }}>
-                    Connected Channels
-                  </div>
-                  {/* Progress bar */}
-                  <div style={{
-                    width: '100%', height: 6, borderRadius: 4,
-                    background: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
-                    marginTop: 8, overflow: 'hidden'
-                  }}>
-                    <div style={{ width: '40%', height: '100%', background: '#10b981', borderRadius: 4 }} />
-                  </div>
-                  <div style={{ fontSize: 10, color: colors.textMuted, textAlign: 'right', marginTop: 3 }}>
-                    40%
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -919,9 +852,9 @@ export default function BillingPage() {
 
           {/* 3. Business Monthly (Best Value) */}
           <div style={{
-            background: isDark ? 'linear-gradient(135deg, rgba(102,45,145,0.12), #141417)' : 'linear-gradient(135deg, #fdf4ff, #ffffff)',
+            background: isDark ? 'linear-gradient(135deg, rgba(102,45,145,0.12), #141417)' : colors.cardBg,
             borderRadius: 20,
-            border: planKey === 'business_monthly' && isActive ? '2px solid var(--accent-primary)' : '1.5px solid var(--accent-border)',
+            border: planKey === 'business_monthly' && isActive ? '2px solid var(--accent-primary)' : (isDark ? '1.5px solid var(--accent-border)' : colors.cardBorder),
             boxShadow: colors.cardShadow,
             padding: '22px 20px',
             display: 'flex',
