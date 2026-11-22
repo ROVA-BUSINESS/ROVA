@@ -1,0 +1,6 @@
+{
+  "git.autofetch": false,
+  "git.fetchOnType": false,
+  "npm.fetchOnlinePackageInfo": false,
+  "telemetry.telemetryLevel": "off"
+}
