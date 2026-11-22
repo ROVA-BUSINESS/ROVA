@@ -14,14 +14,14 @@ jobs:
     steps:
       - name: Trigger Daily Reminder Dispatcher
         env:
-          APP_URL: ${{ secrets.APP_URL || 'https://rova.business' }}
+          APP_URL: ${{ secrets.APP_URL || 'https://www.rovabusiness.com' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Pinging ROVA reminder dispatcher endpoint..."
-          RESPONSE=$(curl -s -L -w "\nHTTP_STATUS:%{http_code}" \
+          echo "Pinging ROVA reminder dispatcher endpoint at ${APP_URL}..."
+          RESPONSE=$(curl -s -L --max-time 30 -w "\nHTTP_STATUS:%{http_code}" \
             "${APP_URL}/api/reminder-push?action=cron_check" \
             -H "User-Agent: GitHub-Actions-Cron/1.0" \
-            -H "Authorization: Bearer ${CRON_SECRET}")
+            -H "Authorization: Bearer ${CRON_SECRET}" || true)
           
           echo "Dispatcher Response:"
           echo "$RESPONSE"

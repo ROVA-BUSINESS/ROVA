@@ -1200,7 +1200,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
 
         const attachedActions: ChatAction[] = [...(result.actions || [])];
         if (hasRecorded) {
-          if (!attachedActions.some((a) => a.type === 'view_report')) {
+          if (!attachedActions.some((a) => a.type === 'view_report' || a.label?.toLowerCase().includes('transaction'))) {
             attachedActions.push({
               type: 'view_report',
               label: '📊 View Transactions',
@@ -1216,9 +1216,13 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        const uniqueActions = attachedActions.filter(
-          (a, index, self) => index === self.findIndex((b) => b.type === a.type && b.label === a.label)
-        );
+        const uniqueActions = attachedActions.filter((a, index, self) => {
+          if (a.type === 'view_report' || a.label?.toLowerCase().includes('transaction')) {
+            return index === self.findIndex((b) => b.type === 'view_report' || b.label?.toLowerCase().includes('transaction'));
+          }
+          const cleanLabel = (a.label || '').replace(/[^\w]/g, '').toLowerCase();
+          return index === self.findIndex((b) => b.type === a.type && (b.label || '').replace(/[^\w]/g, '').toLowerCase() === cleanLabel);
+        });
 
         setMessages((prev) =>
           prev.map((m) =>

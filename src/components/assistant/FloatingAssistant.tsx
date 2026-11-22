@@ -750,7 +750,13 @@ export default function FloatingAssistant() {
                       {msg.actions && msg.actions.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingLeft: 2 }}>
                           {msg.actions
-                            .filter((action, idx, arr) => arr.findIndex(a => a.type === action.type && a.label === action.label) === idx)
+                            .filter((action, idx, arr) => {
+                              if (action.type === 'view_report' || action.label?.toLowerCase().includes('transaction')) {
+                                return arr.findIndex(a => a.type === 'view_report' || a.label?.toLowerCase().includes('transaction')) === idx;
+                              }
+                              const clean = (action.label || '').replace(/[^\w]/g, '').toLowerCase();
+                              return arr.findIndex(a => a.type === action.type && (a.label || '').replace(/[^\w]/g, '').toLowerCase() === clean) === idx;
+                            })
                             .map((action, i) => (
                               <FloatingActionButton key={i} action={action} onAction={handleAction} />
                             ))}
