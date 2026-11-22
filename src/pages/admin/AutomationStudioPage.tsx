@@ -178,7 +178,7 @@ export default function AutomationStudioPage() {
             </div>
             <div>
               <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                Rova Tax Automation Studio
+                ROVA Tax Auto-Filer
               </h1>
               <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
                 Inspect portal HTML, configure AI interaction boundaries, and verify Nigerian tax filing workflows.

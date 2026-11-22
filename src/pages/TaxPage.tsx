@@ -326,7 +326,7 @@ export default function TaxPage() {
                 fontSize: 12.5, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(6px)',
               }}
             >
-              <Code size={14} /> Automation Studio
+              <Code size={14} /> Tax Auto-Filer
             </button>
 
             <button

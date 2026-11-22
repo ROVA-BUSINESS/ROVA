@@ -2,8 +2,8 @@ import WhatsAppIcon from '../components/ui/WhatsAppIcon';
 import { useEffect, useState, useMemo } from 'react';
 import { 
   ArrowUpRight, ArrowDownRight, 
-  Plus, Wallet, RefreshCw, CreditCard, 
-  MoreVertical, ChevronDown
+  Plus, Wallet, RefreshCw, TrendingUp,
+  ChevronDown, FileText, Receipt, Package
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -29,13 +29,14 @@ export default function DashboardPage() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [arBalance, setArBalance] = useState(0);
+  const [unpaidInvoices, setUnpaidInvoices] = useState<{ total: number; count: number }>({ total: 0, count: 0 });
+  const [unpaidBills, setUnpaidBills] = useState<{ total: number; count: number }>({ total: 0, count: 0 });
+  const [lowStockItems, setLowStockItems] = useState<{ id: string; name: string; current_stock: number; reorder_level: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isBankChoiceOpen, setIsBankChoiceOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<'year' | 'recent'>('year');
-  const [activeMenuCard, setActiveMenuCard] = useState<number | null>(null);
 
   const isMobile = useMobile(1024);
   const isSmall = useMobile(640);
@@ -67,9 +68,21 @@ export default function DashboardPage() {
 
     let invQuery = supabase
       .from('invoices')
-      .select('total, amount_paid')
+      .select('total, amount_paid, status')
       .eq('user_id', effectiveUserId)
-      .in('status', ['sent', 'overdue']);
+      .in('status', ['sent', 'overdue', 'partially_paid']);
+
+    const billsQuery = supabase
+      .from('bills')
+      .select('amount, status')
+      .eq('user_id', effectiveUserId)
+      .in('status', ['unpaid', 'overdue', 'partially_paid']);
+
+    const invItemsQuery = supabase
+      .from('inventory_items')
+      .select('id, name, current_stock, reorder_level')
+      .eq('user_id', effectiveUserId)
+      .eq('status', 'active');
 
     if (isStaff) {
       const limit = profile?.staff_visibility_limit || 500000;
@@ -77,24 +90,38 @@ export default function DashboardPage() {
       invQuery = invQuery.lt('total', limit);
     }
 
-    const [txRes, accRes, invRes] = await Promise.all([
+    const [txRes, accRes, invRes, billsRes, stockRes] = await Promise.all([
       txQuery,
       supabase.from('accounts').select('*').eq('user_id', effectiveUserId),
       invQuery,
+      billsQuery,
+      invItemsQuery,
     ]);
 
     setTransactions(txRes.data || []);
     setAccounts(accRes.data || []);
 
-    const arTotal = (invRes.data || []).reduce((s, inv) => s + (inv.total - (inv.amount_paid || 0)), 0);
-    setArBalance(arTotal);
+    const invList = invRes.data || [];
+    const arTotal = invList.reduce((s, inv) => s + Math.max(0, (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0)), 0);
+    setUnpaidInvoices({ total: arTotal, count: invList.length });
+
+    const billsList = billsRes.data || [];
+    const apTotal = billsList.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+    setUnpaidBills({ total: apTotal, count: billsList.length });
+
+    const lowStock = (stockRes.data || []).filter(
+      (item) => (Number(item.current_stock) || 0) <= (Number(item.reorder_level) || 5)
+    );
+    setLowStockItems(lowStock);
+
     setLoading(false);
   }
 
   // --- Dynamic Stats Calculations (100% Real Data) ---
+  // ONLY sums real connected bank accounts — never mixes unpaid invoices into bank balance
   const totalBalance = useMemo(() => {
-    return accounts.reduce((s, a) => s + (a.balance || 0), 0) + arBalance;
-  }, [accounts, arBalance]);
+    return accounts.reduce((s, a) => s + (Number(a.balance) || 0), 0);
+  }, [accounts]);
 
   const totalMoneyIn = useMemo(() => {
     return transactions
@@ -108,14 +135,12 @@ export default function DashboardPage() {
       .reduce((s, t) => s + (Number(t.amount) || 0), 0);
   }, [transactions]);
 
-  const uncategorizedCount = useMemo(() => {
-    return transactions.filter(t => !(t.category as any)?.name && !t.category_id && !t.ai_category).length;
-  }, [transactions]);
-
-  const categorizedCount = transactions.length - uncategorizedCount;
-  const categorizedPct = transactions.length > 0
-    ? Math.round((categorizedCount / transactions.length) * 100)
-    : 0;
+  // Real Profit Margin %
+  const profitMargin = useMemo(() => {
+    if (totalMoneyIn <= 0) return 0;
+    const net = totalMoneyIn - totalMoneyOut;
+    return Math.round((net / totalMoneyIn) * 1000) / 10;
+  }, [totalMoneyIn, totalMoneyOut]);
 
   const currentYear = new Date().getFullYear();
   const currentMonthIdx = new Date().getMonth();
@@ -166,32 +191,24 @@ export default function DashboardPage() {
     ? (currentMonthExpenses > 0 ? 100 : 0)
     : Math.round(((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100);
 
-  // Today & This Week's earnings
-  const { todayIncome, weekIncome } = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    const todayInc = transactions
-      .filter(t => t.type === 'income' && t.date?.slice(0, 10) === todayStr)
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-
-    const weekInc = transactions
-      .filter(t => t.type === 'income' && new Date(t.date) >= oneWeekAgo)
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-
-    return { todayIncome: todayInc, weekIncome: weekInc };
-  }, [transactions]);
-
-  // Real Profit Margin / Cash Flow Health
-  const successRate = useMemo(() => {
-    if (totalMoneyIn > 0) {
-      const net = totalMoneyIn - totalMoneyOut;
-      const margin = (net / totalMoneyIn) * 100;
-      return Math.max(0, Math.min(100, Math.round(margin * 10) / 10));
-    }
-    return 0;
-  }, [totalMoneyIn, totalMoneyOut]);
+  // Top Spending Categories from real expense transactions
+  const topExpenseCategories = useMemo(() => {
+    const map: Record<string, number> = {};
+    transactions
+      .filter(t => t.type === 'expense')
+      .forEach(t => {
+        const cat = (t.category as any)?.name || t.ai_category || 'General Expense';
+        map[cat] = (map[cat] || 0) + (Number(t.amount) || 0);
+      });
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([name, amount]) => ({
+        name,
+        amount,
+        pct: totalMoneyOut > 0 ? Math.round((amount / totalMoneyOut) * 100) : 0,
+      }));
+  }, [transactions, totalMoneyOut]);
 
   // Real Chart Data: Aggregates ALL actual user-inputted transactions by month
   const chartData = useMemo(() => {
@@ -220,13 +237,16 @@ export default function DashboardPage() {
 
   const recentTx = transactions.slice(0, 5);
 
-  // Design color tokens — ROVA Purple palette
+  // Design color tokens — ROVA Purple UI + Green for Money In
   const colors = {
     purple: isDark ? '#9333ea' : '#7c3aed',
     purpleLight: isDark ? '#a855f7' : '#8b5cf6',
     purpleDark: isDark ? '#7e22ce' : '#662D91',
     purpleDim: isDark ? 'rgba(147, 51, 234, 0.16)' : 'rgba(124, 58, 237, 0.10)',
     purpleBorder: isDark ? 'rgba(147, 51, 234, 0.35)' : 'rgba(124, 58, 237, 0.25)',
+    green: isDark ? '#22c55e' : '#16a34a',
+    greenDim: isDark ? 'rgba(34, 197, 94, 0.16)' : '#ecfdf5',
+    greenBorder: isDark ? 'rgba(34, 197, 94, 0.32)' : '#bbf7d0',
     expenseBar: isDark ? '#f43f5e' : '#e11d48',
     expenseDim: isDark ? 'rgba(244, 63, 94, 0.16)' : '#fff1f2',
     expenseBorder: isDark ? 'rgba(244, 63, 94, 0.3)' : '#fecdd3',
@@ -350,46 +370,37 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* Top 4 KPI Metric Cards */}
+          {/* Top 4 KPI Metric Cards (Clean — no 3 dots) */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: isSmall ? '1fr' : isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
             gap: 16,
             marginBottom: 24,
           }}>
-            {/* Card 1: Bank Balance */}
+            {/* Card 1: Real Connected Bank Balance */}
             <div style={{
               background: colors.cardBg,
               borderRadius: 20,
               border: colors.cardBorder,
               boxShadow: colors.cardShadow,
               padding: '22px 22px 20px',
-              position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
               transition: 'transform 0.15s ease, box-shadow 0.15s ease',
             }}
-            onClick={() => navigate('/app/banking')}
+            onClick={() => navigate('/app/payment')}
             onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: colors.purpleDim,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: colors.purpleLight,
-                }}>
-                  <Wallet size={17} />
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setActiveMenuCard(activeMenuCard === 1 ? null : 1); }}
-                  style={{ background: 'none', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: 4 }}
-                >
-                  <MoreVertical size={16} />
-                </button>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: colors.purpleDim,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: colors.purpleLight,
+              }}>
+                <Wallet size={17} />
               </div>
 
               <div style={{ marginTop: 18 }}>
@@ -407,19 +418,20 @@ export default function DashboardPage() {
                   {formatCurrency(totalBalance)}
                 </div>
                 <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
-                  Your bank balance
+                  {accounts.length > 0
+                    ? `Connected bank${accounts.length === 1 ? '' : 's'} (${accounts.length})`
+                    : 'Connected bank balance'}
                 </div>
               </div>
             </div>
 
-            {/* Card 2: Money In */}
+            {/* Card 2: Money In (Green Arrow, Black/Primary Text) */}
             <div style={{
               background: colors.cardBg,
               borderRadius: 20,
               border: colors.cardBorder,
               boxShadow: colors.cardShadow,
               padding: '22px 22px 20px',
-              position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
@@ -430,28 +442,20 @@ export default function DashboardPage() {
             onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: colors.purpleDim,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: colors.purpleLight,
-                }}>
-                  <ArrowUpRight size={18} />
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setActiveMenuCard(activeMenuCard === 2 ? null : 2); }}
-                  style={{ background: 'none', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: 4 }}
-                >
-                  <MoreVertical size={16} />
-                </button>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: colors.greenDim,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: colors.green,
+              }}>
+                <ArrowUpRight size={18} />
               </div>
 
               <div style={{ marginTop: 18 }}>
                 <div style={{
                   fontSize: 25,
                   fontWeight: 800,
-                  color: colors.purpleLight,
+                  color: colors.textPrimary,
                   fontFamily: 'Space Grotesk, sans-serif',
                   letterSpacing: '-0.02em',
                   lineHeight: 1.1,
@@ -474,7 +478,6 @@ export default function DashboardPage() {
               border: colors.cardBorder,
               boxShadow: colors.cardShadow,
               padding: '22px 22px 20px',
-              position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
@@ -485,21 +488,13 @@ export default function DashboardPage() {
             onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: colors.expenseDim,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: colors.expenseBar,
-                }}>
-                  <ArrowDownRight size={18} />
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setActiveMenuCard(activeMenuCard === 3 ? null : 3); }}
-                  style={{ background: 'none', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: 4 }}
-                >
-                  <MoreVertical size={16} />
-                </button>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: colors.expenseDim,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: colors.expenseBar,
+              }}>
+                <ArrowDownRight size={18} />
               </div>
 
               <div style={{ marginTop: 18 }}>
@@ -522,39 +517,30 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Card 4: This Month's Spending */}
+            {/* Card 4: Profit Margin */}
             <div style={{
               background: colors.cardBg,
               borderRadius: 20,
               border: colors.cardBorder,
               boxShadow: colors.cardShadow,
               padding: '22px 22px 20px',
-              position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
               transition: 'transform 0.15s ease, box-shadow 0.15s ease',
             }}
-            onClick={() => navigate('/app/transactions')}
+            onClick={() => navigate('/app/profit-loss')}
             onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: colors.textPrimary,
-                }}>
-                  <CreditCard size={17} />
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setActiveMenuCard(activeMenuCard === 4 ? null : 4); }}
-                  style={{ background: 'none', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: 4 }}
-                >
-                  <MoreVertical size={16} />
-                </button>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: colors.purpleDim,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: colors.purpleLight,
+              }}>
+                <TrendingUp size={17} />
               </div>
 
               <div style={{ marginTop: 18 }}>
@@ -569,16 +555,16 @@ export default function DashboardPage() {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}>
-                  {formatCurrency(currentMonthExpenses)}
+                  {profitMargin}%
                 </div>
                 <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
-                  This month's expenses
+                  Profit Margin
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Main 2-Column Grid (Left: 68%, Right: 32%) */}
+          {/* Main 2-Column Grid (Left: 66%, Right: 34%) */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: isMobile ? '1fr' : '1.9fr 1fr',
@@ -616,7 +602,6 @@ export default function DashboardPage() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {/* Time Filter Pill */}
                     <button
                       onClick={() => setSelectedMonthFilter(selectedMonthFilter === 'year' ? 'recent' : 'year')}
                       style={{
@@ -637,7 +622,6 @@ export default function DashboardPage() {
                       <ChevronDown size={13} color={colors.textMuted} />
                     </button>
 
-                    {/* Diagonal Arrow Action Button */}
                     <button
                       onClick={() => navigate('/app/reports')}
                       title="View Full Reports"
@@ -662,7 +646,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Metrics Breakdown: Money In & Money Out */}
+                {/* Metrics Breakdown: Money In (Green) & Money Out (Red) */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -672,7 +656,7 @@ export default function DashboardPage() {
                 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: colors.textMuted, fontWeight: 600, marginBottom: 4 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.purple }} />
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.green }} />
                       <span>Money In</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -684,9 +668,9 @@ export default function DashboardPage() {
                         fontWeight: 700,
                         padding: '2px 7px',
                         borderRadius: 12,
-                        background: colors.purpleDim,
-                        color: colors.purpleLight,
-                        border: `1px solid ${colors.purpleBorder}`,
+                        background: colors.greenDim,
+                        color: colors.green,
+                        border: `1px solid ${colors.greenBorder}`,
                       }}>
                         {incomeChange >= 0 ? `+${incomeChange}%` : `${incomeChange}%`}
                       </span>
@@ -717,7 +701,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Real Dual-Bar Chart: Money In (Purple) & Money Out (Rose) */}
+                {/* Real Dual-Bar Chart: Money In (Green) & Money Out (Rose) */}
                 <div style={{ height: 245, width: '100%', marginTop: 8 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 16, right: 10, left: -16, bottom: 0 }} barGap={4}>
@@ -738,7 +722,7 @@ export default function DashboardPage() {
                       <Bar 
                         dataKey="moneyIn" 
                         name="Money In"
-                        fill={colors.purple}
+                        fill={colors.green}
                         radius={[6, 6, 0, 0]}
                         maxBarSize={24}
                       />
@@ -826,106 +810,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* RIGHT COLUMN: Bookkeeping Status Widget & Profit Margin Radial Gauge */}
+            {/* RIGHT COLUMN: Useful Live Insights from Invoices, Bills, Categories & Inventory */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
               
-              {/* Bookkeeping Status Card (Replaces Formation Status) */}
-              <div style={{
-                background: colors.cardBg,
-                borderRadius: 20,
-                border: colors.cardBorder,
-                boxShadow: colors.cardShadow,
-                padding: '22px 24px',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <h3 style={{ fontSize: 15.5, fontWeight: 800, color: colors.textPrimary, margin: 0 }}>
-                    Bookkeeping Status
-                  </h3>
-                  <button
-                    onClick={() => navigate('/app/transactions')}
-                    title="Open Ledger"
-                    style={{
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: colors.pillBg, border: colors.pillBorder,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: colors.textPrimary, cursor: 'pointer',
-                    }}
-                  >
-                    <ArrowUpRight size={13} />
-                  </button>
-                </div>
-                
-                <div style={{ fontSize: 12.5, color: colors.textMuted, fontWeight: 500, marginBottom: 16 }}>
-                  {transactions.length === 0
-                    ? 'Ready to record your first entry'
-                    : uncategorizedCount === 0
-                    ? 'All entries categorised & ready'
-                    : `${uncategorizedCount} transaction${uncategorizedCount === 1 ? '' : 's'} pending review`}
-                </div>
-
-                {/* Rounded Purple Progress Bar */}
-                <div style={{
-                  width: '100%',
-                  height: 22,
-                  borderRadius: 12,
-                  background: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 3,
-                  boxSizing: 'border-box',
-                  marginBottom: 16,
-                }}>
-                  <div style={{
-                    width: `${Math.max(categorizedPct, transactions.length > 0 ? 6 : 0)}%`,
-                    height: '100%',
-                    borderRadius: 9,
-                    background: `linear-gradient(90deg, ${colors.purpleDark}, ${colors.purpleLight})`,
-                    transition: 'width 0.4s ease',
-                  }} />
-                </div>
-
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: colors.textPrimary }}>
-                    ROVA Ledger Health ({categorizedPct}%)
-                  </div>
-                  <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 3 }}>
-                    {categorizedCount} of {transactions.length} transactions categorised
-                  </div>
-                </div>
-
-                {/* Review Books Pill Button */}
-                <button
-                  onClick={() => navigate('/app/transactions')}
-                  style={{
-                    width: '100%',
-                    padding: '11px 16px',
-                    borderRadius: 24,
-                    background: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
-                    border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid #e2e8f0',
-                    color: colors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    textAlign: 'center',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget.style.background = colors.purpleDim);
-                    (e.currentTarget.style.borderColor = colors.purpleBorder);
-                    (e.currentTarget.style.color = colors.purpleLight);
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff');
-                    (e.currentTarget.style.borderColor = isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid #e2e8f0');
-                    (e.currentTarget.style.color = colors.textPrimary);
-                  }}
-                >
-                  Review Books
-                </button>
-              </div>
-
-              {/* Profit Margin / Success Rate Radial Gauge Card */}
+              {/* Widget 1: Invoices & Bills Summary (Receivables & Payables) */}
               <div style={{
                 background: colors.cardBg,
                 borderRadius: 20,
@@ -935,10 +823,126 @@ export default function DashboardPage() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <h3 style={{ fontSize: 15.5, fontWeight: 800, color: colors.textPrimary, margin: 0 }}>
-                    Profit Margin
+                    Invoices &amp; Bills
+                  </h3>
+                  <button
+                    onClick={() => navigate('/app/invoices')}
+                    title="Open Invoices"
+                    style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: colors.pillBg, border: colors.pillBorder,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: colors.textPrimary, cursor: 'pointer',
+                    }}
+                  >
+                    <ArrowUpRight size={13} />
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, marginBottom: 16 }}>
+                  Pending receivables &amp; upcoming payables
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                  {/* Unpaid Invoices */}
+                  <div
+                    onClick={() => navigate('/app/invoices')}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '13px 14px', borderRadius: 14,
+                      background: colors.pillBg, border: colors.pillBorder,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: 10,
+                        background: colors.greenDim, color: colors.green,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <FileText size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: colors.textPrimary }}>Unpaid Invoices</div>
+                        <div style={{ fontSize: 11, color: colors.textMuted }}>
+                          {unpaidInvoices.count} awaiting payment
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary }}>
+                      {formatCurrency(unpaidInvoices.total)}
+                    </div>
+                  </div>
+
+                  {/* Unpaid Bills */}
+                  <div
+                    onClick={() => navigate('/app/bills')}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '13px 14px', borderRadius: 14,
+                      background: colors.pillBg, border: colors.pillBorder,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: 10,
+                        background: colors.expenseDim, color: colors.expenseBar,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <Receipt size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: colors.textPrimary }}>Unpaid Bills</div>
+                        <div style={{ fontSize: 11, color: colors.textMuted }}>
+                          {unpaidBills.count} pending settlement
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary }}>
+                      {formatCurrency(unpaidBills.total)}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    onClick={() => navigate('/app/invoices')}
+                    style={{
+                      padding: '9px 12px', borderRadius: 12,
+                      background: colors.purpleDim, border: `1px solid ${colors.purpleBorder}`,
+                      color: colors.purpleLight, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    Manage Invoices
+                  </button>
+                  <button
+                    onClick={() => navigate('/app/bills')}
+                    style={{
+                      padding: '9px 12px', borderRadius: 12,
+                      background: colors.pillBg, border: colors.pillBorder,
+                      color: colors.textPrimary, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    Manage Bills
+                  </button>
+                </div>
+              </div>
+
+              {/* Widget 2: Top Spending Categories & Inventory Alerts */}
+              <div style={{
+                background: colors.cardBg,
+                borderRadius: 20,
+                border: colors.cardBorder,
+                boxShadow: colors.cardShadow,
+                padding: '22px 24px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <h3 style={{ fontSize: 15.5, fontWeight: 800, color: colors.textPrimary, margin: 0 }}>
+                    Top Spending Categories
                   </h3>
                   <button
                     onClick={() => navigate('/app/reports')}
+                    title="View Reports"
                     style={{
                       width: 28, height: 28, borderRadius: '50%',
                       background: colors.pillBg, border: colors.pillBorder,
@@ -950,89 +954,73 @@ export default function DashboardPage() {
                   </button>
                 </div>
 
-                <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, marginBottom: 12 }}>
-                  Net retention from your real cash flow
+                <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, marginBottom: 16 }}>
+                  Where your Money Out is going
                 </div>
 
-                {/* SVG Semi-Circle Radial Gauge (Purple) */}
-                <div style={{ display: 'flex', justifyContent: 'center', position: 'relative', margin: '14px 0 6px' }}>
-                  <svg width="220" height="125" viewBox="0 0 220 125">
-                    {/* Background Arc */}
-                    <path
-                      d="M 25 110 A 85 85 0 0 1 195 110"
-                      fill="none"
-                      stroke={isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9'}
-                      strokeWidth="14"
-                      strokeLinecap="round"
-                      strokeDasharray="4 8"
-                    />
-                    {/* Foreground Purple Arc */}
-                    <path
-                      d="M 25 110 A 85 85 0 0 1 195 110"
-                      fill="none"
-                      stroke={colors.purple}
-                      strokeWidth="14"
-                      strokeLinecap="round"
-                      strokeDasharray="4 8"
-                      strokeDashoffset={(1 - (successRate / 100)) * 267}
-                    />
-                  </svg>
-
-                  {/* Percentage in center */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    textAlign: 'center',
-                  }}>
-                    <div style={{
-                      fontSize: 27,
-                      fontWeight: 800,
-                      color: colors.textPrimary,
-                      fontFamily: 'Space Grotesk, sans-serif',
-                      lineHeight: 1,
-                    }}>
-                      {successRate}%
-                    </div>
-                    <div style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: colors.purpleLight,
-                      marginTop: 4,
-                    }}>
-                      {totalMoneyIn >= totalMoneyOut ? 'Positive Net' : 'Net Deficit'}
-                    </div>
+                {topExpenseCategories.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+                    {topExpenseCategories.map((cat) => (
+                      <div key={cat.name}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 600, color: colors.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '58%' }}>
+                            {cat.name}
+                          </span>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary }}>
+                            {formatCurrency(cat.amount)}
+                            <span style={{ fontSize: 11, fontWeight: 500, color: colors.textMuted, marginLeft: 5 }}>({cat.pct}%)</span>
+                          </span>
+                        </div>
+                        <div style={{
+                          width: '100%', height: 7, borderRadius: 6,
+                          background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            width: `${Math.max(cat.pct, 4)}%`, height: '100%', borderRadius: 6,
+                            background: `linear-gradient(90deg, ${colors.purpleDark}, ${colors.purpleLight})`,
+                          }} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: colors.textMuted, padding: '16px 0', textAlign: 'center' }}>
+                    Record expenses to see your category breakdown.
+                  </div>
+                )}
 
-                {/* Real Activity Summary Capsule */}
-                <div style={{
-                  marginTop: 18,
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  background: colors.pillBg,
-                  border: colors.pillBorder,
-                  textAlign: 'center',
-                }}>
-                  <p style={{
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                    margin: 0,
-                    lineHeight: 1.5,
-                    fontWeight: 500,
-                  }}>
-                    You recorded{' '}
-                    <strong style={{ color: colors.textPrimary }}>
-                      {formatCurrency(todayIncome)}
-                    </strong>{' '}
-                    in Money In today and{' '}
-                    <strong style={{ color: colors.textPrimary }}>
-                      {formatCurrency(weekIncome)}
-                    </strong>{' '}
-                    this week.
-                  </p>
-                </div>
+                {/* Low Stock Inventory Alert (pulled from Inventory page) */}
+                {lowStockItems.length > 0 && (
+                  <div
+                    onClick={() => navigate('/app/inventory')}
+                    style={{
+                      marginTop: 18,
+                      padding: '12px 14px',
+                      borderRadius: 14,
+                      background: isDark ? 'rgba(245, 158, 11, 0.12)' : '#fffbeb',
+                      border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.28)' : '#fde68a'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                      <Package size={16} color={isDark ? '#fbbf24' : '#d97706'} />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: isDark ? '#fbbf24' : '#b45309' }}>
+                          {lowStockItems.length} Low Stock Item{lowStockItems.length === 1 ? '' : 's'}
+                        </div>
+                        <div style={{ fontSize: 11, color: colors.textMuted }}>
+                          {lowStockItems[0].name}{lowStockItems.length > 1 ? ` +${lowStockItems.length - 1} more` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <ArrowUpRight size={14} color={isDark ? '#fbbf24' : '#b45309'} />
+                  </div>
+                )}
               </div>
 
               {/* Connect Bank Account Clean Card */}
@@ -1113,9 +1101,9 @@ function CustomChartTooltip({ active, payload, label, isDark, colors }: any) {
         gap: 4,
         border: '1px solid rgba(255,255,255,0.1)',
       }}>
-        <div style={{ fontWeight: 700, color: colors.purpleLight, marginBottom: 2 }}>{label}</div>
+        <div style={{ fontWeight: 700, color: '#ffffff', marginBottom: 2 }}>{label}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: colors.purple }} />
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: colors.green }} />
           <span>Money In: <strong>{formatCurrency(data.moneyIn)}</strong></span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.9 }}>
@@ -1149,12 +1137,12 @@ function TransactionRowItem({ tx, colors, isDark, onClick }: { tx: Transaction; 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 10,
-          background: isIncome ? colors.purpleDim : colors.expenseDim,
+          background: isIncome ? colors.greenDim : colors.expenseDim,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0,
         }}>
           {isIncome ? (
-            <ArrowUpRight size={15} color={colors.purpleLight} />
+            <ArrowUpRight size={15} color={colors.green} />
           ) : (
             <ArrowDownRight size={15} color={colors.expenseBar} />
           )}
@@ -1193,7 +1181,7 @@ function TransactionRowItem({ tx, colors, isDark, onClick }: { tx: Transaction; 
         fontSize: 13.5,
         fontWeight: 700,
         fontFamily: 'Space Grotesk, sans-serif',
-        color: isIncome ? colors.purpleLight : colors.textPrimary,
+        color: isIncome ? colors.green : colors.textPrimary,
         flexShrink: 0,
         marginLeft: 12,
       }}>
