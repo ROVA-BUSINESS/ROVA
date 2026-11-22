@@ -720,19 +720,23 @@ export default function TransactionsPage() {
           </div>
         ) : (
           <div className="mobile-table-container" style={{ width: '100%', overflowX: 'auto' }}>
-            <table className="transaction-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table className="transaction-table" style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg-elevated)' }}>
                 {[
-                  { label: 'Date' }, { label: 'Description' }, 
-                  { label: 'Category', hideMobile: true }, { label: 'Account', hideMobile: true }, 
-                  { label: 'Amount' }, { label: 'Status', hideMobile: true }, { label: 'Actions', className: 'mobile-actions', align: 'right' }
+                  { label: 'Date', width: '11%' },
+                  { label: 'Description', width: '24%' }, 
+                  { label: 'Category', hideMobile: true, width: '16%' },
+                  { label: 'Account', hideMobile: true, width: '10%' }, 
+                  { label: 'Amount', width: '15%' },
+                  { label: 'Status', hideMobile: true, width: '10%' },
+                  { label: 'Actions', className: 'mobile-actions', align: 'right', width: '14%' }
                 ].map((h, idx) => (
                   <th 
                     key={h.label || idx} 
                     className={`${h.hideMobile ? "mobile-hide" : ""} ${h.className || ""}`} 
                     style={{ 
-                      padding: '10px 10px', 
+                      padding: '10px 8px', 
                       textAlign: (h as any).align || 'left', 
                       fontSize: 11, 
                       fontWeight: 600, 
@@ -740,14 +744,7 @@ export default function TransactionsPage() {
                       textTransform: 'uppercase', 
                       letterSpacing: '0.5px',
                       whiteSpace: 'nowrap',
-                      ...(h.className?.includes('mobile-actions') ? {
-                        width: 116,
-                        minWidth: 116,
-                        position: 'sticky' as const,
-                        right: 0,
-                        background: 'var(--bg-elevated)',
-                        zIndex: 2,
-                      } : {})
+                      width: h.width,
                     }}
                   >
                     {h.label}
@@ -766,11 +763,11 @@ export default function TransactionsPage() {
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                 >
-                  <td className="mobile-tight-td" style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                  <td className="mobile-tight-td" style={{ padding: '12px 8px', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formatDate(tx.date)}</div>
                     <div className="mobile-hide" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{formatTime(tx.created_at)}</div>
                   </td>
-                  <td className="mobile-tight-td" style={{ padding: '12px 10px', maxWidth: 220 }}>
+                  <td className="mobile-tight-td" style={{ padding: '12px 8px', overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{
                         width: 28, height: 28, borderRadius: 'var(--radius-sm)', flexShrink: 0,
@@ -859,7 +856,7 @@ export default function TransactionsPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="mobile-hide" style={{ padding: '12px 16px' }}>
+                  <td className="mobile-hide" style={{ padding: '12px 8px', overflow: 'hidden' }}>
                     {editingId === tx.id && editingField === 'category' ? (
                       <select
                         autoFocus
@@ -905,15 +902,15 @@ export default function TransactionsPage() {
                       </div>
                     )}
                   </td>
-                  <td className="mobile-hide" style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    <div>{(tx.account as any)?.name || 'General'}</div>
+                  <td className="mobile-hide" style={{ padding: '12px 8px', fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{(tx.account as any)?.name || 'General'}</div>
                     <div style={{ fontSize: 10, color: 'var(--accent-light)', marginTop: 2, fontWeight: 500 }}>
                       {tx.notes?.includes('Performed by:')
                         ? tx.notes.split('Performed by:')[1].trim()
                         : (isStaff ? 'Staff' : 'Admin')}
                     </div>
                   </td>
-                  <td className="mobile-tight-td" style={{ padding: '12px 16px', fontWeight: 600, fontSize: 13, color: tx.type === 'income' ? 'var(--success)' : 'var(--error)', fontFamily: 'Space Grotesk, sans-serif', whiteSpace: 'nowrap' }}>
+                  <td className="mobile-tight-td" style={{ padding: '12px 8px', fontWeight: 600, fontSize: 13, color: tx.type === 'income' ? 'var(--success)' : 'var(--error)', fontFamily: 'Space Grotesk, sans-serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {editingId === tx.id && editingField === 'amount' ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <input
@@ -970,7 +967,7 @@ export default function TransactionsPage() {
                       </div>
                     )}
                   </td>
-                  <td className="mobile-hide" style={{ padding: '12px 10px' }}>
+                  <td className="mobile-hide" style={{ padding: '12px 8px', overflow: 'hidden' }}>
                     <Badge variant={tx.is_verified ? 'success' : 'default'}>
                       {tx.is_verified ? 'Verified' : 'Pending'}
                     </Badge>
@@ -978,18 +975,12 @@ export default function TransactionsPage() {
                   <td 
                     className="mobile-tight-td mobile-actions" 
                     style={{ 
-                      padding: '12px 10px', 
+                      padding: '12px 8px', 
                       textAlign: 'right',
-                      width: 116,
-                      minWidth: 116,
                       whiteSpace: 'nowrap',
-                      position: 'sticky',
-                      right: 0,
-                      background: 'var(--bg-card)',
-                      zIndex: 1,
                     }}
                   >
-                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
                       {tx.type === 'income' && (
                         <button
                           onClick={() => navigate('/app/receipts', { state: { openCreateModal: true, transactionId: tx.id } })}
@@ -1525,13 +1516,27 @@ export default function TransactionsPage() {
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-              <Button variant="secondary" onClick={() => setEditTxModal(null)} type="button">
-                Cancel
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+              <Button
+                variant="danger"
+                type="button"
+                icon={<Trash2 size={14} />}
+                onClick={async () => {
+                  const idToDelete = editTxModal.id;
+                  setEditTxModal(null);
+                  await handleDelete(idToDelete);
+                }}
+              >
+                Delete
               </Button>
-              <Button variant="primary" loading={editTxSaving} onClick={handleSaveEditTx}>
-                Save Changes
-              </Button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button variant="secondary" onClick={() => setEditTxModal(null)} type="button">
+                  Cancel
+                </Button>
+                <Button variant="primary" loading={editTxSaving} onClick={handleSaveEditTx}>
+                  Save Changes
+                </Button>
+              </div>
             </div>
           </div>
         )}
