@@ -3,7 +3,7 @@ import {
   CreditCard,
   ChevronRight, FileText,
   ShieldAlert, Rocket,
-  SlidersHorizontal, ArrowUpRight, Plus
+  SlidersHorizontal, ArrowUpRight
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
@@ -814,135 +814,7 @@ export default function BillingPage() {
         </div>
       </section>
 
-      {/* ── Section 3: Payment Method ─────────────────── */}
-      <section style={{ marginBottom: 36 }}>
-        <h2 style={{
-          fontSize: 15,
-          fontWeight: 700,
-          color: colors.textPrimary,
-          margin: '0 0 14px',
-          letterSpacing: '-0.01em',
-        }}>
-          Payment Method
-        </h2>
-
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-          gap: 16,
-        }}>
-          {/* Virtual Credit Card Mockup matching the shot */}
-          <div style={{
-            background: isDark 
-              ? 'linear-gradient(135deg, #27272a 0%, #18181b 100%)' 
-              : 'linear-gradient(135deg, #d97706 0%, #b45309 60%, #78350f 100%)',
-            borderRadius: 20,
-            padding: '24px 26px',
-            color: '#ffffff',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            minHeight: 160,
-            position: 'relative',
-            overflow: 'hidden',
-          }}>
-            {/* Glow / shine */}
-            <div style={{
-              position: 'absolute',
-              top: '-30%',
-              right: '-10%',
-              width: 180,
-              height: 180,
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%)',
-              pointerEvents: 'none',
-            }} />
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.5px' }}>
-                Paystack Verified Auto-Debit
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 900, fontStyle: 'italic', letterSpacing: '-1px' }}>
-                VISA / MC
-              </div>
-            </div>
-
-            <div style={{
-              fontSize: 20,
-              fontWeight: 700,
-              letterSpacing: '2.5px',
-              fontFamily: 'monospace',
-              margin: '18px 0 10px',
-            }}>
-              •••• •••• •••• 4242
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, opacity: 0.9 }}>
-              <div>
-                <span style={{ fontSize: 9, textTransform: 'uppercase', display: 'block', opacity: 0.75 }}>Cardholder</span>
-                <span style={{ fontWeight: 600 }}>ROVA BUSINESS ACCOUNT</span>
-              </div>
-              <div>
-                <span style={{ fontSize: 9, textTransform: 'uppercase', display: 'block', opacity: 0.75 }}>Expires</span>
-                <span style={{ fontWeight: 600 }}>12 / 28</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Add / Manage Payment Method Dashed Card */}
-          <div 
-            onClick={() => scrollToPlans()}
-            style={{
-              background: colors.cardBg,
-              borderRadius: 20,
-              border: '1.5px dashed ' + (isDark ? 'rgba(255,255,255,0.18)' : '#cbd5e1'),
-              padding: '24px 26px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 12,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              minHeight: 160,
-              textAlign: 'center',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget.style.borderColor = isDark ? '#ffffff' : '#111827');
-              (e.currentTarget.style.background = isDark ? '#1a1a1e' : '#f8fafc');
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.18)' : '#cbd5e1');
-              (e.currentTarget.style.background = colors.cardBg);
-            }}
-          >
-            <div style={{
-              width: 38,
-              height: 38,
-              borderRadius: '50%',
-              background: colors.pillBg,
-              border: colors.pillBorder,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: colors.textPrimary,
-            }}>
-              <Plus size={16} />
-            </div>
-            <div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: colors.textPrimary }}>
-                Change or Add Card
-              </div>
-              <div style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 3 }}>
-                Secured tokenization via Paystack Nigeria
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Section 4: Available Plans & Upgrades ─────── */}
+      {/* ── Section 3: Available Plans & Upgrades ─────── */}
       <section ref={plansRef} style={{ marginBottom: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div>

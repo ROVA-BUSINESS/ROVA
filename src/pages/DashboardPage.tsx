@@ -3,14 +3,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { 
   ArrowUpRight, ArrowDownRight, 
   Plus, Wallet, RefreshCw, CreditCard, 
-  MoreVertical, Clock, Users, ChevronDown
+  MoreVertical, ChevronDown
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { supabase, syncAllBanks, type Transaction, type Account } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useSubscription } from '../contexts/SubscriptionContext';
 import { formatCurrency, formatDate, cleanDescription } from '../lib/format';
 import { useNavigate } from 'react-router-dom';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
@@ -23,7 +22,6 @@ const ALL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep
 export default function DashboardPage() {
   const [waComingSoon, setWaComingSoon] = useState(false);
   const { user, profile, isStaff, staffData } = useAuth();
-  const { isActive } = useSubscription();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
@@ -36,7 +34,7 @@ export default function DashboardPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isBankChoiceOpen, setIsBankChoiceOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<'year' | 'month'>('year');
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<'year' | 'recent'>('year');
   const [activeMenuCard, setActiveMenuCard] = useState<number | null>(null);
 
   const isMobile = useMobile(1024);
@@ -65,7 +63,7 @@ export default function DashboardPage() {
       .select('*, category:categories(*), account:accounts(*)')
       .eq('user_id', effectiveUserId)
       .order('date', { ascending: false })
-      .limit(60);
+      .limit(2000);
 
     let invQuery = supabase
       .from('invoices')
@@ -93,14 +91,31 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  // --- Dynamic Stats Calculations ---
+  // --- Dynamic Stats Calculations (100% Real Data) ---
   const totalBalance = useMemo(() => {
     return accounts.reduce((s, a) => s + (a.balance || 0), 0) + arBalance;
   }, [accounts, arBalance]);
 
-  const uncategorizedCount = useMemo(() => {
-    return transactions.filter(t => !(t.category as any)?.name && !t.category_id).length;
+  const totalMoneyIn = useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'income')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
   }, [transactions]);
+
+  const totalMoneyOut = useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'expense')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  }, [transactions]);
+
+  const uncategorizedCount = useMemo(() => {
+    return transactions.filter(t => !(t.category as any)?.name && !t.category_id && !t.ai_category).length;
+  }, [transactions]);
+
+  const categorizedCount = transactions.length - uncategorizedCount;
+  const categorizedPct = transactions.length > 0
+    ? Math.round((categorizedCount / transactions.length) * 100)
+    : 0;
 
   const currentYear = new Date().getFullYear();
   const currentMonthIdx = new Date().getMonth();
@@ -113,7 +128,7 @@ export default function DashboardPage() {
         const d = new Date(t.date);
         return d.getMonth() === currentMonthIdx && d.getFullYear() === currentYear && t.type === 'income';
       })
-      .reduce((s, t) => s + (t.amount || 0), 0);
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
   }, [transactions, currentMonthIdx, currentYear]);
 
   const lastMonthIncome = useMemo(() => {
@@ -122,11 +137,11 @@ export default function DashboardPage() {
         const d = new Date(t.date);
         return d.getMonth() === lastMonthIdx && d.getFullYear() === lastMonthYear && t.type === 'income';
       })
-      .reduce((s, t) => s + (t.amount || 0), 0);
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
   }, [transactions, lastMonthIdx, lastMonthYear]);
 
-  const incomeChange = lastMonthIncome === 0 
-    ? (currentMonthIncome > 0 ? 100 : 8) 
+  const incomeChange = lastMonthIncome === 0
+    ? (currentMonthIncome > 0 ? 100 : 0)
     : Math.round(((currentMonthIncome - lastMonthIncome) / lastMonthIncome) * 100);
 
   const currentMonthExpenses = useMemo(() => {
@@ -135,7 +150,7 @@ export default function DashboardPage() {
         const d = new Date(t.date);
         return d.getMonth() === currentMonthIdx && d.getFullYear() === currentYear && t.type === 'expense';
       })
-      .reduce((s, t) => s + (t.amount || 0), 0);
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
   }, [transactions, currentMonthIdx, currentYear]);
 
   const lastMonthExpenses = useMemo(() => {
@@ -144,11 +159,11 @@ export default function DashboardPage() {
         const d = new Date(t.date);
         return d.getMonth() === lastMonthIdx && d.getFullYear() === lastMonthYear && t.type === 'expense';
       })
-      .reduce((s, t) => s + (t.amount || 0), 0);
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
   }, [transactions, lastMonthIdx, lastMonthYear]);
 
-  const expenseChange = lastMonthExpenses === 0 
-    ? (currentMonthExpenses > 0 ? -11 : 0) 
+  const expenseChange = lastMonthExpenses === 0
+    ? (currentMonthExpenses > 0 ? 100 : 0)
     : Math.round(((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100);
 
   // Today & This Week's earnings
@@ -159,50 +174,45 @@ export default function DashboardPage() {
 
     const todayInc = transactions
       .filter(t => t.type === 'income' && t.date?.slice(0, 10) === todayStr)
-      .reduce((s, t) => s + (t.amount || 0), 0);
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
     const weekInc = transactions
       .filter(t => t.type === 'income' && new Date(t.date) >= oneWeekAgo)
-      .reduce((s, t) => s + (t.amount || 0), 0);
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
     return { todayIncome: todayInc, weekIncome: weekInc };
   }, [transactions]);
 
-  // Success rate / Profit margin
+  // Real Profit Margin / Cash Flow Health
   const successRate = useMemo(() => {
-    if (currentMonthIncome > 0) {
-      const net = currentMonthIncome - currentMonthExpenses;
-      const margin = (net / currentMonthIncome) * 100;
-      return Math.max(12, Math.min(96, Math.round(margin * 10) / 10));
+    if (totalMoneyIn > 0) {
+      const net = totalMoneyIn - totalMoneyOut;
+      const margin = (net / totalMoneyIn) * 100;
+      return Math.max(0, Math.min(100, Math.round(margin * 10) / 10));
     }
-    return 51.2; // Clean demo baseline matching the design
-  }, [currentMonthIncome, currentMonthExpenses]);
+    return 0;
+  }, [totalMoneyIn, totalMoneyOut]);
 
-  // Chart data: Jan to Sep (or all months up to current + next)
+  // Real Chart Data: Aggregates ALL actual user-inputted transactions by month
   const chartData = useMemo(() => {
-    const monthsToShow = selectedMonthFilter === 'month' 
-      ? ALL_MONTHS.slice(Math.max(0, currentMonthIdx - 4), currentMonthIdx + 2) 
-      : ALL_MONTHS.slice(0, 9); // Jan to Sep matching the Dribbble shot!
+    const monthsToShow = selectedMonthFilter === 'recent'
+      ? ALL_MONTHS.slice(Math.max(0, currentMonthIdx - 5), currentMonthIdx + 1)
+      : ALL_MONTHS;
 
     return monthsToShow.map((m) => {
       const mIdx = ALL_MONTHS.indexOf(m);
       const mTx = transactions.filter(t => {
+        if (!t.date) return false;
         const d = new Date(t.date);
         return d.getMonth() === mIdx && d.getFullYear() === currentYear;
       });
-      const inc = mTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-      const exp = mTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-      
-      // If no recorded transactions yet for demo month, use an organic proportional height
-      const displayVal = inc > 0 ? inc : (mIdx === currentMonthIdx ? 85000 : [45000, 32000, 52000, 48000, 89000, 42000, 38000, 55000, 40000][mIdx % 9]);
-      const expVal = exp > 0 ? exp : [22000, 18000, 24000, 19000, 35000, 21000, 17000, 23000, 20000][mIdx % 9];
+      const inc = mTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      const exp = mTx.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
       return {
         month: m,
-        rawIncome: inc,
-        rawExpense: exp,
-        sales: displayVal,
-        expenseVal: expVal,
+        moneyIn: inc,
+        moneyOut: exp,
         isCurrent: mIdx === currentMonthIdx,
       };
     });
@@ -210,12 +220,16 @@ export default function DashboardPage() {
 
   const recentTx = transactions.slice(0, 5);
 
-  // Design color tokens matching Dribbble shot
+  // Design color tokens — ROVA Purple palette
   const colors = {
-    olive: isDark ? '#6ca047' : '#4d6b35',
-    oliveDark: isDark ? '#5a853a' : '#3f592a',
-    oliveDim: isDark ? 'rgba(108, 160, 71, 0.16)' : 'rgba(77, 107, 53, 0.12)',
-    oliveBorder: isDark ? 'rgba(108, 160, 71, 0.35)' : 'rgba(77, 107, 53, 0.25)',
+    purple: isDark ? '#9333ea' : '#7c3aed',
+    purpleLight: isDark ? '#a855f7' : '#8b5cf6',
+    purpleDark: isDark ? '#7e22ce' : '#662D91',
+    purpleDim: isDark ? 'rgba(147, 51, 234, 0.16)' : 'rgba(124, 58, 237, 0.10)',
+    purpleBorder: isDark ? 'rgba(147, 51, 234, 0.35)' : 'rgba(124, 58, 237, 0.25)',
+    expenseBar: isDark ? '#f43f5e' : '#e11d48',
+    expenseDim: isDark ? 'rgba(244, 63, 94, 0.16)' : '#fff1f2',
+    expenseBorder: isDark ? 'rgba(244, 63, 94, 0.3)' : '#fecdd3',
     cardBg: isDark ? '#141417' : '#ffffff',
     cardBorder: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.06)',
     cardShadow: isDark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 2px 14px rgba(0,0,0,0.03)',
@@ -224,8 +238,6 @@ export default function DashboardPage() {
     textPrimary: isDark ? '#fafafa' : '#111827',
     textSecondary: isDark ? '#a1a1aa' : '#64748b',
     textMuted: isDark ? '#71717a' : '#94a3b8',
-    barMuted: isDark ? 'rgba(255, 255, 255, 0.09)' : 'rgba(0, 0, 0, 0.06)',
-    barPattern: isDark ? 'rgba(108, 160, 71, 0.25)' : 'rgba(77, 107, 53, 0.18)',
   };
 
   const displayName = profile?.business_name || profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Partner';
@@ -266,14 +278,14 @@ export default function DashboardPage() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px',
               borderRadius: 20,
-              background: waComingSoon ? 'rgba(37, 211, 102, 0.12)' : colors.pillBg,
-              border: waComingSoon ? '1px solid rgba(37, 211, 102, 0.4)' : colors.pillBorder,
-              color: waComingSoon ? '#25D366' : colors.textPrimary,
+              background: waComingSoon ? colors.purpleDim : colors.pillBg,
+              border: waComingSoon ? `1px solid ${colors.purpleBorder}` : colors.pillBorder,
+              color: waComingSoon ? colors.purpleLight : colors.textPrimary,
               fontSize: 12.5, fontWeight: 600,
               cursor: 'pointer', transition: 'all 0.15s'
             }}
           >
-            <WhatsAppIcon size={16} color={waComingSoon ? '#25D366' : 'currentColor'} />
+            <WhatsAppIcon size={16} color={waComingSoon ? colors.purpleLight : 'currentColor'} />
             <span>{waComingSoon ? 'Coming Soon' : 'WhatsApp AI'}</span>
           </button>
 
@@ -314,12 +326,12 @@ export default function DashboardPage() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px',
               borderRadius: 20,
-              background: colors.olive,
+              background: colors.purple,
               border: 'none',
               color: '#ffffff',
               fontSize: 12.5, fontWeight: 700,
               cursor: 'pointer', transition: 'all 0.15s',
-              boxShadow: '0 2px 10px rgba(77, 107, 53, 0.3)'
+              boxShadow: '0 2px 10px rgba(124, 58, 237, 0.35)'
             }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '0.92')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
@@ -366,9 +378,9 @@ export default function DashboardPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10,
-                  background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                  background: colors.purpleDim,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: colors.textPrimary,
+                  color: colors.purpleLight,
                 }}>
                   <Wallet size={17} />
                 </div>
@@ -400,7 +412,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Card 2: Uncategorized Transactions */}
+            {/* Card 2: Money In */}
             <div style={{
               background: colors.cardBg,
               borderRadius: 20,
@@ -421,11 +433,11 @@ export default function DashboardPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10,
-                  background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                  background: colors.purpleDim,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: colors.textPrimary,
+                  color: colors.purpleLight,
                 }}>
-                  <Clock size={17} />
+                  <ArrowUpRight size={18} />
                 </div>
                 <button 
                   onClick={(e) => { e.stopPropagation(); setActiveMenuCard(activeMenuCard === 2 ? null : 2); }}
@@ -439,20 +451,23 @@ export default function DashboardPage() {
                 <div style={{
                   fontSize: 25,
                   fontWeight: 800,
-                  color: colors.textPrimary,
+                  color: colors.purpleLight,
                   fontFamily: 'Space Grotesk, sans-serif',
                   letterSpacing: '-0.02em',
                   lineHeight: 1.1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}>
-                  {uncategorizedCount > 0 ? uncategorizedCount : 12}
+                  {formatCurrency(totalMoneyIn)}
                 </div>
                 <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
-                  Uncategorized transactions
+                  Money In
                 </div>
               </div>
             </div>
 
-            {/* Card 3: Connected Accounts & Team */}
+            {/* Card 3: Money Out */}
             <div style={{
               background: colors.cardBg,
               borderRadius: 20,
@@ -466,18 +481,18 @@ export default function DashboardPage() {
               cursor: 'pointer',
               transition: 'transform 0.15s ease, box-shadow 0.15s ease',
             }}
-            onClick={() => navigate('/app/settings')}
+            onClick={() => navigate('/app/transactions')}
             onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10,
-                  background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                  background: colors.expenseDim,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: colors.textPrimary,
+                  color: colors.expenseBar,
                 }}>
-                  <Users size={17} />
+                  <ArrowDownRight size={18} />
                 </div>
                 <button 
                   onClick={(e) => { e.stopPropagation(); setActiveMenuCard(activeMenuCard === 3 ? null : 3); }}
@@ -495,16 +510,19 @@ export default function DashboardPage() {
                   fontFamily: 'Space Grotesk, sans-serif',
                   letterSpacing: '-0.02em',
                   lineHeight: 1.1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}>
-                  {accounts.length > 0 ? accounts.length : 7}
+                  {formatCurrency(totalMoneyOut)}
                 </div>
                 <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
-                  Connected accounts & team
+                  Money Out
                 </div>
               </div>
             </div>
 
-            {/* Card 4: Month's Spending */}
+            {/* Card 4: This Month's Spending */}
             <div style={{
               background: colors.cardBg,
               borderRadius: 20,
@@ -551,10 +569,10 @@ export default function DashboardPage() {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}>
-                  {formatCurrency(currentMonthExpenses > 0 ? currentMonthExpenses : 3287.49)}
+                  {formatCurrency(currentMonthExpenses)}
                 </div>
                 <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
-                  This month's card spending
+                  This month's expenses
                 </div>
               </div>
             </div>
@@ -568,10 +586,10 @@ export default function DashboardPage() {
             alignItems: 'start',
           }}>
             
-            {/* LEFT COLUMN: Average Sales Bar Chart + Recent Transactions */}
+            {/* LEFT COLUMN: Real Cash Flow Bar Chart + Recent Transactions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
               
-              {/* Average Sales Card */}
+              {/* Cash Flow Overview Card */}
               <div style={{
                 background: colors.cardBg,
                 borderRadius: 20,
@@ -590,17 +608,17 @@ export default function DashboardPage() {
                 }}>
                   <div>
                     <h3 style={{ fontSize: 17, fontWeight: 800, color: colors.textPrimary, margin: 0, letterSpacing: '-0.01em' }}>
-                      Average Sales
+                      Cash Flow Overview
                     </h3>
                     <p style={{ fontSize: 12.5, color: colors.textMuted, margin: '4px 0 0', fontWeight: 500 }}>
-                      Sales overview from all channels
+                      Money In vs Money Out from your recorded transactions
                     </p>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {/* Time Filter Pill */}
                     <button
-                      onClick={() => setSelectedMonthFilter(selectedMonthFilter === 'year' ? 'month' : 'year')}
+                      onClick={() => setSelectedMonthFilter(selectedMonthFilter === 'year' ? 'recent' : 'year')}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -615,7 +633,7 @@ export default function DashboardPage() {
                         cursor: 'pointer',
                       }}
                     >
-                      <span>{selectedMonthFilter === 'year' ? 'Current Year' : 'Current Month'}</span>
+                      <span>{selectedMonthFilter === 'year' ? `Full Year (${currentYear})` : 'Last 6 Months'}</span>
                       <ChevronDown size={13} color={colors.textMuted} />
                     </button>
 
@@ -644,7 +662,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Metrics Breakdown: Offline & Online */}
+                {/* Metrics Breakdown: Money In & Money Out */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -653,60 +671,56 @@ export default function DashboardPage() {
                   flexWrap: 'wrap',
                 }}>
                   <div>
-                    <div style={{ fontSize: 11.5, color: colors.textMuted, fontWeight: 500, marginBottom: 4 }}>
-                      Offline (Expenses)
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: colors.textMuted, fontWeight: 600, marginBottom: 4 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.purple }} />
+                      <span>Money In</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 20, fontWeight: 800, color: colors.textPrimary, fontFamily: 'Space Grotesk, sans-serif' }}>
-                        {formatCurrency(currentMonthExpenses > 0 ? currentMonthExpenses : 12201)}
+                        {formatCurrency(totalMoneyIn)}
                       </span>
                       <span style={{
                         fontSize: 11,
                         fontWeight: 700,
                         padding: '2px 7px',
                         borderRadius: 12,
-                        background: isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2',
-                        color: isDark ? '#f87171' : '#dc2626',
+                        background: colors.purpleDim,
+                        color: colors.purpleLight,
+                        border: `1px solid ${colors.purpleBorder}`,
                       }}>
-                        {expenseChange}%
+                        {incomeChange >= 0 ? `+${incomeChange}%` : `${incomeChange}%`}
                       </span>
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: 11.5, color: colors.textMuted, fontWeight: 500, marginBottom: 4 }}>
-                      Online (Revenue)
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: colors.textMuted, fontWeight: 600, marginBottom: 4 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.expenseBar }} />
+                      <span>Money Out</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 20, fontWeight: 800, color: colors.textPrimary, fontFamily: 'Space Grotesk, sans-serif' }}>
-                        {formatCurrency(currentMonthIncome > 0 ? currentMonthIncome : 100799)}
+                        {formatCurrency(totalMoneyOut)}
                       </span>
                       <span style={{
                         fontSize: 11,
                         fontWeight: 700,
                         padding: '2px 7px',
                         borderRadius: 12,
-                        background: colors.oliveDim,
-                        color: colors.olive,
-                        border: `1px solid ${colors.oliveBorder}`,
+                        background: colors.expenseDim,
+                        color: colors.expenseBar,
+                        border: `1px solid ${colors.expenseBorder}`,
                       }}>
-                        +{incomeChange}%
+                        {expenseChange >= 0 ? `+${expenseChange}%` : `${expenseChange}%`}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Modern Bar Chart matching the Dribbble design */}
-                <div style={{ height: 240, width: '100%', marginTop: 8 }}>
+                {/* Real Dual-Bar Chart: Money In (Purple) & Money Out (Rose) */}
+                <div style={{ height: 245, width: '100%', marginTop: 8 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={34}>
-                      <defs>
-                        {/* Striped Pattern for inactive bars */}
-                        <pattern id="stripedBar" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                          <line x1="0" y1="0" x2="0" y2="8" stroke={colors.barPattern} strokeWidth="3" />
-                          <line x1="0" y1="0" x2="8" y2="0" stroke="transparent" strokeWidth="0" />
-                        </pattern>
-                      </defs>
+                    <BarChart data={chartData} margin={{ top: 16, right: 10, left: -16, bottom: 0 }} barGap={4}>
                       <CartesianGrid vertical={false} stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'} strokeDasharray="3 3" />
                       <XAxis 
                         dataKey="month" 
@@ -718,25 +732,23 @@ export default function DashboardPage() {
                         axisLine={false} 
                         tickLine={false} 
                         tick={{ fontSize: 10.5, fill: colors.textMuted }} 
-                        tickFormatter={v => `₦${Math.round(v / 1000)}k`} 
+                        tickFormatter={v => v >= 1000000 ? `₦${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `₦${Math.round(v / 1000)}k` : `₦${v}`} 
                       />
                       <Tooltip content={<CustomChartTooltip isDark={isDark} colors={colors} />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }} />
                       <Bar 
-                        dataKey="sales" 
-                        radius={[8, 8, 8, 8]}
-                      >
-                        {chartData.map((entry, index) => {
-                          const isHighlighted = entry.isCurrent || index === 4; // Highlight May / Current Month in solid olive!
-                          return (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={isHighlighted ? colors.olive : 'url(#stripedBar)'}
-                              stroke={isHighlighted ? 'none' : colors.barPattern}
-                              strokeWidth={isHighlighted ? 0 : 1}
-                            />
-                          );
-                        })}
-                      </Bar>
+                        dataKey="moneyIn" 
+                        name="Money In"
+                        fill={colors.purple}
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={24}
+                      />
+                      <Bar 
+                        dataKey="moneyOut" 
+                        name="Money Out"
+                        fill={colors.expenseBar}
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={24}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -767,7 +779,7 @@ export default function DashboardPage() {
                       gap: 4,
                       background: 'none',
                       border: 'none',
-                      color: colors.olive,
+                      color: colors.purpleLight,
                       fontSize: 12.5,
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -814,10 +826,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* RIGHT COLUMN: Formation Status Widget & Success Rate Radial Gauge */}
+            {/* RIGHT COLUMN: Bookkeeping Status Widget & Profit Margin Radial Gauge */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
               
-              {/* Formation / Compliance Status Card */}
+              {/* Bookkeeping Status Card (Replaces Formation Status) */}
               <div style={{
                 background: colors.cardBg,
                 borderRadius: 20,
@@ -827,10 +839,11 @@ export default function DashboardPage() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <h3 style={{ fontSize: 15.5, fontWeight: 800, color: colors.textPrimary, margin: 0 }}>
-                    Formation status
+                    Bookkeeping Status
                   </h3>
                   <button
-                    onClick={() => navigate('/app/tax')}
+                    onClick={() => navigate('/app/transactions')}
+                    title="Open Ledger"
                     style={{
                       width: 28, height: 28, borderRadius: '50%',
                       background: colors.pillBg, border: colors.pillBorder,
@@ -843,10 +856,14 @@ export default function DashboardPage() {
                 </div>
                 
                 <div style={{ fontSize: 12.5, color: colors.textMuted, fontWeight: 500, marginBottom: 16 }}>
-                  {isActive ? 'Active and compliant' : 'In progress'}
+                  {transactions.length === 0
+                    ? 'Ready to record your first entry'
+                    : uncategorizedCount === 0
+                    ? 'All entries categorised & ready'
+                    : `${uncategorizedCount} transaction${uncategorizedCount === 1 ? '' : 's'} pending review`}
                 </div>
 
-                {/* Rounded Progress Bar matching the shot */}
+                {/* Rounded Purple Progress Bar */}
                 <div style={{
                   width: '100%',
                   height: 22,
@@ -860,26 +877,26 @@ export default function DashboardPage() {
                   marginBottom: 16,
                 }}>
                   <div style={{
-                    width: '68%',
+                    width: `${Math.max(categorizedPct, transactions.length > 0 ? 6 : 0)}%`,
                     height: '100%',
                     borderRadius: 9,
-                    background: colors.olive,
+                    background: `linear-gradient(90deg, ${colors.purpleDark}, ${colors.purpleLight})`,
                     transition: 'width 0.4s ease',
                   }} />
                 </div>
 
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: colors.textPrimary }}>
-                    Estimated Processing
+                    ROVA Ledger Health ({categorizedPct}%)
                   </div>
                   <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 3 }}>
-                    4-5 Business Days
+                    {categorizedCount} of {transactions.length} transactions categorised
                   </div>
                 </div>
 
-                {/* View Status Pill Button */}
+                {/* Review Books Pill Button */}
                 <button
-                  onClick={() => navigate('/app/tax')}
+                  onClick={() => navigate('/app/transactions')}
                   style={{
                     width: '100%',
                     padding: '11px 16px',
@@ -894,9 +911,9 @@ export default function DashboardPage() {
                     textAlign: 'center',
                   }}
                   onMouseEnter={e => {
-                    (e.currentTarget.style.background = colors.oliveDim);
-                    (e.currentTarget.style.borderColor = colors.oliveBorder);
-                    (e.currentTarget.style.color = colors.olive);
+                    (e.currentTarget.style.background = colors.purpleDim);
+                    (e.currentTarget.style.borderColor = colors.purpleBorder);
+                    (e.currentTarget.style.color = colors.purpleLight);
                   }}
                   onMouseLeave={e => {
                     (e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff');
@@ -904,11 +921,11 @@ export default function DashboardPage() {
                     (e.currentTarget.style.color = colors.textPrimary);
                   }}
                 >
-                  View status
+                  Review Books
                 </button>
               </div>
 
-              {/* Success Rate Radial Gauge Card */}
+              {/* Profit Margin / Success Rate Radial Gauge Card */}
               <div style={{
                 background: colors.cardBg,
                 borderRadius: 20,
@@ -918,7 +935,7 @@ export default function DashboardPage() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <h3 style={{ fontSize: 15.5, fontWeight: 800, color: colors.textPrimary, margin: 0 }}>
-                    Success Rate
+                    Profit Margin
                   </h3>
                   <button
                     onClick={() => navigate('/app/reports')}
@@ -934,10 +951,10 @@ export default function DashboardPage() {
                 </div>
 
                 <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, marginBottom: 12 }}>
-                  Financial targets and health
+                  Net retention from your real cash flow
                 </div>
 
-                {/* SVG Semi-Circle Radial Gauge */}
+                {/* SVG Semi-Circle Radial Gauge (Purple) */}
                 <div style={{ display: 'flex', justifyContent: 'center', position: 'relative', margin: '14px 0 6px' }}>
                   <svg width="220" height="125" viewBox="0 0 220 125">
                     {/* Background Arc */}
@@ -949,11 +966,11 @@ export default function DashboardPage() {
                       strokeLinecap="round"
                       strokeDasharray="4 8"
                     />
-                    {/* Foreground Colored Arc */}
+                    {/* Foreground Purple Arc */}
                     <path
                       d="M 25 110 A 85 85 0 0 1 195 110"
                       fill="none"
-                      stroke={colors.olive}
+                      stroke={colors.purple}
                       strokeWidth="14"
                       strokeLinecap="round"
                       strokeDasharray="4 8"
@@ -981,15 +998,15 @@ export default function DashboardPage() {
                     <div style={{
                       fontSize: 11,
                       fontWeight: 700,
-                      color: colors.olive,
+                      color: colors.purpleLight,
                       marginTop: 4,
                     }}>
-                      +5%
+                      {totalMoneyIn >= totalMoneyOut ? 'Positive Net' : 'Net Deficit'}
                     </div>
                   </div>
                 </div>
 
-                {/* Encouraging Cheer Message Capsule matching the Dribbble shot */}
+                {/* Real Activity Summary Capsule */}
                 <div style={{
                   marginTop: 18,
                   padding: '12px 14px',
@@ -1005,15 +1022,15 @@ export default function DashboardPage() {
                     lineHeight: 1.5,
                     fontWeight: 500,
                   }}>
-                    Hooray you recorded{' '}
+                    You recorded{' '}
                     <strong style={{ color: colors.textPrimary }}>
-                      {formatCurrency(todayIncome > 0 ? todayIncome : 15000)}
+                      {formatCurrency(todayIncome)}
                     </strong>{' '}
-                    today and{' '}
+                    in Money In today and{' '}
                     <strong style={{ color: colors.textPrimary }}>
-                      {formatCurrency(weekIncome > 0 ? weekIncome : 147000)}
+                      {formatCurrency(weekIncome)}
                     </strong>{' '}
-                    this week, keep it up!
+                    this week.
                   </p>
                 </div>
               </div>
@@ -1024,7 +1041,7 @@ export default function DashboardPage() {
                 style={{
                   background: colors.cardBg,
                   borderRadius: 20,
-                  border: '1.5px dashed ' + (isDark ? 'rgba(108, 160, 71, 0.4)' : 'rgba(77, 107, 53, 0.35)'),
+                  border: `1.5px dashed ${colors.purpleBorder}`,
                   padding: '20px',
                   display: 'flex',
                   alignItems: 'center',
@@ -1033,17 +1050,17 @@ export default function DashboardPage() {
                   transition: 'all 0.15s ease',
                 }}
                 onMouseEnter={e => {
-                  (e.currentTarget.style.borderColor = colors.olive);
-                  (e.currentTarget.style.background = colors.oliveDim);
+                  (e.currentTarget.style.borderColor = colors.purple);
+                  (e.currentTarget.style.background = colors.purpleDim);
                 }}
                 onMouseLeave={e => {
-                  (e.currentTarget.style.borderColor = isDark ? 'rgba(108, 160, 71, 0.4)' : 'rgba(77, 107, 53, 0.35)');
+                  (e.currentTarget.style.borderColor = colors.purpleBorder);
                   (e.currentTarget.style.background = colors.cardBg);
                 }}
               >
                 <div style={{
                   width: 40, height: 40, borderRadius: 12,
-                  background: colors.olive,
+                  background: colors.purple,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#ffffff', flexShrink: 0,
                 }}>
@@ -1079,7 +1096,7 @@ export default function DashboardPage() {
   );
 }
 
-// --- Custom Recharts Tooltip matching Dribbble Capsule ---
+// --- Custom Recharts Tooltip ---
 function CustomChartTooltip({ active, payload, label, isDark, colors }: any) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -1087,23 +1104,23 @@ function CustomChartTooltip({ active, payload, label, isDark, colors }: any) {
       <div style={{
         background: isDark ? '#1f1f23' : '#111827',
         color: '#ffffff',
-        padding: '8px 12px',
+        padding: '10px 14px',
         borderRadius: 12,
         boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
         fontSize: 12,
         display: 'flex',
         flexDirection: 'column',
-        gap: 3,
+        gap: 4,
         border: '1px solid rgba(255,255,255,0.1)',
       }}>
-        <div style={{ fontWeight: 700, color: colors.olive, marginBottom: 2 }}>{label}</div>
+        <div style={{ fontWeight: 700, color: colors.purpleLight, marginBottom: 2 }}>{label}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: colors.olive }} />
-          <span>Sales: {formatCurrency(data.sales)}</span>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: colors.purple }} />
+          <span>Money In: <strong>{formatCurrency(data.moneyIn)}</strong></span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.85 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f87171' }} />
-          <span>Expenses: {formatCurrency(data.expenseVal)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.9 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: colors.expenseBar }} />
+          <span>Money Out: <strong>{formatCurrency(data.moneyOut)}</strong></span>
         </div>
       </div>
     );
@@ -1132,14 +1149,14 @@ function TransactionRowItem({ tx, colors, isDark, onClick }: { tx: Transaction; 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 10,
-          background: isIncome ? (isDark ? 'rgba(108, 160, 71, 0.18)' : '#ecfdf5') : (isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2'),
+          background: isIncome ? colors.purpleDim : colors.expenseDim,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0,
         }}>
           {isIncome ? (
-            <ArrowUpRight size={15} color={colors.olive} />
+            <ArrowUpRight size={15} color={colors.purpleLight} />
           ) : (
-            <ArrowDownRight size={15} color={isDark ? '#f87171' : '#dc2626'} />
+            <ArrowDownRight size={15} color={colors.expenseBar} />
           )}
         </div>
 
@@ -1176,7 +1193,7 @@ function TransactionRowItem({ tx, colors, isDark, onClick }: { tx: Transaction; 
         fontSize: 13.5,
         fontWeight: 700,
         fontFamily: 'Space Grotesk, sans-serif',
-        color: isIncome ? colors.olive : colors.textPrimary,
+        color: isIncome ? colors.purpleLight : colors.textPrimary,
         flexShrink: 0,
         marginLeft: 12,
       }}>

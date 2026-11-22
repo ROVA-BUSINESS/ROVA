@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download, Landmark, Code } from 'lucide-react';
+import { Plus, FileText, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Info, X, Download, Landmark, Code, ArrowUpRight } from 'lucide-react';
 import { supabase, type Employee, type FixedAssetRecord, type Invoice, type TaxRecord, type Transaction, type WhtCreditNoteRecord } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { formatCurrency, formatDate } from '../lib/format';
 import { downloadCSV } from '../lib/export';
-import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
@@ -95,13 +95,11 @@ function calcPIT(income: number): number {
 function calcCIT(taxableProfit: number, turnover?: number): number {
   if ((turnover ?? taxableProfit) <= 100_000_000) return 0;
   return Math.max(0, taxableProfit) * 0.275 + Math.max(0, taxableProfit) * 0.04;
-  // Standard NTA 2025 rate applied above
 }
 
 function citLabel(income: number): string {
   if (income <= 100_000_000) return 'Small Company (0% · NTA 2025)';
   return 'Standard (27.5% CIT + 4% Dev Levy)';
-  // NTA 2025 label
 }
 
 function computeTax(grossIncome: number, deductions: number, taxType: TaxRecord['tax_type']): { taxable: number; tax: number } {
@@ -116,13 +114,14 @@ function computeTax(grossIncome: number, deductions: number, taxType: TaxRecord[
   }
 }
 
-const statusBadge: Record<TaxRecord['status'], 'warning' | 'success' | 'error' | 'info'> = {
-  pending: 'warning', filed: 'info', paid: 'success', overdue: 'error',
-};
-
 export default function TaxPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const isMobile = useMobile(1024);
+  const isSmall = useMobile(640);
+
   const [records, setRecords] = useState<TaxRecord[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -134,7 +133,6 @@ export default function TaxPage() {
   const [showModal, setShowModal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [saving, setSaving] = useState(false);
-  const isMobile = useMobile(1024);
   const [form, setForm] = useState({
     tax_type: 'VAT' as TaxRecord['tax_type'],
     period_start: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
@@ -220,298 +218,630 @@ export default function TaxPage() {
   const previewGross = Number(form.gross_income) || 0;
   const previewTax = previewGross > 0 ? computeTax(previewGross, Number(form.deductions) || 0, form.tax_type).tax : null;
 
+  // Color tokens matching BillingPage aesthetic
+  const colors = {
+    cardBg: isDark ? '#141417' : '#ffffff',
+    cardBorder: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.07)',
+    cardShadow: isDark ? '0 4px 20px rgba(0,0,0,0.3)' : '0 2px 14px rgba(0,0,0,0.03)',
+    pillBg: isDark ? '#1f1f23' : '#f4f5f7',
+    pillBorder: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
+    textPrimary: isDark ? '#fafafa' : '#111827',
+    textSecondary: isDark ? '#a1a1aa' : '#64748b',
+    textMuted: isDark ? '#71717a' : '#94a3b8',
+    tableHeaderBg: isDark ? '#1b1b1f' : '#f8fafc',
+    purpleBadge: isDark ? 'rgba(147, 51, 234, 0.16)' : '#f3e8ff',
+    purpleText: isDark ? '#c084fc' : '#7c3aed',
+    greenBadge: isDark ? 'rgba(34, 197, 94, 0.16)' : '#ecfdf5',
+    greenText: isDark ? '#4ade80' : '#059669',
+    redBadge: isDark ? 'rgba(239, 68, 68, 0.16)' : '#fef2f2',
+    redText: isDark ? '#f87171' : '#dc2626',
+    amberBadge: isDark ? 'rgba(245, 158, 11, 0.16)' : '#fffbeb',
+    amberText: isDark ? '#fbbf24' : '#d97706',
+    blueBadge: isDark ? 'rgba(59, 130, 246, 0.16)' : '#eff6ff',
+    blueText: isDark ? '#60a5fa' : '#2563eb',
+    primaryBtnBg: isDark ? '#ffffff' : '#111827',
+    primaryBtnText: isDark ? '#111827' : '#ffffff',
+  };
+
+  function getStatusStyle(status: TaxRecord['status']) {
+    if (status === 'paid') return { bg: colors.greenBadge, color: colors.greenText };
+    if (status === 'filed') return { bg: colors.blueBadge, color: colors.blueText };
+    if (status === 'overdue') return { bg: colors.redBadge, color: colors.redText };
+    return { bg: colors.amberBadge, color: colors.amberText };
+  }
+
   return (
-    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1000, animation: 'fadeIn 0.3s ease' }}>
-      <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: isMobile ? 16 : 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+    <div style={{ maxWidth: 1040, margin: '0 auto', padding: isMobile ? '16px 14px 100px' : '24px 20px 100px', animation: 'fadeIn 0.25s ease' }}>
+      
+      {/* ── Hero / Banner Header matching BillingPage ── */}
+      <div style={{
+        borderRadius: 22,
+        padding: isMobile ? '28px 20px' : '36px 36px',
+        marginBottom: 28,
+        position: 'relative',
+        overflow: 'hidden',
+        background: isDark
+          ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(102, 45, 145, 0.18) 50%, rgba(16, 185, 129, 0.10) 100%), #141417'
+          : 'linear-gradient(135deg, #fef3c7 0%, #ffedd5 40%, #ecfdf5 100%)',
+        border: colors.cardBorder,
+        boxShadow: colors.cardShadow,
+      }}>
+        {/* Subtle decorative grid mesh background */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: isDark
+            ? 'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)'
+            : 'radial-gradient(rgba(0,0,0,0.05) 1px, transparent 1px)',
+          backgroundSize: '18px 18px',
+          pointerEvents: 'none',
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'flex-end', justifyContent: 'space-between', gap: 20 }}>
+          <div style={{ maxWidth: 560 }}>
+            <h1 style={{
+              fontSize: isMobile ? 28 : 34,
+              fontWeight: 800,
+              color: colors.textPrimary,
+              letterSpacing: '-0.03em',
+              margin: '0 0 8px',
+              lineHeight: 1.15,
+            }}>
+              Tax &amp; Compliance
+            </h1>
+            <p style={{
+              fontSize: 14,
+              color: colors.textSecondary,
+              margin: 0,
+              lineHeight: 1.55,
+              fontWeight: 500,
+            }}>
+              Nigeria Tax Act 2025 (NTA 2025) &amp; NRS self-filing compliance — calculate, track, and file all in one place.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+            <button
+              type="button"
+              onClick={() => setShowGuide(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '9px 14px', borderRadius: 12,
+                background: isDark ? 'rgba(20,20,23,0.75)' : 'rgba(255,255,255,0.85)',
+                border: colors.cardBorder, color: colors.textPrimary,
+                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(6px)',
+              }}
+            >
+              <Info size={14} /> Tax Guide
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/app/tax/automation-studio')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '9px 14px', borderRadius: 12,
+                background: isDark ? 'rgba(20,20,23,0.75)' : 'rgba(255,255,255,0.85)',
+                border: colors.cardBorder, color: colors.textPrimary,
+                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(6px)',
+              }}
+            >
+              <Code size={14} /> Automation Studio
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const rows = records.map(r => [r.period_start, r.period_end, r.tax_type, r.gross_income, r.deductions, r.taxable_income, r.calculated_tax, r.paid_tax, r.status, r.due_date || '']);
+                downloadCSV(`tax-records-${new Date().getFullYear()}.csv`, ['Period Start', 'Period End', 'Tax Type', 'Gross Income', 'Deductions', 'Taxable Income', 'Calculated Tax', 'Paid Tax', 'Status', 'Due Date'], rows);
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '9px 14px', borderRadius: 12,
+                background: isDark ? 'rgba(20,20,23,0.75)' : 'rgba(255,255,255,0.85)',
+                border: colors.cardBorder, color: colors.textPrimary,
+                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(6px)',
+              }}
+            >
+              <Download size={14} /> Export CSV
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '9px 18px', borderRadius: 12,
+                background: colors.primaryBtnBg, color: colors.primaryBtnText,
+                border: 'none', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              <Plus size={14} /> New Tax Record
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 1: Tax Summary Overview ─────────── */}
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{
+          fontSize: 15,
+          fontWeight: 700,
+          color: colors.textPrimary,
+          margin: '0 0 14px',
+          letterSpacing: '-0.01em',
+        }}>
+          Tax Summary Overview
+        </h2>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isSmall ? '1fr' : isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+          gap: 14,
+        }}>
           <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: 'var(--radius-lg)',
-            background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            boxShadow: '0 4px 14px rgba(102, 45, 145, 0.28)',
-            flexShrink: 0,
+            background: colors.cardBg,
+            borderRadius: 18,
+            border: colors.cardBorder,
+            boxShadow: colors.cardShadow,
+            padding: '20px 22px',
           }}>
-            <Landmark size={20} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>Total Revenue</span>
+              <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 10.5, fontWeight: 700, background: colors.purpleBadge, color: colors.purpleText }}>Ledger</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary, marginBottom: 4 }}>
+              {formatCurrency(totalIncome)}
+            </div>
+            <div style={{ fontSize: 11.5, color: colors.textMuted }}>From ledger transactions</div>
           </div>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Tax & Compliance</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '2px 0 0' }}>Nigeria Tax Act 2025 (NTA 2025) &amp; NRS self-filing compliance</p>
+
+          <div style={{
+            background: colors.cardBg,
+            borderRadius: 18,
+            border: colors.cardBorder,
+            boxShadow: colors.cardShadow,
+            padding: '20px 22px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>Net Profit</span>
+              <span style={{
+                padding: '2px 8px', borderRadius: 12, fontSize: 10.5, fontWeight: 700,
+                background: netProfit >= 0 ? colors.greenBadge : colors.redBadge,
+                color: netProfit >= 0 ? colors.greenText : colors.redText,
+              }}>
+                {netProfit >= 0 ? 'Surplus' : 'Deficit'}
+              </span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netProfit >= 0 ? colors.greenText : colors.redText, marginBottom: 4 }}>
+              {formatCurrency(Math.abs(netProfit))}
+            </div>
+            <div style={{ fontSize: 11.5, color: colors.textMuted }}>Revenue minus expenses</div>
+          </div>
+
+          <div style={{
+            background: colors.cardBg,
+            borderRadius: 18,
+            border: colors.cardBorder,
+            boxShadow: colors.cardShadow,
+            padding: '20px 22px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>Unpaid Tax</span>
+              <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 10.5, fontWeight: 700, background: colors.redBadge, color: colors.redText }}>Due</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary, marginBottom: 4 }}>
+              {formatCurrency(outstandingLiability)}
+            </div>
+            <div style={{ fontSize: 11.5, color: colors.textMuted }}>Unpaid tax records</div>
+          </div>
+
+          <div style={{
+            background: colors.cardBg,
+            borderRadius: 18,
+            border: colors.cardBorder,
+            boxShadow: colors.cardShadow,
+            padding: '20px 22px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>Estimated CIT</span>
+              <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 10.5, fontWeight: 700, background: colors.amberBadge, color: colors.amberText }}>NTA 2025</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary, marginBottom: 4 }}>
+              {formatCurrency(estimatedCIT)}
+            </div>
+            <div style={{ fontSize: 11.5, color: colors.textMuted }}>{citLabel(totalIncome)}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
-          <Button variant="secondary" icon={<Info size={14} />} onClick={() => setShowGuide(true)} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
-            Tax Guide
-          </Button>
-          <Button variant="secondary" icon={<Code size={14} />} onClick={() => navigate('/app/tax/automation-studio')} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content', border: '1px solid var(--accent-border)' }}>
-            Automation Studio
-          </Button>
-          <Button variant="secondary" icon={<Download size={14} />} onClick={() => {
-            const rows = records.map(r => [r.period_start, r.period_end, r.tax_type, r.gross_income, r.deductions, r.taxable_income, r.calculated_tax, r.paid_tax, r.status, r.due_date || '']);
-            downloadCSV(`tax-records-${new Date().getFullYear()}.csv`, ['Period Start', 'Period End', 'Tax Type', 'Gross Income', 'Deductions', 'Taxable Income', 'Calculated Tax', 'Paid Tax', 'Status', 'Due Date'], rows);
-          }} style={{ flex: isMobile ? 1 : 'none', minWidth: 'fit-content' }}>
-            Export CSV
-          </Button>
-          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowModal(true)} style={{ flex: isMobile ? '100%' : 'none', minWidth: 'fit-content' }}>
-            New Tax Record
-          </Button>
+      </section>
+
+      {/* ── Section 2: Self-Filing Gateways (Billing Overview 2-Col Style) ── */}
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{
+          fontSize: 15,
+          fontWeight: 700,
+          color: colors.textPrimary,
+          margin: '0 0 14px',
+          letterSpacing: '-0.01em',
+        }}>
+          Self-Filing Gateways
+        </h2>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+          gap: 16,
+        }}>
+          {/* CIT Gateway Card */}
+          <div style={{
+            background: colors.cardBg,
+            borderRadius: 20,
+            border: colors.cardBorder,
+            boxShadow: colors.cardShadow,
+            padding: '24px 26px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <span style={{
+                  padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                  background: colors.purpleBadge, color: colors.purpleText,
+                }}>
+                  Limited Liability Companies (NRS)
+                </span>
+                <FileText size={18} color={colors.purpleText} />
+              </div>
+
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: colors.textPrimary, margin: '0 0 8px' }}>
+                Companies Income Tax (CIT)
+              </h3>
+              <p style={{ fontSize: 13, color: colors.textSecondary, margin: '0 0 22px', lineHeight: 1.55 }}>
+                Prepare and self-file company annual tax returns, deductions, and tax computations under Nigeria Tax Act 2025.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => navigate('/app/tax/cit/new')}
+                style={{
+                  flex: 1,
+                  minWidth: 'fit-content',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  padding: '10px 18px', borderRadius: 12,
+                  background: colors.primaryBtnBg, color: colors.primaryBtnText,
+                  border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                <span>Start CIT Filing</span>
+                <ArrowUpRight size={15} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSavingsFinder(v => !v)}
+                style={{
+                  padding: '10px 16px', borderRadius: 12,
+                  background: colors.pillBg, color: colors.textPrimary,
+                  border: colors.pillBorder, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                {showSavingsFinder ? 'Hide Savings' : `Tax Savings (${taxSavingsReport.opportunities.length})`}
+              </button>
+            </div>
+          </div>
+
+          {/* PIT Gateway Card */}
+          <div style={{
+            background: colors.cardBg,
+            borderRadius: 20,
+            border: colors.cardBorder,
+            boxShadow: colors.cardShadow,
+            padding: '24px 26px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <span style={{
+                  padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                  background: colors.blueBadge, color: colors.blueText,
+                }}>
+                  Individuals &amp; CAC Business Names
+                </span>
+                <Landmark size={18} color={colors.blueText} />
+              </div>
+
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: colors.textPrimary, margin: '0 0 8px' }}>
+                Personal Income Tax (PIT)
+              </h3>
+              <p style={{ fontSize: 13, color: colors.textSecondary, margin: '0 0 22px', lineHeight: 1.55 }}>
+                State tax filing for individuals, employees, and sole proprietors (Lagos, Kano, FCT Abuja &amp; Rivers State).
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => navigate('/app/tax/pit/new')}
+                style={{
+                  flex: 1,
+                  minWidth: 'fit-content',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  padding: '10px 18px', borderRadius: 12,
+                  background: colors.primaryBtnBg, color: colors.primaryBtnText,
+                  border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                <span>Start PIT Filing</span>
+                <ArrowUpRight size={15} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/app/tax/pit/admin')}
+                style={{
+                  padding: '10px 16px', borderRadius: 12,
+                  background: colors.pillBg, color: colors.textPrimary,
+                  border: colors.pillBorder, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Jurisdictions
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div className="mobile-grid-2 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Revenue</span>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-primary)' }} />
-          </div>
-          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
-            {formatCurrency(totalIncome)}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>From ledger transactions</div>
-        </Card>
-        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net Profit</span>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }} />
-          </div>
-          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: netProfit >= 0 ? 'var(--success)' : 'var(--error)', marginBottom: 4 }}>
-            {formatCurrency(Math.abs(netProfit))}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{netProfit >= 0 ? 'Surplus' : 'Deficit'}</div>
-        </Card>
-        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--error)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unpaid Tax</span>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--error)' }} />
-          </div>
-          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
-            {formatCurrency(outstandingLiability)}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Unpaid tax records</div>
-        </Card>
-        <Card style={{ border: '1px solid var(--bg-border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--warning)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Estimated CIT</span>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)' }} />
-          </div>
-          <div className="mobile-stat-value" style={{ fontSize: 20, fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)', marginBottom: 4 }}>
-            {formatCurrency(estimatedCIT)}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{citLabel(totalIncome)}</div>
-        </Card>
-      </div>
-
-      {/* Filing Gateways: CIT & PIT side-by-side */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
-        {/* CIT Card */}
-        <Card style={{ padding: 22, border: '1px solid var(--accent-border)', background: 'linear-gradient(135deg, rgba(102, 45, 145, 0.08), var(--bg-card))', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(102, 45, 145, 0.25)' }}>
-                <FileText size={20} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Companies Income Tax (CIT)</h3>
-                <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 600 }}>Limited Liability Companies (NRS)</span>
-              </div>
-            </div>
-            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 18px 0', lineHeight: 1.55 }}>
-              Prepare and self-file company annual tax returns, deductions, and tax computations under Nigeria Tax Act 2025.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="primary" icon={<FileText size={15} />} onClick={() => navigate('/app/tax/cit/new')} style={{ flex: 1, minWidth: 'fit-content', justifyContent: 'center' }}>
-              Start CIT Filing
-            </Button>
-            <Button variant="secondary" onClick={() => setShowSavingsFinder(v => !v)} style={{ minWidth: 'fit-content' }}>
-              {showSavingsFinder ? 'Hide Savings' : `Tax Savings (${taxSavingsReport.opportunities.length})`}
-            </Button>
-          </div>
-        </Card>
-
-        {/* PIT Card */}
-        <Card style={{ padding: 22, border: '1px solid var(--bg-border)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 'var(--radius-md)', background: 'var(--info-dim)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Landmark size={20} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Personal Income Tax (PIT)</h3>
-                <span style={{ fontSize: 11, color: 'var(--info)', fontWeight: 600 }}>Individuals &amp; CAC Business Names</span>
-              </div>
-            </div>
-            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 18px 0', lineHeight: 1.55 }}>
-              State tax filing for individuals, employees, and sole proprietors (Lagos, Kano, FCT Abuja &amp; Rivers State).
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="primary" icon={<Landmark size={15} />} onClick={() => navigate('/app/tax/pit/new')} style={{ flex: 1, minWidth: 'fit-content', justifyContent: 'center' }}>
-              Start PIT Filing
-            </Button>
-            <Button variant="secondary" onClick={() => navigate('/app/tax/pit/admin')} style={{ minWidth: 'fit-content' }}>
-              Jurisdictions
-            </Button>
-          </div>
-        </Card>
-      </div>
+      </section>
 
       {showSavingsFinder && (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 28 }}>
           <TaxSavingsFinderPanel report={taxSavingsReport} />
         </div>
       )}
 
-      <Card style={{ marginBottom: 24, padding: '14px 18px', border: '1px solid rgba(245,158,11,0.25)', borderLeft: '3px solid var(--warning)', background: 'var(--bg-card)', display: 'flex', alignItems: 'flex-start', gap: 12, boxShadow: 'var(--shadow-sm)' }}>
-        <AlertCircle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
+      {/* ── Official Compliance Notice ────────────────── */}
+      <div style={{
+        marginBottom: 32,
+        padding: '16px 20px',
+        borderRadius: 18,
+        border: `1px solid ${isDark ? 'rgba(245,158,11,0.28)' : 'rgba(245,158,11,0.35)'}`,
+        background: isDark ? 'rgba(245,158,11,0.08)' : '#fffbeb',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+      }}>
+        <AlertCircle size={18} color={colors.amberText} style={{ flexShrink: 0, marginTop: 2 }} />
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)', marginBottom: 2 }}>Official Compliance Notice</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: colors.amberText, marginBottom: 3 }}>
+            Official Compliance Notice
+          </div>
+          <div style={{ fontSize: 12.5, color: colors.textSecondary, lineHeight: 1.55 }}>
             Tax estimates are calculated strictly in accordance with Nigeria Tax Act 2025 (NTA 2025) and Nigeria Revenue Service (NRS) guidelines. Always consult a qualified tax professional for statutory certifications.
           </div>
         </div>
-      </Card>
+      </div>
 
-      <h2 style={{ fontSize: 16, marginBottom: 16 }}>Tax Records</h2>
+      {/* ── Section 3: Tax Records (Matching Billing History Table) ── */}
+      <section style={{ marginBottom: 36 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h2 style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: colors.textPrimary,
+            margin: 0,
+            letterSpacing: '-0.01em',
+          }}>
+            Tax Records
+          </h2>
+          <span style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500 }}>
+            {records.length} record{records.length === 1 ? '' : 's'}
+          </span>
+        </div>
 
-      {loading ? (
-        <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 80, marginBottom: 12 }} />)}</div>
-      ) : records.length === 0 ? (
-        <Card style={{ textAlign: 'center', padding: '48px 20px' }}>
-          <FileText size={32} color="var(--text-disabled)" style={{ margin: '0 auto 12px' }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No tax records yet</p>
-          <p style={{ color: 'var(--text-disabled)', fontSize: 12, marginTop: 4 }}>Create your first tax record to track compliance</p>
-        </Card>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {records.map(r => {
-            const taxInfo = NGN_TAX_TYPES.find(t => t.value === r.tax_type);
-            return (
-              <Card key={r.id} hoverable>
-                <div className="mobile-hide" style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 'var(--radius-md)',
-                    background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <FileText size={20} color="var(--accent-light)" />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 120 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{taxInfo?.name || r.tax_type}</span>
-                      <Badge variant={statusBadge[r.status]}>{r.status}</Badge>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {formatDate(r.period_start)} — {formatDate(r.period_end)}
-                      {taxInfo && <span style={{ marginLeft: 8, color: 'var(--accent-light)' }}>· {taxInfo.rate} · {taxInfo.authority}</span>}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'left', minWidth: 100 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Calculated Tax</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>
-                      {formatCurrency(r.calculated_tax)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'left', minWidth: 100 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Taxable Income</div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      {formatCurrency(r.taxable_income)}
-                    </div>
-                  </div>
-                  {r.due_date && (
-                    <div style={{ textAlign: 'left', minWidth: 100 }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Due</div>
-                      <div style={{ fontSize: 12, color: new Date(r.due_date) < new Date() && r.status !== 'paid' ? 'var(--error)' : 'var(--text-secondary)' }}>
-                        {formatDate(r.due_date)}
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
-                    {r.status !== 'paid' && (
-                      <button
-                        onClick={() => updateStatus(r.id, 'paid')}
+        <div style={{
+          background: colors.cardBg,
+          borderRadius: 20,
+          border: colors.cardBorder,
+          boxShadow: colors.cardShadow,
+          overflow: 'hidden',
+        }}>
+          {loading ? (
+            <div style={{ padding: 20 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} className="skeleton" style={{ height: 56, borderRadius: 10, marginBottom: 10 }} />
+              ))}
+            </div>
+          ) : records.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+              <FileText size={32} color={colors.textMuted} style={{ margin: '0 auto 12px', opacity: 0.6 }} />
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: colors.textPrimary }}>No tax records yet</div>
+              <p style={{ color: colors.textMuted, fontSize: 12.5, marginTop: 4 }}>
+                Create your first tax record to track compliance and filing deadlines.
+              </p>
+            </div>
+          ) : !isMobile ? (
+            /* Desktop Clean Table matching Billing History */
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: colors.tableHeaderBg, borderBottom: colors.cardBorder }}>
+                    <th style={{ padding: '14px 20px', fontSize: 11.5, fontWeight: 600, color: colors.textSecondary }}>Tax Type &amp; Period</th>
+                    <th style={{ padding: '14px 16px', fontSize: 11.5, fontWeight: 600, color: colors.textSecondary }}>Taxable Income</th>
+                    <th style={{ padding: '14px 16px', fontSize: 11.5, fontWeight: 600, color: colors.textSecondary }}>Calculated Tax</th>
+                    <th style={{ padding: '14px 16px', fontSize: 11.5, fontWeight: 600, color: colors.textSecondary }}>Due Date</th>
+                    <th style={{ padding: '14px 16px', fontSize: 11.5, fontWeight: 600, color: colors.textSecondary }}>Status</th>
+                    <th style={{ padding: '14px 20px', fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((r, idx) => {
+                    const taxInfo = NGN_TAX_TYPES.find(t => t.value === r.tax_type);
+                    const st = getStatusStyle(r.status);
+                    return (
+                      <tr
+                        key={r.id}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
-                          background: 'var(--success-dim)', color: 'var(--success)',
-                          borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 500,
-                          border: '1px solid rgba(34,197,94,0.2)',
+                          borderBottom: idx < records.length - 1 ? colors.cardBorder : 'none',
+                          transition: 'background 0.15s',
                         }}
                       >
-                        <CheckCircle size={11} /> Mark Paid
-                      </button>
-                    )}
-                    {r.status === 'pending' && (
-                      <button
-                        onClick={() => updateStatus(r.id, 'filed')}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
-                          background: 'var(--info-dim)', color: 'var(--info)',
-                          borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 500,
-                          border: '1px solid rgba(59,130,246,0.2)',
-                        }}
-                      >
-                        <Clock size={11} /> Mark Filed
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mobile-only" style={{ display: isMobile ? 'block' : 'none' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <FileText size={18} color="var(--accent-light)" />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
-                          <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{taxInfo?.name || r.tax_type}</span>
-                          <Badge variant={statusBadge[r.status]}>{r.status}</Badge>
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        <td style={{ padding: '16px 20px' }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: colors.textPrimary }}>
+                            {taxInfo?.name || r.tax_type}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 2 }}>
+                            {formatDate(r.period_start)} — {formatDate(r.period_end)}
+                            {taxInfo && <span style={{ marginLeft: 6, color: colors.purpleText }}>· {taxInfo.rate} · {taxInfo.authority}</span>}
+                          </div>
+                        </td>
+                        <td style={{ padding: '16px 16px', fontSize: 13.5, fontWeight: 600, color: colors.textSecondary }}>
+                          {formatCurrency(r.taxable_income)}
+                        </td>
+                        <td style={{ padding: '16px 16px', fontSize: 14, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary }}>
+                          {formatCurrency(r.calculated_tax)}
+                        </td>
+                        <td style={{ padding: '16px 16px', fontSize: 12.5, color: r.due_date && new Date(r.due_date) < new Date() && r.status !== 'paid' ? colors.redText : colors.textSecondary }}>
+                          {r.due_date ? formatDate(r.due_date) : '—'}
+                        </td>
+                        <td style={{ padding: '16px 16px' }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '4px 10px', borderRadius: 20,
+                            background: st.bg, color: st.color,
+                            fontSize: 11.5, fontWeight: 700, textTransform: 'capitalize',
+                          }}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: 6 }}>
+                            {r.status !== 'paid' && (
+                              <button
+                                onClick={() => updateStatus(r.id, 'paid')}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  padding: '6px 11px', borderRadius: 8,
+                                  background: colors.greenBadge, color: colors.greenText,
+                                  fontSize: 11.5, fontWeight: 600, border: 'none', cursor: 'pointer',
+                                }}
+                              >
+                                <CheckCircle size={12} /> Mark Paid
+                              </button>
+                            )}
+                            {r.status === 'pending' && (
+                              <button
+                                onClick={() => updateStatus(r.id, 'filed')}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  padding: '6px 11px', borderRadius: 8,
+                                  background: colors.blueBadge, color: colors.blueText,
+                                  fontSize: 11.5, fontWeight: 600, border: 'none', cursor: 'pointer',
+                                }}
+                              >
+                                <Clock size={12} /> Mark Filed
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Mobile Clean List */
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {records.map((r, idx) => {
+                const taxInfo = NGN_TAX_TYPES.find(t => t.value === r.tax_type);
+                const st = getStatusStyle(r.status);
+                return (
+                  <div
+                    key={r.id}
+                    style={{
+                      padding: '16px 18px',
+                      borderBottom: idx < records.length - 1 ? colors.cardBorder : 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: colors.textPrimary }}>{taxInfo?.name || r.tax_type}</div>
+                        <div style={{ fontSize: 11.5, color: colors.textMuted, marginTop: 2 }}>
                           {formatDate(r.period_start)} — {formatDate(r.period_end)}
                         </div>
                       </div>
+                      <span style={{
+                        padding: '3px 10px', borderRadius: 20,
+                        background: st.bg, color: st.color,
+                        fontSize: 11, fontWeight: 700, textTransform: 'capitalize',
+                      }}>
+                        {r.status}
+                      </span>
                     </div>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 12, background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-border)' }}>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 12, background: colors.pillBg, borderRadius: 12 }}>
                       <div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Calculated Tax</div>
-                        <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: 'var(--text-primary)' }}>{formatCurrency(r.calculated_tax)}</div>
+                        <div style={{ fontSize: 11, color: colors.textMuted, marginBottom: 2 }}>Calculated Tax</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: colors.textPrimary }}>
+                          {formatCurrency(r.calculated_tax)}
+                        </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Taxable Income</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>{formatCurrency(r.taxable_income)}</div>
+                        <div style={{ fontSize: 11, color: colors.textMuted, marginBottom: 2 }}>Taxable Income</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: colors.textSecondary }}>
+                          {formatCurrency(r.taxable_income)}
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {taxInfo && <span>Rate: <strong style={{ color: 'var(--text-primary)' }}>{taxInfo.rate}</strong></span>}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ fontSize: 11.5, color: colors.textMuted }}>
+                        {taxInfo && <span>Rate: <strong style={{ color: colors.textPrimary }}>{taxInfo.rate}</strong></span>}
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {r.status !== 'paid' && (
-                          <button onClick={() => updateStatus(r.id, 'paid')} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: 'var(--success-dim)', color: 'var(--success)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 500, border: '1px solid rgba(34,197,94,0.2)' }}>
+                          <button
+                            onClick={() => updateStatus(r.id, 'paid')}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: '6px 12px', borderRadius: 8,
+                              background: colors.greenBadge, color: colors.greenText,
+                              fontSize: 11.5, fontWeight: 600, border: 'none', cursor: 'pointer',
+                            }}
+                          >
                             <CheckCircle size={11} /> Mark Paid
                           </button>
                         )}
                         {r.status === 'pending' && (
-                          <button onClick={() => updateStatus(r.id, 'filed')} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: 'var(--info-dim)', color: 'var(--info)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 500, border: '1px solid rgba(59,130,246,0.2)' }}>
+                          <button
+                            onClick={() => updateStatus(r.id, 'filed')}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: '6px 12px', borderRadius: 8,
+                              background: colors.blueBadge, color: colors.blueText,
+                              fontSize: 11.5, fontWeight: 600, border: 'none', cursor: 'pointer',
+                            }}
+                          >
                             <Clock size={11} /> Mark Filed
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </section>
 
+      {/* ── Create Tax Record Modal ────────────────────── */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Create Tax Record">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -584,6 +914,7 @@ export default function TaxPage() {
         </form>
       </Modal>
 
+      {/* ── Nigerian Business Tax Guide Modal ─────────── */}
       <Modal open={showGuide} onClose={() => setShowGuide(false)} title="Nigerian Business Tax Guide" size="lg">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {NGN_TAX_TYPES.map(t => (
@@ -600,7 +931,7 @@ export default function TaxPage() {
             </div>
           ))}
           <div style={{ padding: '12px 16px', background: 'rgba(245,158,11,0.07)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245,158,11,0.2)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Source: Finance Act 2021, FIRS guidelines. Rates are current as of 2024. Always verify with FIRS or a certified tax consultant before filing.
+            Source: Nigeria Tax Act 2025 (NTA 2025) and NRS guidelines. Always verify with a certified tax consultant before statutory filing.
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button variant="secondary" icon={<X size={14} />} onClick={() => setShowGuide(false)}>Close</Button>
