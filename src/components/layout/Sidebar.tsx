@@ -6,7 +6,7 @@ import {
   Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
   Users, Package, Shield, X, NotebookPen,
-  TrendingDown, TrendingUp, CreditCard, PieChart, Scale
+  TrendingDown, TrendingUp, PieChart, Scale
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +30,34 @@ const PanelLeftOpenIcon = ({ size = 16 }: { size?: number }) => (
   </svg>
 );
 
+const BillingScrollIcon = ({ size = 16, style }: { size?: number; style?: React.CSSProperties }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <path d="M5 18V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v1.5h-2.5V5" />
+    <path d="M17.5 3v6.5" />
+    <path d="M17.5 18.5V19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1h11.5a2 2 0 0 0 2 2" />
+    <line x1="8" y1="7" x2="14" y2="7" />
+    <line x1="8" y1="10" x2="12.5" y2="10" />
+    <line x1="8" y1="13" x2="11" y2="13" />
+    <line x1="8" y1="15.5" x2="11" y2="15.5" />
+    <circle cx="17.5" cy="14" r="4.5" stroke="currentColor" strokeWidth="1.9" />
+    <path d="M17.5 11.7v4.6" strokeWidth="1.5" />
+    <path d="M18.9 12.6c0-.6-.6-1-1.4-1s-1.4.4-1.4 1c0 1.3 2.8.8 2.8 2.2 0 .6-.6 1-1.4 1s-1.4-.4-1.4-1" strokeWidth="1.5" />
+  </svg>
+);
+
+const BankBuildingIcon = ({ size = 16, style }: { size?: number; style?: React.CSSProperties }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <polygon points="12 3 21 8.5 3 8.5 12 3" />
+    <line x1="4" y1="10.5" x2="20" y2="10.5" />
+    <line x1="6" y1="10.5" x2="6" y2="17.5" />
+    <line x1="10" y1="10.5" x2="10" y2="17.5" />
+    <line x1="14" y1="10.5" x2="14" y2="17.5" />
+    <line x1="18" y1="10.5" x2="18" y2="17.5" />
+    <line x1="4" y1="17.5" x2="20" y2="17.5" />
+    <line x1="2.5" y1="20.5" x2="21.5" y2="20.5" />
+  </svg>
+);
+
 type NavItem = { to: string; icon: React.ElementType; label: string };
 
 type NavGroupItem = {
@@ -47,7 +75,7 @@ type NavGroupItem = {
 
 const mainNavItems: NavGroupItem[] = [
   { type: 'link', to: '/app/dashboard', icon: Home, label: 'Home' },
-  { type: 'link', to: '/app/payment', icon: CreditCard, label: 'Banking & Payments' },
+  { type: 'link', to: '/app/payment', icon: BankBuildingIcon, label: 'Banking & Payments' },
   { type: 'link', to: '/app/invoices', icon: Receipt, label: 'Invoices & Receipts' },
   { type: 'link', to: '/app/expenses', icon: TrendingDown, label: 'Bills & Expenses' },
   { type: 'link', to: '/app/reports', icon: BarChart2, label: 'Reports Hub' },
@@ -524,7 +552,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 }
               }}
             >
-              <CreditCard size={16} style={{ flexShrink: 0 }} />
+              <BillingScrollIcon size={16} style={{ flexShrink: 0 }} />
               {!isDesktopCollapsed && 'Billing'}
             </NavLink>
           )}
