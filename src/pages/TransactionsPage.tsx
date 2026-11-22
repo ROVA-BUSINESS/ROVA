@@ -462,7 +462,7 @@ export default function TransactionsPage() {
   const filteredCats = categories.filter(c => c.type === form.type || c.type === 'both');
 
   return (
-    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1000, animation: 'fadeIn 0.3s ease' }}>
+    <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1240, margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>Transactions</h1>
@@ -720,7 +720,7 @@ export default function TransactionsPage() {
           </div>
         ) : (
           <div className="mobile-table-container" style={{ width: '100%', overflowX: 'auto' }}>
-            <table className="transaction-table" style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse' }}>
+            <table className="transaction-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg-elevated)' }}>
                 {[
@@ -732,14 +732,22 @@ export default function TransactionsPage() {
                     key={h.label || idx} 
                     className={`${h.hideMobile ? "mobile-hide" : ""} ${h.className || ""}`} 
                     style={{ 
-                      padding: '10px 16px', 
+                      padding: '10px 10px', 
                       textAlign: (h as any).align || 'left', 
                       fontSize: 11, 
                       fontWeight: 600, 
                       color: 'var(--text-muted)', 
                       textTransform: 'uppercase', 
                       letterSpacing: '0.5px',
-                      ...(h.className?.includes('mobile-actions') ? { width: 140, minWidth: 140 } : {})
+                      whiteSpace: 'nowrap',
+                      ...(h.className?.includes('mobile-actions') ? {
+                        width: 116,
+                        minWidth: 116,
+                        position: 'sticky' as const,
+                        right: 0,
+                        background: 'var(--bg-elevated)',
+                        zIndex: 2,
+                      } : {})
                     }}
                   >
                     {h.label}
@@ -758,11 +766,11 @@ export default function TransactionsPage() {
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                 >
-                  <td className="mobile-tight-td" style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                  <td className="mobile-tight-td" style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formatDate(tx.date)}</div>
                     <div className="mobile-hide" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{formatTime(tx.created_at)}</div>
                   </td>
-                  <td className="mobile-tight-td" style={{ padding: '12px 16px' }}>
+                  <td className="mobile-tight-td" style={{ padding: '12px 10px', maxWidth: 220 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{
                         width: 28, height: 28, borderRadius: 'var(--radius-sm)', flexShrink: 0,
@@ -962,7 +970,7 @@ export default function TransactionsPage() {
                       </div>
                     )}
                   </td>
-                  <td className="mobile-hide" style={{ padding: '12px 16px' }}>
+                  <td className="mobile-hide" style={{ padding: '12px 10px' }}>
                     <Badge variant={tx.is_verified ? 'success' : 'default'}>
                       {tx.is_verified ? 'Verified' : 'Pending'}
                     </Badge>
@@ -970,14 +978,18 @@ export default function TransactionsPage() {
                   <td 
                     className="mobile-tight-td mobile-actions" 
                     style={{ 
-                      padding: '12px 16px', 
+                      padding: '12px 10px', 
                       textAlign: 'right',
-                      width: 140,
-                      minWidth: 140,
-                      whiteSpace: 'nowrap'
+                      width: 116,
+                      minWidth: 116,
+                      whiteSpace: 'nowrap',
+                      position: 'sticky',
+                      right: 0,
+                      background: 'var(--bg-card)',
+                      zIndex: 1,
                     }}
                   >
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
                       {tx.type === 'income' && (
                         <button
                           onClick={() => navigate('/app/receipts', { state: { openCreateModal: true, transactionId: tx.id } })}
