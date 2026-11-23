@@ -12,6 +12,7 @@ import {
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
 import { getAccountingLockDate, setAccountingLockDate } from '../lib/smeAccountingService';
+import { reopenGettingStartedGuide } from '../components/onboarding/GettingStartedGuide';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 import {
   type TransactionReminderConfig,
@@ -1450,6 +1451,46 @@ export default function SettingsPage() {
               </div>
             </button>
           </div>
+
+          {!isStaff && user?.id && (
+            <div
+              style={{
+                marginTop: 28,
+                paddingTop: 24,
+                borderTop: `1px solid ${cardBorder}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 14,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a' }}>
+                  Getting Started Setup Guide
+                </div>
+                <div style={{ fontSize: 12.5, color: isDark ? '#9ca3af' : '#64748b', marginTop: 3 }}>
+                  Re-open the interactive onboarding &amp; migration checklist in the top header bar.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => reopenGettingStartedGuide(user.id)}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 10,
+                  background: saveBtnBg,
+                  color: saveBtnText,
+                  border: 'none',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Show Setup Guide
+              </button>
+            </div>
+          )}
         </div>
       )}
 
