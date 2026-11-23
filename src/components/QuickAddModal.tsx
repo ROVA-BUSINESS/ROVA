@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Brain, CheckCircle, Check, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
-import { supabase, type Account, type Category } from '../lib/supabase';
+import { supabase, type Account, type Category, type InventoryItem } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { autoClassify } from '../lib/categorise';
 import { ensureStandardAccountingCategories } from '../lib/accountingRules';
 import { classifyTransaction, applyInventoryIntent, applyPayrollIntent, type ClassifyResult } from '../lib/deepseekClient';
 import { extractAmountFromText } from '../lib/format';
+import {
+  isSalesCategory,
+  buildSalesDescription,
+  calcSalesSelectionsTotal,
+  recordInventorySalesForTransaction,
+} from '../lib/salesInventoryHelper';
+import SalesItemsPicker, { type SaleItemSelection } from './SalesItemsPicker';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -20,6 +27,8 @@ export default function QuickAddModal({ open, onClose }: Props) {
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [saleItems, setSaleItems] = useState<SaleItemSelection[]>([]);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -49,15 +58,18 @@ export default function QuickAddModal({ open, onClose }: Props) {
       Promise.all([
         supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
         supabase.from('categories').select('*').or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
-      ]).then(async ([accRes, catRes]) => {
+        supabase.from('inventory_items').select('*').eq('user_id', effectiveUserId).eq('status', 'active').order('name'),
+      ]).then(async ([accRes, catRes, invRes]) => {
         setAccounts(accRes.data || []);
         const rawCats = catRes.data || [];
         const cats = await ensureStandardAccountingCategories(supabase, effectiveUserId || '', rawCats);
         setCategories(cats);
+        setInventoryItems(invRes.data || []);
       });
     }
     if (!open) {
       setForm({ description: '', amount: '', type: 'expense', date: new Date().toISOString().split('T')[0], category_id: '', account_id: '' });
+      setSaleItems([]);
       setPaymentMethod('transfer');
       setIsLoan(false);
       setLoanDirection('received');
@@ -184,6 +196,21 @@ export default function QuickAddModal({ open, onClose }: Props) {
       }
 
       const insertedRecord = txData?.[0];
+
+      // Deduct inventory stock if items were linked to this Sales transaction
+      if (insertedRecord && saleItems.length > 0 && isSalesCategory(form.category_id, categories, form.type)) {
+        try {
+          await recordInventorySalesForTransaction({
+            userId: currentUserId,
+            transactionId: insertedRecord.id,
+            date: form.date || new Date().toISOString().split('T')[0],
+            selections: saleItems,
+            items: inventoryItems,
+          });
+        } catch (invErr) {
+          console.error('Failed to record inventory sale:', invErr);
+        }
+      }
 
       // Record in activity_logs
       if (currentUserId && insertedRecord) {
@@ -396,7 +423,13 @@ export default function QuickAddModal({ open, onClose }: Props) {
           <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
           <select
             value={form.category_id}
-            onChange={e => setForm(p => ({ ...p, category_id: e.target.value }))}
+            onChange={e => {
+              const nextCatId = e.target.value;
+              setForm(p => ({ ...p, category_id: nextCatId }));
+              if (!isSalesCategory(nextCatId, categories, form.type)) {
+                setSaleItems([]);
+              }
+            }}
             style={{
               width: '100%', boxSizing: 'border-box' as const, height: 40,
               padding: '9px 12px', background: 'var(--bg-elevated)',
@@ -408,6 +441,26 @@ export default function QuickAddModal({ open, onClose }: Props) {
             {filteredCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+
+        {/* Multi-Item Inventory Picker when Sales category is selected */}
+        {isSalesCategory(form.category_id, categories, form.type) && (
+          <SalesItemsPicker
+            items={inventoryItems}
+            selections={saleItems}
+            onChange={(next) => {
+              setSaleItems(next);
+              const total = calcSalesSelectionsTotal(next, inventoryItems);
+              const autoDesc = buildSalesDescription(next, inventoryItems);
+              setForm(prev => ({
+                ...prev,
+                amount: total > 0 ? String(total) : prev.amount,
+                description: (!prev.description.trim() || prev.description.startsWith('Sale: ')) && autoDesc
+                  ? autoDesc
+                  : prev.description,
+              }));
+            }}
+          />
+        )}
 
         {/* Account (full width) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

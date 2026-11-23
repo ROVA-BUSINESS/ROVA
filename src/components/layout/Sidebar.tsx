@@ -6,7 +6,7 @@ import {
   Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
   Users, Package, Shield, X, NotebookPen,
-  TrendingDown, TrendingUp, PieChart, Scale
+  TrendingDown, TrendingUp, PieChart, Scale, LifeBuoy
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';
@@ -556,6 +556,44 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               {!isDesktopCollapsed && 'Billing'}
             </NavLink>
           )}
+
+          {/* Support Link */}
+          <NavLink
+            to="/app/support"
+            onClick={() => { if (isMobile && onClose) onClose(); }}
+            style={({ isActive }) => ({
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isDesktopCollapsed ? 'center' : 'flex-start',
+              gap: isDesktopCollapsed ? 0 : 10,
+              padding: '8px 10px',
+              borderRadius: '6px',
+              color: isActive ? textColorActive : itemColor,
+              background: isActive ? activeBg : 'transparent',
+              fontWeight: isActive ? 600 : 500,
+              fontSize: 13,
+              transition: 'all 0.15s ease',
+              textDecoration: 'none',
+              width: '100%'
+            })}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLElement;
+              if (!el.getAttribute('aria-current')) {
+                el.style.background = hoverBg;
+                el.style.color = textColorActive;
+              }
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLElement;
+              if (!el.getAttribute('aria-current')) {
+                el.style.background = 'transparent';
+                el.style.color = itemColor;
+              }
+            }}
+          >
+            <LifeBuoy size={16} style={{ flexShrink: 0 }} />
+            {!isDesktopCollapsed && 'Support'}
+          </NavLink>
 
           {/* Settings Link */}
           <NavLink

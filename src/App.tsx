@@ -47,6 +47,7 @@ import NoSubscriptionPage from './pages/billing/NoSubscriptionPage';
 import AutomationStudioPage from './pages/admin/AutomationStudioPage';
 import PublicCheckoutPage from './pages/payment/PublicCheckoutPage';
 import PublicInvoicePaymentPage from './pages/payment/PublicInvoicePaymentPage';
+import SupportPage from './pages/SupportPage';
 
 // ── Auth guards ──────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -174,8 +175,9 @@ export default function App() {
             <Route path="settings" element={<SubscriptionRoute><SettingsPage /></SubscriptionRoute>} />
             <Route path="notifications" element={<SubscriptionRoute><AdminRoute><NotificationsPage /></AdminRoute></SubscriptionRoute>} />
 
-            {/* Billing — always accessible (no subscription gate) */}
+            {/* Billing & Support — always accessible (no subscription gate) */}
             <Route path="billing" element={<AdminRoute><BillingPage /></AdminRoute>} />
+            <Route path="support" element={<SupportPage />} />
 
             {/* Admin + Subscription required */}
             <Route path="reports" element={<SubscriptionRoute><AdminRoute><ReportsPage /></AdminRoute></SubscriptionRoute>} />

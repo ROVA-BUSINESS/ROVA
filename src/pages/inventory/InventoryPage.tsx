@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Package, Building2 } from 'lucide-react';
+import { Package, Building2, ShieldAlert } from 'lucide-react';
 import { supabase, type InventoryItem, type Supplier } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import StockTab from './StockTab';
+import StockAuditTab from './StockAuditTab';
 import SuppliersTab from './SuppliersTab';
 
-type Tab = 'stock' | 'suppliers';
+type Tab = 'stock' | 'audit' | 'suppliers';
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -33,6 +34,7 @@ export default function InventoryPage() {
 
   const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: 'stock', label: 'Stock & Products', icon: Package },
+    { key: 'audit', label: 'Monthly Stock Audit', icon: ShieldAlert },
     { key: 'suppliers', label: 'Suppliers', icon: Building2 },
   ];
 
@@ -40,7 +42,7 @@ export default function InventoryPage() {
     <div className="mobile-p-4" style={{ padding: 24, maxWidth: 1200, animation: 'fadeIn 0.3s ease' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, marginBottom: 4 }}>Inventory</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Track stock levels, COGS, and suppliers</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Track stock levels, monthly anti-theft audits, COGS, and suppliers</p>
       </div>
 
       <div className="mobile-overflow-x" style={{ display: 'flex', gap: 2, marginBottom: 24, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 4, width: 'fit-content', maxWidth: '100%' }}>
@@ -65,6 +67,8 @@ export default function InventoryPage() {
         <div>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 56, marginBottom: 10 }} />)}</div>
       ) : tab === 'stock' ? (
         <StockTab items={items} suppliers={suppliers} onRefresh={loadData} locationState={location.state} />
+      ) : tab === 'audit' ? (
+        <StockAuditTab items={items} onRefresh={loadData} />
       ) : (
         <SuppliersTab suppliers={suppliers} onRefresh={loadData} />
       )}

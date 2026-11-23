@@ -1,12 +1,19 @@
 ﻿import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowDownLeft, Trash2, Check, Brain, Download, Edit2, Receipt, Clock, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, type Transaction, type Account, type Category } from '../lib/supabase';
+import { supabase, type Transaction, type Account, type Category, type InventoryItem } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, formatTime, cleanDescription } from '../lib/format';
 import { autoClassify } from '../lib/categorise';
 import { downloadCSV } from '../lib/export';
 import { ensureStandardAccountingCategories } from '../lib/accountingRules';
+import {
+  isSalesCategory,
+  buildSalesDescription,
+  calcSalesSelectionsTotal,
+  recordInventorySalesForTransaction,
+} from '../lib/salesInventoryHelper';
+import SalesItemsPicker, { type SaleItemSelection } from '../components/SalesItemsPicker';
 import {
   type TransactionReminderConfig,
   DEFAULT_REMINDER_CONFIG,
@@ -55,6 +62,8 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [saleItems, setSaleItems] = useState<SaleItemSelection[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
@@ -227,10 +236,11 @@ export default function TransactionsPage() {
       txQuery = txQuery.lt('amount', limit);
     }
 
-    const [txRes, accRes, catRes] = await Promise.all([
+    const [txRes, accRes, catRes, invRes] = await Promise.all([
       txQuery,
       supabase.from('accounts').select('*').eq('user_id', effectiveUserId).eq('is_active', true),
       supabase.from('categories').select('*').or(`user_id.eq.${effectiveUserId},is_system.eq.true`),
+      supabase.from('inventory_items').select('*').eq('user_id', effectiveUserId).eq('status', 'active').order('name'),
     ]);
     const rawCats = catRes.data || [];
     const cats = await ensureStandardAccountingCategories(supabase, effectiveUserId || '', rawCats);
@@ -238,6 +248,7 @@ export default function TransactionsPage() {
     setTransactions(txRes.data || []);
     setAccounts(accRes.data || []);
     setCategories(cats);
+    setInventoryItems(invRes.data || []);
     setLoading(false);
   }
 
@@ -269,6 +280,19 @@ export default function TransactionsPage() {
     if (error) { setFormError('Failed to save transaction.'); return; }
 
     if (effectiveUserId && insertedTx) {
+      if (saleItems.length > 0 && isSalesCategory(form.category_id, categories, form.type)) {
+        try {
+          await recordInventorySalesForTransaction({
+            userId: effectiveUserId,
+            transactionId: insertedTx.id,
+            date: form.date || new Date().toISOString().split('T')[0],
+            selections: saleItems,
+            items: inventoryItems,
+          });
+        } catch (invErr) {
+          console.error('Failed to record inventory sale:', invErr);
+        }
+      }
       try {
         await supabase.from('activity_logs').insert({
           owner_id: effectiveUserId,
@@ -288,6 +312,7 @@ export default function TransactionsPage() {
       }
     }
     setShowModal(false);
+    setSaleItems([]);
     resetForm();
     loadData();
   }
@@ -1186,7 +1211,13 @@ export default function TransactionsPage() {
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
             <select
               value={form.category_id}
-              onChange={e => setForm(p => ({ ...p, category_id: e.target.value }))}
+              onChange={e => {
+                const nextCatId = e.target.value;
+                setForm(p => ({ ...p, category_id: nextCatId }));
+                if (!isSalesCategory(nextCatId, categories, form.type)) {
+                  setSaleItems([]);
+                }
+              }}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -1201,6 +1232,24 @@ export default function TransactionsPage() {
               {filteredCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
+          {isSalesCategory(form.category_id, categories, form.type) && (
+            <SalesItemsPicker
+              items={inventoryItems}
+              selections={saleItems}
+              onChange={(next) => {
+                setSaleItems(next);
+                const total = calcSalesSelectionsTotal(next, inventoryItems);
+                const autoDesc = buildSalesDescription(next, inventoryItems);
+                setForm(prev => ({
+                  ...prev,
+                  amount: total > 0 ? String(total) : prev.amount,
+                  description: (!prev.description.trim() || prev.description.startsWith('Sale: ')) && autoDesc
+                    ? autoDesc
+                    : prev.description,
+                }));
+              }}
+            />
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Account</label>
             <select
