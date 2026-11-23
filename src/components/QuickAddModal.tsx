@@ -12,6 +12,7 @@ import {
   calcSalesSelectionsTotal,
   recordInventorySalesForTransaction,
 } from '../lib/salesInventoryHelper';
+import { getAccountingLockDate, isDateLocked, getLockErrorMessage } from '../lib/smeAccountingService';
 import SalesItemsPicker, { type SaleItemSelection } from './SalesItemsPicker';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -170,6 +171,16 @@ export default function QuickAddModal({ open, onClose }: Props) {
 
     setSaving(true);
     setError('');
+
+    // Enforce Accounting Period Lock Date
+    const lockDate = await getAccountingLockDate(currentUserId);
+    const txDate = form.date || new Date().toISOString().split('T')[0];
+    if (isDateLocked(txDate, lockDate)) {
+      setSaving(false);
+      setError(getLockErrorMessage(txDate, lockDate!));
+      return;
+    }
+
     const actorText = isStaff ? 'Staff' : 'Admin';
 
     try {

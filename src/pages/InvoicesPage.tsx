@@ -564,6 +564,20 @@ export default function InvoicesPage() {
         >
           Receipts
         </button>
+        <button
+          type="button"
+          onClick={() => navigate('/app/customers')}
+          style={{ padding: '6px 18px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, fontSize: 13, border: 'none', cursor: 'pointer' }}
+        >
+          Customers
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/app/credit-notes')}
+          style={{ padding: '6px 18px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, fontSize: 13, border: 'none', cursor: 'pointer' }}
+        >
+          Credit Notes
+        </button>
       </div>
       <div className="mobile-col mobile-gap-4" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>

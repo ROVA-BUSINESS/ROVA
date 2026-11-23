@@ -7,10 +7,11 @@ import { useTheme } from '../contexts/ThemeContext';
 import {
   CreditCard, Sun, Moon,
   Check, Building, Trash2, RefreshCw,
-  AlertTriangle, Clock, Bell, Volume2, ChevronDown, Camera
+  AlertTriangle, Clock, Bell, Volume2, ChevronDown, Camera, Lock
 } from 'lucide-react';
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
+import { getAccountingLockDate, setAccountingLockDate } from '../lib/smeAccountingService';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 import {
   type TransactionReminderConfig,
@@ -34,7 +35,11 @@ const NIGERIAN_STATES = [
 export default function SettingsPage() {
   const [waComingSoon, setWaComingSoon] = useState(false);
   const navigate = useNavigate();
-  const { user, profile, updateProfile, signOut } = useAuth();
+  const { user, profile, updateProfile, signOut, isStaff, staffData } = useAuth();
+  const canEditLockDate = !isStaff || (staffData as any)?.role?.toLowerCase() === 'accountant' || (staffData as any)?.role?.toLowerCase() === 'admin';
+  const [lockDate, setLockDate] = useState('');
+  const [savingLock, setSavingLock] = useState(false);
+  const [lockSaved, setLockSaved] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,8 +94,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (user) {
       loadAccounts();
+      const ownerId = isStaff && staffData ? staffData.owner_id : user.id;
+      getAccountingLockDate(ownerId).then((d) => setLockDate(d || ''));
     }
-  }, [user]);
+  }, [user, isStaff, staffData]);
 
   useEffect(() => {
     if (profile) {
@@ -1455,14 +1462,124 @@ export default function SettingsPage() {
             borderRadius: 16,
             padding: '32px 36px',
             boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.04)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 24,
           }}
         >
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', margin: '0 0 8px 0' }}>
-            Account Security &amp; Data
-          </h2>
-          <p style={{ fontSize: 13, color: isDark ? '#9ca3af' : '#64748b', margin: '0 0 24px 0' }}>
-            Manage account authentication, active sessions, and data erasure.
-          </p>
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a', margin: '0 0 8px 0' }}>
+              Account Security &amp; Period Controls
+            </h2>
+            <p style={{ fontSize: 13, color: isDark ? '#9ca3af' : '#64748b', margin: 0 }}>
+              Lock closed accounting periods to protect reconciled financials, and manage data erasure.
+            </p>
+          </div>
+
+          {/* Accounting Period Lock Card */}
+          <div
+            style={{
+              padding: '20px 24px',
+              borderRadius: 12,
+              background: isDark ? '#1a1a1f' : '#f8fafc',
+              border: `1px solid ${cardBorder}`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: isDark ? '#c084fc' : '#7c3aed', marginBottom: 6 }}>
+              <Lock size={18} />
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Accounting Period Lock Date</div>
+            </div>
+            <p style={{ fontSize: 13, color: isDark ? '#cbd5e1' : '#475569', lineHeight: 1.55, margin: '0 0 14px 0' }}>
+              Block creating, editing, or deleting any transactions, invoices, bills, credit notes, or journal entries dated on or before the lock date. Enforced in both the app and database.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <input
+                type="date"
+                value={lockDate}
+                disabled={!canEditLockDate}
+                onChange={(e) => setLockDate(e.target.value)}
+                style={{
+                  height: 42,
+                  padding: '0 14px',
+                  borderRadius: 8,
+                  background: inputBg,
+                  border: `1px solid ${inputBorder}`,
+                  color: isDark ? '#f8fafc' : '#0f172a',
+                  fontSize: 14,
+                  outline: 'none',
+                  opacity: canEditLockDate ? 1 : 0.6,
+                }}
+              />
+              {canEditLockDate ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={savingLock}
+                    onClick={async () => {
+                      if (!user) return;
+                      setSavingLock(true);
+                      try {
+                        const ownerId = isStaff && staffData ? staffData.owner_id : user.id;
+                        await setAccountingLockDate(ownerId, user.id, lockDate || null);
+                        setLockSaved(true);
+                        setTimeout(() => setLockSaved(false), 2500);
+                      } catch (err: any) {
+                        alert('Failed to save lock date: ' + (err.message || 'Unknown error'));
+                      } finally {
+                        setSavingLock(false);
+                      }
+                    }}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: 8,
+                      background: saveBtnBg,
+                      color: saveBtnText,
+                      border: 'none',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {lockSaved ? 'Lock Date Saved ✓' : savingLock ? 'Saving...' : 'Save Lock Date'}
+                  </button>
+                  {lockDate && (
+                    <button
+                      type="button"
+                      disabled={savingLock}
+                      onClick={async () => {
+                        if (!user || !window.confirm('Remove accounting period lock?')) return;
+                        setSavingLock(true);
+                        try {
+                          const ownerId = isStaff && staffData ? staffData.owner_id : user.id;
+                          await setAccountingLockDate(ownerId, user.id, null);
+                          setLockDate('');
+                        } finally {
+                          setSavingLock(false);
+                        }
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        background: secondaryBtnBg,
+                        color: secondaryBtnText,
+                        border: `1px solid ${cardBorder}`,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Unlock Period
+                    </button>
+                  )}
+                </>
+              ) : (
+                <span style={{ fontSize: 12, color: isDark ? '#9ca3af' : '#64748b' }}>
+                  Only Business Owners, Admins, or Accountants can modify the lock date.
+                </span>
+              )}
+            </div>
+          </div>
 
           <div
             style={{

@@ -2,7 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import { 
   TrendingUp, Scale, BookOpen, Layers, Activity, 
-  FileSpreadsheet, PieChart, FileText, BookMarked 
+  FileSpreadsheet, PieChart, FileText, BookMarked,
+  Users, FileMinus2, Repeat, Building2
 } from 'lucide-react';
 
 export default function AccountingHubPage() {
@@ -116,6 +117,46 @@ export default function AccountingHubPage() {
             <div>
               <div style={{ fontSize: 15, fontWeight: 700 }}>Journal Entries</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Manual debits and credits adjustments</div>
+            </div>
+          </Card>
+
+          <Card hoverable onClick={() => navigate('/app/customers')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, background: 'rgba(14, 165, 233, 0.12)', borderRadius: 10, flexShrink: 0 }}>
+              <Users size={22} color="#0ea5e9" />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Customers &amp; Statements</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Customer directory &amp; PDF Statements of Account</div>
+            </div>
+          </Card>
+
+          <Card hoverable onClick={() => navigate('/app/credit-notes')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, background: 'rgba(239, 68, 68, 0.12)', borderRadius: 10, flexShrink: 0 }}>
+              <FileMinus2 size={22} color="#ef4444" />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Credit Notes &amp; Refunds</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sales returns, VAT reversals &amp; customer refunds</div>
+            </div>
+          </Card>
+
+          <Card hoverable onClick={() => navigate('/app/recurring')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, background: 'rgba(245, 158, 11, 0.12)', borderRadius: 10, flexShrink: 0 }}>
+              <Repeat size={22} color="#f59e0b" />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Recurring &amp; Overdue Reminders</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Auto-invoices, bills &amp; overdue payment chases</div>
+            </div>
+          </Card>
+
+          <Card hoverable onClick={() => navigate('/app/fixed-assets')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, background: 'rgba(139, 92, 246, 0.12)', borderRadius: 10, flexShrink: 0 }}>
+              <Building2 size={22} color="#8b5cf6" />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Fixed Asset Register</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>PPE register, monthly depreciation &amp; disposals</div>
             </div>
           </Card>
         </div>

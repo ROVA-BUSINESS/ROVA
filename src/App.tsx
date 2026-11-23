@@ -48,6 +48,10 @@ import AutomationStudioPage from './pages/admin/AutomationStudioPage';
 import PublicCheckoutPage from './pages/payment/PublicCheckoutPage';
 import PublicInvoicePaymentPage from './pages/payment/PublicInvoicePaymentPage';
 import SupportPage from './pages/SupportPage';
+import CustomersPage from './pages/CustomersPage';
+import CreditNotesPage from './pages/CreditNotesPage';
+import RecurringSchedulesPage from './pages/accounting/RecurringSchedulesPage';
+import FixedAssetsPage from './pages/accounting/FixedAssetsPage';
 
 // ── Auth guards ──────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -168,6 +172,10 @@ export default function App() {
             <Route path="transactions" element={<SubscriptionRoute><TransactionsPage /></SubscriptionRoute>} />
             <Route path="invoices" element={<SubscriptionRoute><InvoicesPage /></SubscriptionRoute>} />
             <Route path="receipts" element={<SubscriptionRoute><ReceiptsPage /></SubscriptionRoute>} />
+            <Route path="customers" element={<SubscriptionRoute><CustomersPage /></SubscriptionRoute>} />
+            <Route path="credit-notes" element={<SubscriptionRoute><CreditNotesPage /></SubscriptionRoute>} />
+            <Route path="recurring" element={<SubscriptionRoute><AdminRoute><RecurringSchedulesPage /></AdminRoute></SubscriptionRoute>} />
+            <Route path="fixed-assets" element={<SubscriptionRoute><AdminRoute><FixedAssetsPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="expenses" element={<SubscriptionRoute><AdminRoute><ExpensesPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="bills" element={<Navigate to="/app/expenses?tab=bills" replace />} />
             <Route path="assistant" element={<SubscriptionRoute><AssistantPage /></SubscriptionRoute>} />
