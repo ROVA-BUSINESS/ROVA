@@ -1,17 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://aooujupyoyyvolztbzjt.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY || '';
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false },
-});
+function getSupabaseForRequest(req) {
+  if (serviceRoleKey) {
+    return createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  }
+  const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
+  return createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false },
+    global: authHeader ? { headers: { Authorization: authHeader } } : undefined,
+  });
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  const supabase = getSupabaseForRequest(req);
 
   try {
     const {
@@ -142,9 +152,10 @@ export default async function handler(req, res) {
       .single();
 
     if (dbError) {
-      console.warn('Database insert error in payment_links, returning memory link fallback:', dbError.message);
+      console.warn('Database insert error in payment_links, returning unpersisted link for client-side save:', dbError.message);
       return res.status(200).json({
         success: true,
+        persisted: false,
         link: {
           id: `tmp_${slug}`,
           user_id: userId,

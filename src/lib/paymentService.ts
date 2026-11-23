@@ -236,9 +236,10 @@ export async function createPaymentLink(params: {
     throw new Error(`${capabilities.displayName} does not support standalone hosted payment links. Use Paystack or OPay.`);
   }
 
-  const slug = `rova-${Math.random().toString(36).substring(2, 9).toLowerCase()}`;
+  let slug = `rova-${Math.random().toString(36).substring(2, 9).toLowerCase()}`;
   let paymentUrl = '';
   let providerLinkId = '';
+  let serverMetadata: Record<string, any> | null = null;
 
   // 1. If Paystack: call server API or build Paystack Checkout link
   if (provider === 'paystack') {
@@ -272,22 +273,40 @@ export async function createPaymentLink(params: {
       if (res.ok) {
         const body = await res.json();
         if (body.success && body.link) {
-          return {
-            ...body.link,
-            payment_url: body.link.payment_url || body.link.url || paymentUrl,
-            total_collected: Number(body.link.total_collected || 0),
-            payments_count: Number(body.link.payments_count || 0),
-          };
+          const isPersisted =
+            body.persisted !== false &&
+            typeof body.link.id === 'string' &&
+            !body.link.id.startsWith('tmp_');
+
+          if (isPersisted) {
+            return {
+              ...body.link,
+              payment_url: body.link.payment_url || body.link.url || paymentUrl,
+              total_collected: Number(body.link.total_collected || 0),
+              payments_count: Number(body.link.payments_count || 0),
+            };
+          }
+
+          // Server created the Paystack page/URL but couldn't persist to DB —
+          // preserve the server-generated URL & slug and save via authenticated Supabase client below!
+          if (body.link.provider_slug) slug = body.link.provider_slug;
+          if (body.link.payment_url || body.link.url) paymentUrl = body.link.payment_url || body.link.url;
+          if (body.link.provider_link_id) providerLinkId = body.link.provider_link_id;
+          if (body.link.metadata) serverMetadata = body.link.metadata;
         }
       }
     } catch (e) {
       // Backend not running locally or error - fallback to direct link generation
     }
 
-    // Direct fallback: ROVA Hosted Payment URL format
-    const host = typeof window !== 'undefined' ? window.location.origin : 'https://www.rovabusiness.com';
-    paymentUrl = `${host}/pay/${slug}`;
-    providerLinkId = `PLK_${slug.toUpperCase()}`;
+    // Direct fallback if server didn't provide a URL: ROVA Hosted Payment URL format
+    if (!paymentUrl) {
+      const host = typeof window !== 'undefined' ? window.location.origin : 'https://www.rovabusiness.com';
+      paymentUrl = `${host}/pay/${slug}`;
+    }
+    if (!providerLinkId) {
+      providerLinkId = `PLK_${slug.toUpperCase()}`;
+    }
   } else {
     // For other providers (e.g. OPay Cashier)
     paymentUrl = `https://checkout.opayweb.com/pay/${slug}`;
@@ -309,6 +328,7 @@ export async function createPaymentLink(params: {
     total_collected: 0,
     payments_count: 0,
     metadata: {
+      ...(serverMetadata || {}),
       generatedVia: 'Rova Payment Engine',
       clientTimestamp: new Date().toISOString(),
       settlement_account_id: settlementAccountId || null,
