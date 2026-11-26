@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#662d91" />
+  <title>ROVA — You're Offline</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background: radial-gradient(circle at top, #1f1433 0%, #0f0b18 65%);
+      color: #f5f3ff;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      padding: 32px 28px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+    .logo {
+      width: 68px;
+      height: 68px;
+      border-radius: 16px;
+      margin: 0 auto 20px;
+      display: block;
+      box-shadow: 0 8px 24px rgba(102, 45, 145, 0.45);
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    p {
+      font-size: 14px;
+      line-height: 1.55;
+      color: #c4b5fd;
+      margin-bottom: 24px;
+    }
+    button {
+      width: 100%;
+      padding: 12px 18px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #662d91, #7c3aed);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:active {
+      transform: scale(0.99);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="/icons/icon-192x192.png" alt="ROVA" />
+    <h1>You're currently offline</h1>
+    <p>
+      ROVA needs an active internet connection to sync your latest financial records, invoices, and payments.
+      Reconnect and tap below to continue.
+    </p>
+    <button type="button" onclick="window.location.reload()">Try Again</button>
+  </div>
+</body>
+</html>
+
