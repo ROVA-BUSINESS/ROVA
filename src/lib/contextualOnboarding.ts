@@ -827,10 +827,20 @@ export async function persistOnboardingKey(
   key: FeatureTourKey | SubfeatureTipKey,
   status: 'completed' | 'skipped'
 ): Promise<OnboardingStateMap> {
-  const current = await loadOnboardingState(userId);
+  // Save to localStorage immediately (synchronously) before network I/O
+  const nowIso = new Date().toISOString();
+  const localCurrent = getLocalOnboardingState(userId);
+  const optimistic: OnboardingStateMap = {
+    ...localCurrent,
+    [key]: { status, updated_at: nowIso },
+  };
+  saveLocalOnboardingState(userId, optimistic);
+
+  const remoteCurrent = await loadOnboardingState(userId);
   const next: OnboardingStateMap = {
-    ...current,
-    [key]: { status, updated_at: new Date().toISOString() },
+    ...remoteCurrent,
+    ...optimistic,
+    [key]: { status, updated_at: nowIso },
   };
   saveLocalOnboardingState(userId, next);
   try {
@@ -839,7 +849,7 @@ export async function persistOnboardingKey(
       .update({
         onboarding_tours_state: next,
         ...(key === 'dashboard'
-          ? { onboarding_tour_completed: true, onboarding_tour_completed_at: new Date().toISOString() }
+          ? { onboarding_tour_completed: true, onboarding_tour_completed_at: nowIso }
           : {}),
       })
       .eq('id', userId);

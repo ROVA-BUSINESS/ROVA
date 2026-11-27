@@ -215,6 +215,12 @@ export default function ProductOnboardingTour({ blocked = false }: Props) {
         return;
       }
       const key = activeFeature;
+      const nowIso = new Date().toISOString();
+      // Optimistically update stateMap FIRST so the auto-trigger effect can NEVER re-open this tour
+      setStateMap((prev) => ({
+        ...(prev || {}),
+        [key]: { status, updated_at: nowIso },
+      }));
       setActiveFeature(null);
       setTargetRect(null);
       const updated = await persistOnboardingKey(user.id, key, status);
