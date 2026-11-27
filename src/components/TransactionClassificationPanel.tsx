@@ -18,6 +18,7 @@ interface Props {
   threshold: number;
   assetDraft: AssetPurchaseDraft;
   onAssetDraftChange: (next: AssetPurchaseDraft) => void;
+  hideSelector?: boolean;
 }
 
 export default function TransactionClassificationPanel({
@@ -29,6 +30,7 @@ export default function TransactionClassificationPanel({
   threshold,
   assetDraft,
   onAssetDraftChange,
+  hideSelector = false,
 }: Props) {
   const options: { value: TransactionClassificationType; label: string; hint: string }[] =
     txType === 'expense'
@@ -50,8 +52,17 @@ export default function TransactionClassificationPanel({
       ? evaluateCapitalisationSuggestion({ description, amount, threshold })
       : null;
 
+  const hasExtraContent =
+    Boolean(suggestion && suggestion.shouldSuggestCapitalise) ||
+    classification === 'owner_drawings' ||
+    classification === 'capital_contribution' ||
+    (txType === 'expense' && classification === 'asset_purchase');
+
+  if (hideSelector && !hasExtraContent) return null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {!hideSelector && (
       <div>
         <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
           Transaction Classification
@@ -83,6 +94,7 @@ export default function TransactionClassificationPanel({
           })}
         </div>
       </div>
+      )}
 
       {/* Capitalisation Threshold & Materiality Suggestion */}
       {suggestion && suggestion.shouldSuggestCapitalise && (

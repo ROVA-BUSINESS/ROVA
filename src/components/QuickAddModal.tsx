@@ -483,13 +483,84 @@ export default function QuickAddModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Transaction Classification (Ordinary, Asset Purchase, Owner's Drawings, Capital, Loan/Transfer) */}
+        {/* Category & Accounting Classification (combined cleanly in one dropdown) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
+          <select
+            value={classification !== 'ordinary' ? `__cls__${classification}` : form.category_id}
+            onChange={e => {
+              const val = e.target.value;
+              const findCat = (keywords: string[]) =>
+                categories.find((c) => keywords.some((k) => c.name.toLowerCase().includes(k)));
+
+              if (val.startsWith('__cls__')) {
+                const next = val.replace('__cls__', '') as TransactionClassificationType;
+                setClassification(next);
+                setSaleItems([]);
+                if (next === 'asset_purchase') {
+                  const cat = findCat(['equipment', 'asset purchase', 'property', 'ppe', 'fixed asset']);
+                  if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+                  if (!assetDraft.asset_name && form.description.trim()) {
+                    setAssetDraft((d) => ({ ...d, asset_name: form.description.trim() }));
+                  }
+                } else if (next === 'owner_drawings') {
+                  const cat = findCat(['owner drawing', 'drawings', 'dividend']);
+                  if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+                } else if (next === 'capital_contribution') {
+                  const cat = findCat(['owner capital', 'capital injection', 'share capital']);
+                  if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+                } else if (next === 'loan') {
+                  const cat = findCat(['loan received', 'loan repayment', 'loan']);
+                  if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+                } else if (next === 'transfer') {
+                  const cat = findCat(['transfer']);
+                  if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+                }
+                return;
+              }
+
+              setClassification('ordinary');
+              setForm(p => ({ ...p, category_id: val }));
+              if (!isSalesCategory(val, categories, form.type)) {
+                setSaleItems([]);
+              }
+            }}
+            style={{
+              width: '100%', boxSizing: 'border-box' as const, height: 40,
+              padding: '9px 12px', background: 'var(--bg-elevated)',
+              border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
+              color: (form.category_id || classification !== 'ordinary') ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
+            }}
+          >
+            <option value="">Select category...</option>
+            <optgroup label="Special Accounting Classifications">
+              {form.type === 'expense' ? (
+                <>
+                  <option value="__cls__asset_purchase">Asset Purchase — Capitalised on Balance Sheet</option>
+                  <option value="__cls__owner_drawings">Owner's Drawings — Reduces Equity (Not P&amp;L)</option>
+                  <option value="__cls__transfer">Transfer / Loan — Balance Sheet only</option>
+                </>
+              ) : (
+                <>
+                  <option value="__cls__capital_contribution">Owner Capital Contribution — Increases Equity (Not P&amp;L)</option>
+                  <option value="__cls__loan">Loan Received — Liability on Balance Sheet</option>
+                  <option value="__cls__transfer">Internal Transfer — Balance Sheet only</option>
+                </>
+              )}
+            </optgroup>
+            <optgroup label={form.type === 'expense' ? 'Ordinary Expense Categories (P&L)' : 'Sales & Operating Income Categories (P&L)'}>
+              {filteredCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </optgroup>
+          </select>
+        </div>
+
+        {/* Inline Asset Purchase form, Equity notice, or Capitalisation Threshold suggestion (only appears when applicable) */}
         <TransactionClassificationPanel
+          hideSelector
           txType={form.type}
           classification={classification}
           onClassificationChange={(next) => {
             setClassification(next);
-            // Auto-select matching standard accounting category so P&L, Balance Sheet & Equity stay 100% accurate
             const findCat = (keywords: string[]) =>
               categories.find((c) => keywords.some((k) => c.name.toLowerCase().includes(k)));
             if (next === 'asset_purchase') {
@@ -498,18 +569,6 @@ export default function QuickAddModal({ open, onClose }: Props) {
               if (!assetDraft.asset_name && form.description.trim()) {
                 setAssetDraft((d) => ({ ...d, asset_name: form.description.trim() }));
               }
-            } else if (next === 'owner_drawings') {
-              const cat = findCat(['owner drawing', 'drawings', 'dividend']);
-              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
-            } else if (next === 'capital_contribution') {
-              const cat = findCat(['owner capital', 'capital injection', 'share capital']);
-              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
-            } else if (next === 'loan') {
-              const cat = findCat(['loan received', 'loan repayment', 'loan']);
-              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
-            } else if (next === 'transfer') {
-              const cat = findCat(['transfer']);
-              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
             }
           }}
           description={form.description}
@@ -518,30 +577,6 @@ export default function QuickAddModal({ open, onClose }: Props) {
           assetDraft={assetDraft}
           onAssetDraftChange={setAssetDraft}
         />
-
-        {/* Category (full width) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
-          <select
-            value={form.category_id}
-            onChange={e => {
-              const nextCatId = e.target.value;
-              setForm(p => ({ ...p, category_id: nextCatId }));
-              if (!isSalesCategory(nextCatId, categories, form.type)) {
-                setSaleItems([]);
-              }
-            }}
-            style={{
-              width: '100%', boxSizing: 'border-box' as const, height: 40,
-              padding: '9px 12px', background: 'var(--bg-elevated)',
-              border: '1px solid var(--bg-border)', borderRadius: 'var(--radius-md)',
-              color: form.category_id ? 'var(--text-primary)' : 'var(--text-muted)', outline: 'none',
-            }}
-          >
-            <option value="">Select category...</option>
-            {filteredCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
 
         {/* Multi-Item Inventory Picker when Sales category is selected */}
         {isSalesCategory(form.category_id, categories, form.type) && (
