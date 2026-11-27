@@ -12,7 +12,7 @@ import {
 import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
 import { getAccountingLockDate, setAccountingLockDate } from '../lib/smeAccountingService';
-import { reopenGettingStartedGuide } from '../components/onboarding/GettingStartedGuide';
+import { startProductTour } from '../components/onboarding/ProductOnboardingTour';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 import {
   type TransactionReminderConfig,
@@ -1452,7 +1452,7 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          {!isStaff && user?.id && (
+          {user?.id && (
             <div
               style={{
                 marginTop: 28,
@@ -1467,15 +1467,15 @@ export default function SettingsPage() {
             >
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a' }}>
-                  Getting Started Setup Guide
+                  Interactive Product Tour
                 </div>
                 <div style={{ fontSize: 12.5, color: isDark ? '#9ca3af' : '#64748b', marginTop: 3 }}>
-                  Re-open the interactive onboarding &amp; migration checklist in the top header bar.
+                  Replay the step-by-step walkthrough highlighting Rova&apos;s Dashboard, Transactions, Sales, Expenses, Reports, and AI Assistant.
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => reopenGettingStartedGuide(user.id)}
+                onClick={() => startProductTour()}
                 style={{
                   padding: '9px 18px',
                   borderRadius: 10,
@@ -1487,7 +1487,7 @@ export default function SettingsPage() {
                   cursor: 'pointer',
                 }}
               >
-                Show Setup Guide
+                Take a Product Tour
               </button>
             </div>
           )}

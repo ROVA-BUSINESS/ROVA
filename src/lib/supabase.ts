@@ -41,6 +41,8 @@ export type Profile = {
   country?: string;
   logo_url?: string;
   onboarding_step?: number;
+  onboarding_tour_completed?: boolean;
+  onboarding_tour_completed_at?: string | null;
   created_at: string;
   updated_at: string;
 };

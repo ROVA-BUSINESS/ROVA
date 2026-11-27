@@ -12,7 +12,7 @@ import Button from '../ui/Button';
 import { runReminderCheckIfDue } from '../../lib/transactionReminder';
 import SearchModal from '../SearchModal';
 import BusinessOnboardingModal from '../onboarding/BusinessOnboardingModal';
-import GettingStartedGuide from '../onboarding/GettingStartedGuide';
+import ProductOnboardingTour from '../onboarding/ProductOnboardingTour';
 import { AssistantProvider } from '../../contexts/AssistantContext';
 import FloatingAssistant from '../assistant/FloatingAssistant';
 import PushNotificationPrompt from '../PushNotificationPrompt';
@@ -396,8 +396,6 @@ export default function AppLayout() {
                 </span>
               )}
             </button>
-
-            <GettingStartedGuide />
             
             <button onClick={() => setIsSearchOpen(true)}
               style={{ position: 'relative', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', transition: 'all 0.15s', background: 'transparent' }}
@@ -542,6 +540,7 @@ export default function AppLayout() {
             return (
               <button
                 key={tab.label}
+                data-tour={`mobile-nav-${tab.label.toLowerCase()}`}
                 onClick={() => {
                   if (tab.isAction) {
                     tab.onClick?.();
@@ -591,6 +590,11 @@ export default function AppLayout() {
       {!isStaff && profile && profile.business_profile_completed === false && (
         <BusinessOnboardingModal />
       )}
+
+      {/* Interactive First-Time User Product Onboarding Tour */}
+      <ProductOnboardingTour
+        blocked={Boolean(needsSetup || (!isStaff && profile && profile.business_profile_completed === false))}
+      />
 
       {needsSetup && (
         <div style={{

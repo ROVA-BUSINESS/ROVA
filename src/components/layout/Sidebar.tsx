@@ -372,10 +372,19 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           {visibleNavItems.map(item => {
             if (item.type === 'link') {
               const Icon = item.icon;
+              const tourId =
+                item.to === '/app/dashboard' ? 'nav-dashboard' :
+                item.to === '/app/invoices' ? 'nav-sales' :
+                item.to === '/app/expenses' ? 'nav-expenses' :
+                item.to === '/app/reports' ? 'nav-reports' :
+                item.to === '/app/assistant' ? 'nav-assistant' :
+                item.to === '/app/payment' ? 'nav-payment' : undefined;
+
               return (
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  data-tour={tourId}
                   onClick={() => { if (isMobile && onClose) onClose(); }}
                   style={({ isActive }) => ({
                     display: 'flex',

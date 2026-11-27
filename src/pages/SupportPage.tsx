@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { LifeBuoy, Mail, Send, CheckCircle2, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
+import { LifeBuoy, Mail, Send, CheckCircle2, Clock, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMobile } from '../hooks/useMobile';
+import { startProductTour } from '../components/onboarding/ProductOnboardingTour';
 
 const SUPPORT_EMAILS = {
   primary: 'Officialrovabusiness@gmail.com',
@@ -441,6 +442,49 @@ export default function SupportPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div style={{
+            background: colors.cardBg,
+            borderRadius: 20,
+            border: colors.cardBorder,
+            boxShadow: colors.cardShadow,
+            padding: '22px 24px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: isDark ? 'rgba(147,51,234,0.16)' : '#f3e8ff',
+                color: isDark ? '#c084fc' : '#7c3aed',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Sparkles size={17} />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: colors.textPrimary }}>Interactive Walkthrough</div>
+                <div style={{ fontSize: 11.5, color: colors.textMuted }}>Need a refresher on Rova?</div>
+              </div>
+            </div>
+            <p style={{ fontSize: 12.5, color: colors.textSecondary, margin: '0 0 14px', lineHeight: 1.55 }}>
+              Launch the interactive guided tour to see how the Dashboard, Transactions, Sales, Expenses, Reports, and AI Assistant work together.
+            </p>
+            <button
+              type="button"
+              onClick={() => startProductTour()}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                borderRadius: 10,
+                background: colors.primaryBtnBg,
+                color: colors.primaryBtnText,
+                border: 'none',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Take a Product Tour
+            </button>
           </div>
         </div>
       </div>

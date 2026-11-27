@@ -342,6 +342,7 @@ export default function DashboardPage() {
           </button>
 
           <button
+            data-tour="add-transaction-btn"
             onClick={() => setIsQuickAddOpen(true)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px',
@@ -371,7 +372,9 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Top 4 KPI Metric Cards (Clean — no 3 dots) */}
-          <div style={{
+          <div
+            data-tour="dashboard-overview"
+            style={{
             display: 'grid',
             gridTemplateColumns: isSmall ? '1fr' : isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
             gap: 16,
@@ -426,7 +429,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 2: Money In (Green Arrow, Black/Primary Text) */}
-            <div style={{
+            <div data-tour="dashboard-money-in" style={{
               background: colors.cardBg,
               borderRadius: 20,
               border: colors.cardBorder,
@@ -472,7 +475,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 3: Money Out */}
-            <div style={{
+            <div data-tour="dashboard-money-out" style={{
               background: colors.cardBg,
               borderRadius: 20,
               border: colors.cardBorder,
@@ -576,7 +579,7 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
               
               {/* Cash Flow Overview Card */}
-              <div style={{
+              <div data-tour="dashboard-cashflow" style={{
                 background: colors.cardBg,
                 borderRadius: 20,
                 border: colors.cardBorder,
