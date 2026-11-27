@@ -2,12 +2,10 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useTheme } from '../../contexts/ThemeContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
 export default function AcceptInvitePage() {
-  const { theme } = useTheme();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -94,11 +92,17 @@ export default function AcceptInvitePage() {
 
       <div style={{ width: '100%', maxWidth: 400, animation: 'fadeIn 0.4s ease' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ width: 100, margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{
+            width: 68, height: 68, borderRadius: 18, overflow: 'hidden',
+            background: '#000000',
+            margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 10px 28px rgba(124, 58, 237, 0.25)',
+            border: '1px solid rgba(139, 92, 246, 0.25)',
+          }}>
             <img
-              src={theme === 'light' ? '/rova-light.png' : '/rova.png'}
-              alt="ROVA Logo"
-              style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+              src="/icons/icon-192x192.png"
+              alt="RovaFlow Logo"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           </div>
           <h1 style={{ fontSize: 24, marginBottom: 6 }}>

@@ -114,11 +114,14 @@ export default function PwaInstallPrompt() {
     >
       <img
         src="/icons/icon-192x192.png"
-        alt="ROVA"
+        alt="RovaFlow"
         style={{
           width: 44,
           height: 44,
-          borderRadius: 10,
+          borderRadius: 11,
+          objectFit: 'cover',
+          display: 'block',
+          background: '#000000',
           flexShrink: 0,
         }}
       />

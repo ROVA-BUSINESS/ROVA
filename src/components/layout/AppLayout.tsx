@@ -611,14 +611,15 @@ export default function AppLayout() {
           }}>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{
-                width: 48, height: 48, background: 'var(--accent-dim)', borderRadius: 'var(--radius-full)',
+                width: 52, height: 52, background: '#000000', borderRadius: 14,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
-                border: '1px solid var(--accent-border)'
+                border: '1px solid var(--accent-border)', overflow: 'hidden',
+                boxShadow: '0 8px 24px rgba(124, 58, 237, 0.25)'
               }}>
                 <img
-                  src={theme === 'light' ? '/rova-light.png' : '/rova.png'}
-                  alt="ROVA"
-                  style={{ height: 26, objectFit: 'contain' }}
+                  src="/icons/icon-192x192.png"
+                  alt="RovaFlow"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
               </div>
               <h2 style={{ fontSize: 20, marginBottom: 8 }}>Welcome to RovaFlow</h2>

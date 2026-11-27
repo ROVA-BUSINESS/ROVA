@@ -2,13 +2,11 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Shield, Users } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
 export default function LoginPage() {
   const { signIn, signInWithGoogle } = useAuth();
-  const { theme } = useTheme();
   const navigate = useNavigate();
   const [loginType, setLoginType] = useState<'admin' | 'staff'>('admin');
   const [email, setEmail] = useState('');
@@ -39,8 +37,6 @@ export default function LoginPage() {
     }
   }
 
-  const isLight = theme === 'light';
-
   return (
     <div style={{
       minHeight: '100vh', 
@@ -66,12 +62,15 @@ export default function LoginPage() {
       }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{
-            width: 140, height: 'auto',
+            width: 72, height: 72, borderRadius: 18, overflow: 'hidden',
+            background: '#000000',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 32px',
+            margin: '0 auto 24px',
+            boxShadow: '0 10px 28px rgba(124, 58, 237, 0.25)',
+            border: '1px solid rgba(139, 92, 246, 0.25)',
           }}>
-            <Link to="/">
-              <img src={isLight ? "/rova-light.png" : "/rova.png"} alt="ROVA Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+            <Link to="/" style={{ width: '100%', height: '100%', display: 'block' }}>
+              <img src="/icons/icon-192x192.png" alt="RovaFlow Logo" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </Link>
           </div>
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.5px' }}>Welcome back</h1>
