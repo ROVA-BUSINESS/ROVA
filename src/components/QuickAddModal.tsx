@@ -22,6 +22,7 @@ import {
 } from '../lib/smeAccountingService';
 import SalesItemsPicker, { type SaleItemSelection } from './SalesItemsPicker';
 import TransactionClassificationPanel from './TransactionClassificationPanel';
+import { evaluateAndDispatchBudgetAlerts } from '../lib/budgetService';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -324,6 +325,11 @@ export default function QuickAddModal({ open, onClose }: Props) {
         } catch (intentErr) {
           console.error('Failed to apply intent:', intentErr);
         }
+      }
+
+      // Evaluate budget thresholds in the background (75%, 90%, 100%, Exceeded)
+      if (currentUserId && form.type === 'expense') {
+        void evaluateAndDispatchBudgetAlerts(currentUserId);
       }
 
       setSaving(false);

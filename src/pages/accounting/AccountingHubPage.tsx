@@ -3,7 +3,7 @@ import Card from '../../components/ui/Card';
 import { 
   TrendingUp, Scale, BookOpen, Layers, Activity, 
   FileSpreadsheet, PieChart, FileText, BookMarked,
-  Users, FileMinus2, Repeat, Building2
+  Users, FileMinus2, Repeat, Building2, Target
 } from 'lucide-react';
 
 export default function AccountingHubPage() {
@@ -157,6 +157,16 @@ export default function AccountingHubPage() {
             <div>
               <div style={{ fontSize: 15, fontWeight: 700 }}>Fixed Asset Register</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>PPE register, monthly depreciation &amp; disposals</div>
+            </div>
+          </Card>
+
+          <Card hoverable onClick={() => navigate('/app/budgets')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, background: 'rgba(34, 197, 94, 0.12)', borderRadius: 10, flexShrink: 0 }}>
+              <Target size={22} color="#22c55e" />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Budgets &amp; Variance</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Monthly/annual budgets, actual vs plan &amp; overspend alerts</div>
             </div>
           </Card>
         </div>

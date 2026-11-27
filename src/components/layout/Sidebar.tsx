@@ -6,7 +6,7 @@ import {
   Settings, LogOut, BookOpen,
   ChevronDown, ChevronRight, ChevronsUpDown,
   Users, Package, Shield, X, NotebookPen,
-  TrendingDown, TrendingUp, PieChart, Scale, LifeBuoy, Building2, Repeat
+  TrendingDown, TrendingUp, PieChart, Scale, LifeBuoy, Building2, Repeat, Target
 } from 'lucide-react';
 import { useMobile } from '../../hooks/useMobile';
 import { useAuth } from '../../contexts/AuthContext';
@@ -92,6 +92,7 @@ const mainNavItems: NavGroupItem[] = [
       { to: '/app/credit-notes', icon: FileText, label: 'Credit Notes' },
       { to: '/app/recurring', icon: Repeat, label: 'Recurring & Reminders' },
       { to: '/app/fixed-assets', icon: Building2, label: 'Fixed Assets' },
+      { to: '/app/budgets', icon: Target, label: 'Budgets' },
       { to: '/app/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
       { to: '/app/balance-sheet', icon: Scale, label: 'Balance Sheet' },
       { to: '/app/changes-in-equity', icon: PieChart, label: 'Changes in Equity' },

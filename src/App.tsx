@@ -52,6 +52,7 @@ import CustomersPage from './pages/CustomersPage';
 import CreditNotesPage from './pages/CreditNotesPage';
 import RecurringSchedulesPage from './pages/accounting/RecurringSchedulesPage';
 import FixedAssetsPage from './pages/accounting/FixedAssetsPage';
+import BudgetsPage from './pages/accounting/BudgetsPage';
 import PwaInstallPrompt from './components/pwa/PwaInstallPrompt';
 
 // ── Auth guards ──────────────────────────────────────────────
@@ -177,6 +178,7 @@ export default function App() {
             <Route path="credit-notes" element={<SubscriptionRoute><CreditNotesPage /></SubscriptionRoute>} />
             <Route path="recurring" element={<SubscriptionRoute><AdminRoute><RecurringSchedulesPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="fixed-assets" element={<SubscriptionRoute><AdminRoute><FixedAssetsPage /></AdminRoute></SubscriptionRoute>} />
+            <Route path="budgets" element={<SubscriptionRoute><AdminRoute><BudgetsPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="expenses" element={<SubscriptionRoute><AdminRoute><ExpensesPage /></AdminRoute></SubscriptionRoute>} />
             <Route path="bills" element={<Navigate to="/app/expenses?tab=bills" replace />} />
             <Route path="assistant" element={<SubscriptionRoute><AssistantPage /></SubscriptionRoute>} />

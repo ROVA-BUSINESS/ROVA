@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, TrendingDown, ChartBar as BarChart2, Download, ChevronDown, CreditCard } from 'lucide-react';
+import { TrendingUp, TrendingDown, ChartBar as BarChart2, Download, ChevronDown, CreditCard, Target } from 'lucide-react';
 import { downloadCSV } from '../lib/export';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -247,6 +247,16 @@ export default function ReportsPage() {
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Bills</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Outstanding obligations</div>
+          </div>
+        </Card>
+
+        <Card hoverable onClick={() => navigate('/app/budgets')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'rgba(34, 197, 94, 0.14)', borderRadius: 10 }}>
+            <Target size={20} color="#22c55e" />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Budgets &amp; Reports</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Actual vs budget &amp; trends</div>
           </div>
         </Card>
       </div>
