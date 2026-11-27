@@ -93,6 +93,7 @@ const mainNavItems: NavGroupItem[] = [
       { to: '/app/recurring', icon: Repeat, label: 'Recurring & Reminders' },
       { to: '/app/fixed-assets', icon: Building2, label: 'Fixed Assets' },
       { to: '/app/budgets', icon: Target, label: 'Budgets' },
+      { to: '/app/opening-balances', icon: Scale, label: 'Opening Balances' },
       { to: '/app/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
       { to: '/app/balance-sheet', icon: Scale, label: 'Balance Sheet' },
       { to: '/app/changes-in-equity', icon: PieChart, label: 'Changes in Equity' },

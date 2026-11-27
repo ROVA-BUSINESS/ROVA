@@ -4,6 +4,7 @@ import { supabase, type Transaction } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency, formatDate } from '../../lib/format';
 import { computeAccountingHubFinancials, type AccountType } from '../../lib/accountingRules';
+import { fetchPostedJournalEntriesWithLines } from '../../lib/openingBalanceService';
 import Card from '../../components/ui/Card';
 
 type LedgerAccount = {
@@ -19,6 +20,7 @@ export default function GeneralLedgerPage() {
   const { user, isStaff, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [journalEntries, setJournalEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -31,15 +33,19 @@ export default function GeneralLedgerPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*, category:categories(*), account:accounts(*)')
-        .eq('user_id', effectiveUserId!)
-        .order('date', { ascending: true });
-      if (error) {
-        console.error('Error loading ledger transactions:', error);
+      const [txRes, jeList] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('*, category:categories(*), account:accounts(*)')
+          .eq('user_id', effectiveUserId!)
+          .order('date', { ascending: true }),
+        fetchPostedJournalEntriesWithLines(effectiveUserId!),
+      ]);
+      if (txRes.error) {
+        console.error('Error loading ledger transactions:', txRes.error);
       }
-      setTransactions(data || []);
+      setTransactions(txRes.data || []);
+      setJournalEntries(jeList || []);
     } catch (err) {
       console.error('Ledger load failed:', err);
     } finally {
@@ -48,8 +54,8 @@ export default function GeneralLedgerPage() {
   }
 
   const ledger: LedgerAccount[] = useMemo(() => {
-    return computeAccountingHubFinancials(transactions as any).ledgerAccounts;
-  }, [transactions]);
+    return computeAccountingHubFinancials(transactions as any, [], { manualJournalEntries: journalEntries }).ledgerAccounts;
+  }, [transactions, journalEntries]);
 
   const filtered = search
     ? ledger.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))

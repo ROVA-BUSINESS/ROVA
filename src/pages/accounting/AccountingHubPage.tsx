@@ -169,6 +169,16 @@ export default function AccountingHubPage() {
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Monthly/annual budgets, actual vs plan &amp; overspend alerts</div>
             </div>
           </Card>
+
+          <Card hoverable onClick={() => navigate('/app/opening-balances')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, background: 'rgba(99, 102, 241, 0.12)', borderRadius: 10, flexShrink: 0 }}>
+              <Scale size={22} color="#6366f1" />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Opening Balances</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Migrate starting assets, liabilities, equity, AR &amp; AP</div>
+            </div>
+          </Card>
         </div>
       </div>
     </div>

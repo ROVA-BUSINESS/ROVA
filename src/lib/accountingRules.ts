@@ -1111,6 +1111,13 @@ export function computeAccountingHubFinancials(
     baselineCash?: number;
     baselineShareCapital?: number;
     baselineRetainedEarnings?: number;
+    manualJournalEntries?: Array<{
+      id?: string;
+      date: string;
+      description: string;
+      reference?: string;
+      lines: Array<{ account_name: string; debit: number; credit: number; description?: string }>;
+    }>;
   } = {}
 ): AccountingHubSummary {
   // ── Profit & Loss accumulators ──
@@ -1143,7 +1150,7 @@ export function computeAccountingHubFinancials(
   const priorSummary = priorTransactions.length > 0
     ? computeAccountingHubFinancials(priorTransactions)
     : null;
-  const openingRetainedEarnings = options.baselineRetainedEarnings ?? (priorSummary ? priorSummary.pl.netProfit : 0);
+  let openingRetainedEarnings = options.baselineRetainedEarnings ?? (priorSummary ? priorSummary.pl.netProfit : 0);
 
   // ── Cash Flow accumulators ──
   let operatingInflows = 0;
@@ -1349,6 +1356,98 @@ export function computeAccountingHubFinancials(
       creditAcc.balance -= amt;
       creditAcc.entries.push({ date: tx.date, description: desc, debit: 0, credit: amt, balance: creditAcc.balance });
     }
+  });
+
+  // ── Posted Journal Entries (Opening Balances, Depreciation, Adjustments) ──
+  const manualEntries = options.manualJournalEntries || [];
+  manualEntries.forEach((je) => {
+    if (!je.lines || je.lines.length === 0) return;
+    const totalDr = je.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+    const totalCr = je.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+    if (Math.abs(totalDr - totalCr) > 0.01 || totalDr <= 0) return;
+
+    const isOpeningRef = (je.reference || '').toUpperCase().startsWith('OB-');
+
+    je.lines.forEach((line) => {
+      const dr = Number(line.debit) || 0;
+      const cr = Number(line.credit) || 0;
+      if (dr === 0 && cr === 0) return;
+
+      const rawName = (line.account_name || 'Unclassified Account').trim();
+      const codeMatch = rawName.match(/^(\d{4})/);
+      const code = codeMatch ? codeMatch[1] : '';
+      const lower = rawName.toLowerCase();
+
+      let accType: AccountType = 'asset';
+      if (code.startsWith('1')) accType = 'asset';
+      else if (code.startsWith('2')) accType = 'liability';
+      else if (code.startsWith('3')) accType = 'equity';
+      else if (code.startsWith('4') || code === '7020') accType = 'income';
+      else if (code.startsWith('5') || code.startsWith('6') || code.startsWith('7') || code.startsWith('8')) accType = 'expense';
+      else if (lower.includes('payable') || lower.includes('loan') || lower.includes('tax') || lower.includes('accrued')) accType = 'liability';
+      else if (lower.includes('capital') || lower.includes('equity') || lower.includes('retained') || lower.includes('drawing')) accType = 'equity';
+      else if (lower.includes('revenue') || lower.includes('sales') || lower.includes('income')) accType = 'income';
+      else if (lower.includes('expense') || lower.includes('depreciation') || lower.includes('cost')) accType = 'expense';
+
+      const acc = getOrCreateLedger(rawName, accType);
+      acc.totalDebit += dr;
+      acc.totalCredit += cr;
+      acc.balance += accType === 'asset' || accType === 'expense' ? dr - cr : cr - dr;
+      acc.entries.push({
+        date: je.date,
+        description: line.description || je.description || 'Journal Entry',
+        debit: dr,
+        credit: cr,
+        balance: acc.balance,
+        ref: je.reference,
+      });
+
+      const netDr = dr - cr;
+      const netCr = cr - dr;
+
+      // Map Balance Sheet accounts cleanly into BS accumulators
+      if (accType === 'asset') {
+        const numCode = Number(code);
+        if ((numCode >= 1010 && numCode <= 1049) || lower.includes('cash') || lower.includes('bank')) {
+          cashAndBank += netDr;
+        } else if ((numCode >= 1110 && numCode <= 1149) || lower.includes('receivable') || lower.includes('debtor')) {
+          accountsReceivable += netDr;
+        } else if ((numCode >= 1210 && numCode <= 1299) || lower.includes('inventory') || lower.includes('stock')) {
+          inventory += netDr;
+        } else if ((numCode >= 1510 && numCode <= 1699) || lower.includes('ppe') || lower.includes('depreciation') || lower.includes('equipment') || lower.includes('vehicle') || lower.includes('building') || lower.includes('machinery') || lower.includes('intangible')) {
+          ppe += netDr;
+        } else {
+          prepayments += netDr;
+        }
+      } else if (accType === 'liability') {
+        const numCode = Number(code);
+        if (numCode === 2080 || lower.includes('customer deposit') || lower.includes('unearned') || lower.includes('advance')) {
+          customerDeposits += netCr;
+        } else if (numCode === 2520 || lower.includes('director')) {
+          directorLoanPayable += netCr;
+        } else if ((numCode >= 2510 && numCode <= 2599) || lower.includes('loan') || lower.includes('borrowing')) {
+          loanPayable += netCr;
+        } else {
+          accountsPayable += netCr;
+        }
+      } else if (accType === 'equity') {
+        const numCode = Number(code);
+        if (numCode === 3040 || lower.includes('drawing') || lower.includes('dividend')) {
+          dividends += netDr;
+        } else if (numCode === 3010 || numCode === 3030 || lower.includes('share capital') || lower.includes('owner capital') || lower.includes('capital contribution')) {
+          shareCapital += netCr;
+        } else {
+          openingRetainedEarnings += netCr;
+        }
+      } else if (!isOpeningRef) {
+        // Non-opening P&L manual journal entries (e.g., depreciation expense)
+        if (accType === 'expense') {
+          operatingExpensesByCategory[rawName] = (operatingExpensesByCategory[rawName] || 0) + netDr;
+        } else if (accType === 'income') {
+          otherIncomeByCategory[rawName] = (otherIncomeByCategory[rawName] || 0) + netCr;
+        }
+      }
+    });
   });
 
   // ── Profit & Loss totals ──

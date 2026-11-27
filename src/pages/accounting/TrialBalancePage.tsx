@@ -4,6 +4,7 @@ import { supabase, type Transaction } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/format';
 import { computeAccountingHubFinancials, type AccountType } from '../../lib/accountingRules';
+import { fetchPostedJournalEntriesWithLines } from '../../lib/openingBalanceService';
 import { downloadCSV } from '../../lib/export';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -19,6 +20,7 @@ type TrialBalanceLine = {
 export default function TrialBalancePage() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [journalEntries, setJournalEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'ytd' | 'q1' | 'q2' | 'q3' | 'q4' | 'all'>('ytd');
 
@@ -28,8 +30,12 @@ export default function TrialBalancePage() {
 
   async function loadData() {
     setLoading(true);
-    const { data } = await supabase.from('transactions').select('*, category:categories(*)').eq('user_id', user!.id).order('date', { ascending: true });
-    setTransactions(data || []);
+    const [txRes, jeList] = await Promise.all([
+      supabase.from('transactions').select('*, category:categories(*)').eq('user_id', user!.id).order('date', { ascending: true }),
+      fetchPostedJournalEntriesWithLines(user!.id),
+    ]);
+    setTransactions(txRes.data || []);
+    setJournalEntries(jeList || []);
     setLoading(false);
   }
 
@@ -49,8 +55,8 @@ export default function TrialBalancePage() {
   const filtered = useMemo(() => filterByPeriod(transactions), [transactions, period]);
 
   const summary = useMemo(() => {
-    return computeAccountingHubFinancials(filtered as any);
-  }, [filtered]);
+    return computeAccountingHubFinancials(filtered as any, [], { manualJournalEntries: journalEntries });
+  }, [filtered, journalEntries]);
 
   const lines: TrialBalanceLine[] = summary.trialBalanceLines;
   const totalDebit = summary.totalTrialDebits;

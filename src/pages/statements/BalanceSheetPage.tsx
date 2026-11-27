@@ -4,6 +4,7 @@ import { supabase, type Account, type Transaction } from '../../lib/supabase';
 import { formatCurrency, formatDate } from '../../lib/format';
 import { downloadCSV, printStatementHTML } from '../../lib/export';
 import { computeAccountingHubFinancials } from '../../lib/accountingRules';
+import { fetchPostedJournalEntriesWithLines } from '../../lib/openingBalanceService';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { Download, Printer, ChevronDown, Scale, AlertTriangle } from 'lucide-react';
@@ -12,6 +13,7 @@ export default function BalanceSheetPage() {
   const { user, profile } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [journalEntries, setJournalEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -21,12 +23,14 @@ export default function BalanceSheetPage() {
 
   async function loadData() {
     setLoading(true);
-    const [accRes, txRes] = await Promise.all([
+    const [accRes, txRes, jeList] = await Promise.all([
       supabase.from('accounts').select('*').eq('user_id', user!.id).eq('is_active', true),
       supabase.from('transactions').select('*, category:categories(*)').eq('user_id', user!.id),
+      fetchPostedJournalEntriesWithLines(user!.id),
     ]);
     setAccounts(accRes.data || []);
     setTransactions(txRes.data || []);
+    setJournalEntries(jeList || []);
     setLoading(false);
   }
 
@@ -38,8 +42,9 @@ export default function BalanceSheetPage() {
     // If accounts have initial balances, provide baselineCash
     return computeAccountingHubFinancials(transactions as any, [], {
       baselineCash: accounts.length > 0 ? baselineCash : 0,
+      manualJournalEntries: journalEntries,
     });
-  }, [transactions, accounts, baselineCash]);
+  }, [transactions, accounts, baselineCash, journalEntries]);
 
   const { bs, suspense } = summary;
   const today = formatDate(new Date().toISOString().split('T')[0]);
