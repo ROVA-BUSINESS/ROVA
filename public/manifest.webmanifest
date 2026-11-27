@@ -1,0 +1,67 @@
+{
+  "id": "/app",
+  "name": "ROVA — Smart Business Finance",
+  "short_name": "ROVA",
+  "description": "AI-powered financial management for Nigerian businesses. Track income, expenses, invoices, payroll, taxes, and payments.",
+  "start_url": "/app/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "theme_color": "#662d91",
+  "background_color": "#0f0b18",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["finance", "business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View business financial overview",
+      "url": "/app/dashboard",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Transactions",
+      "short_name": "Transactions",
+      "description": "Record and review sales & expenses",
+      "url": "/app/transactions",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Invoices",
+      "short_name": "Invoices",
+      "description": "Create and manage customer invoices",
+      "url": "/app/invoices",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Banking & Payments",
+      "short_name": "Payments",
+      "description": "Collect payments and view banking",
+      "url": "/app/payment",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
+

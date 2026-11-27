@@ -52,6 +52,7 @@ import CustomersPage from './pages/CustomersPage';
 import CreditNotesPage from './pages/CreditNotesPage';
 import RecurringSchedulesPage from './pages/accounting/RecurringSchedulesPage';
 import FixedAssetsPage from './pages/accounting/FixedAssetsPage';
+import PwaInstallPrompt from './components/pwa/PwaInstallPrompt';
 
 // ── Auth guards ──────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -215,6 +216,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <PwaInstallPrompt />
       </AuthProvider>
     </BrowserRouter>
   );
