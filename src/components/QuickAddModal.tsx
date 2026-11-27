@@ -22,6 +22,7 @@ import {
 } from '../lib/smeAccountingService';
 import SalesItemsPicker, { type SaleItemSelection } from './SalesItemsPicker';
 import TransactionClassificationPanel from './TransactionClassificationPanel';
+import ContextualSubfeatureTip from './onboarding/ContextualSubfeatureTip';
 import { evaluateAndDispatchBudgetAlerts } from '../lib/budgetService';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -580,6 +581,8 @@ export default function QuickAddModal({ open, onClose }: Props) {
 
         {/* Multi-Item Inventory Picker when Sales category is selected */}
         {isSalesCategory(form.category_id, categories, form.type) && (
+          <>
+          <ContextualSubfeatureTip tipKey="sub_sales_inventory" />
           <SalesItemsPicker
             items={inventoryItems}
             selections={saleItems}
@@ -596,6 +599,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
               }));
             }}
           />
+          </>
         )}
 
         {/* Account (full width) */}
@@ -641,6 +645,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
           </button>
           {isLoan && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px', background: 'rgba(245,158,11,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <ContextualSubfeatureTip tipKey="sub_loan_record" />
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['received', 'given'] as const).map(d => (
                   <button key={d} type="button" onClick={() => setLoanDirection(d)}

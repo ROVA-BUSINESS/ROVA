@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMobile } from '../hooks/useMobile';
 import { startProductTour } from '../components/onboarding/ProductOnboardingTour';
+import OnboardingReplayPanel from '../components/onboarding/OnboardingReplayPanel';
 
 const SUPPORT_EMAILS = {
   primary: 'Officialrovabusiness@gmail.com',
@@ -461,16 +462,16 @@ export default function SupportPage() {
                 <Sparkles size={17} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: colors.textPrimary }}>Interactive Walkthrough</div>
-                <div style={{ fontSize: 11.5, color: colors.textMuted }}>Need a refresher on Rova?</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: colors.textPrimary }}>Contextual Feature Tours</div>
+                <div style={{ fontSize: 11.5, color: colors.textMuted }}>Need a refresher on RovaFlow?</div>
               </div>
             </div>
-            <p style={{ fontSize: 12.5, color: colors.textSecondary, margin: '0 0 14px', lineHeight: 1.55 }}>
-              Launch the interactive guided tour to see how the Dashboard, Transactions, Sales, Expenses, Reports, and AI Assistant work together.
+            <p style={{ fontSize: 12.5, color: colors.textSecondary, margin: '0 0 12px', lineHeight: 1.55 }}>
+              Replay any interactive walkthrough to learn how each section of RovaFlow works.
             </p>
             <button
               type="button"
-              onClick={() => startProductTour()}
+              onClick={() => startProductTour('dashboard')}
               style={{
                 width: '100%',
                 padding: '10px 16px',
@@ -481,10 +482,12 @@ export default function SupportPage() {
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
+                marginBottom: 14,
               }}
             >
-              Take a Product Tour
+              Replay Dashboard Tour
             </button>
+            <OnboardingReplayPanel compact />
           </div>
         </div>
       </div>

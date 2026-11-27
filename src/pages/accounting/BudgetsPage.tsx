@@ -13,6 +13,7 @@ import { formatCurrency } from '../../lib/format';
 import { downloadCSV } from '../../lib/export';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
+import ContextualSubfeatureTip from '../../components/onboarding/ContextualSubfeatureTip';
 import {
   SME_BUDGET_CATEGORY_OPTIONS,
   computeBudgetPerformance,
@@ -1282,6 +1283,7 @@ export default function BudgetsPage() {
             </div>
 
             <form onSubmit={handleSaveBudget} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <ContextualSubfeatureTip tipKey="sub_budget_create" />
               {/* Budget Type */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>Budget Type</label>

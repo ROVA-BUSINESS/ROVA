@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/format';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
+import ContextualSubfeatureTip from '../../components/onboarding/ContextualSubfeatureTip';
 import {
   autoBalanceOpeningLines,
   buildDefaultOpeningLines,
@@ -631,6 +632,7 @@ export default function OpeningBalancesPage() {
           </Card>
 
           {/* Plain-English Guide */}
+          <ContextualSubfeatureTip tipKey="sub_opening_balances" />
           <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 12.5, color: 'var(--text-secondary)' }}>
             <Info size={16} color="var(--accent-light)" style={{ marginTop: 2, flexShrink: 0 }} />
             <div>

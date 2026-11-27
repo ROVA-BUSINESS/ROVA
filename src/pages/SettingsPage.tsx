@@ -13,6 +13,7 @@ import { supabase, syncAllBanks, type Account } from '../lib/supabase';
 import { formatCurrency } from '../lib/format';
 import { getAccountingLockDate, setAccountingLockDate } from '../lib/smeAccountingService';
 import { startProductTour } from '../components/onboarding/ProductOnboardingTour';
+import OnboardingReplayPanel from '../components/onboarding/OnboardingReplayPanel';
 import BankConnectChoiceModal from '../components/BankConnectChoiceModal';
 import {
   type TransactionReminderConfig,
@@ -1467,15 +1468,15 @@ export default function SettingsPage() {
             >
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: isDark ? '#ffffff' : '#0f172a' }}>
-                  Interactive Product Tour
+                  Contextual Feature Walkthroughs
                 </div>
                 <div style={{ fontSize: 12.5, color: isDark ? '#9ca3af' : '#64748b', marginTop: 3 }}>
-                  Replay the step-by-step walkthrough highlighting Rova&apos;s Dashboard, Transactions, Sales, Expenses, Reports, and AI Assistant.
+                  Replay any RovaFlow feature tour or reset all tours and first-use tips.
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => startProductTour()}
+                onClick={() => startProductTour('dashboard')}
                 style={{
                   padding: '9px 18px',
                   borderRadius: 10,
@@ -1487,8 +1488,11 @@ export default function SettingsPage() {
                   cursor: 'pointer',
                 }}
               >
-                Take a Product Tour
+                Replay Dashboard Tour
               </button>
+              <div style={{ width: '100%', marginTop: 8 }}>
+                <OnboardingReplayPanel />
+              </div>
             </div>
           )}
         </div>
