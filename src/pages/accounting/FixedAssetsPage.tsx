@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  Building2, Plus, Play, Trash2, Calendar, CheckCircle2, AlertCircle
+  Building2, Plus, Play, Trash2, Calendar, CheckCircle2, AlertCircle, Edit2, Table2, SlidersHorizontal
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,6 +12,7 @@ import {
   computeMonthlyDepreciationAmount,
   runMonthlyDepreciationBatch,
   disposeFixedAssetWithJournal,
+  buildDepreciationSchedule,
   logActivity,
 } from '../../lib/smeAccountingService';
 import Card from '../../components/ui/Card';
@@ -23,12 +24,20 @@ import Input from '../../components/ui/Input';
 const ASSET_CLASSES = Object.keys(ASSET_CLASS_COA) as OperationalFixedAsset['asset_class'][];
 
 export default function FixedAssetsPage() {
-  const { user, isStaff, staffData } = useAuth();
+  const { user, profile, updateProfile, isStaff, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
 
   const [assets, setAssets] = useState<OperationalFixedAsset[]>([]);
   const [runs, setRuns] = useState<DepreciationRunRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Capitalisation policy state
+  const [thresholdInput, setThresholdInput] = useState(String(profile?.capitalisation_threshold ?? 100000));
+  const [savingPolicy, setSavingPolicy] = useState(false);
+
+  // Edit & Schedule modals
+  const [editingAsset, setEditingAsset] = useState<OperationalFixedAsset | null>(null);
+  const [scheduleAsset, setScheduleAsset] = useState<OperationalFixedAsset | null>(null);
 
   const now = new Date();
   const [deprMonth, setDeprMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
@@ -91,38 +100,67 @@ export default function FixedAssetsPage() {
     setSaving(true);
     try {
       const code = form.asset_code.trim() || `FA-${String(Date.now()).slice(-4)}`;
-      const { data, error } = await supabase
-        .from('fixed_assets')
-        .insert({
-          user_id: effectiveUserId,
-          asset_code: code,
-          asset_name: form.asset_name.trim(),
-          description: form.asset_name.trim(),
-          asset_class: form.asset_class,
-          date_acquired: form.date_acquired,
-          historical_cost: cost,
-          salvage_value: Number(form.salvage_value) || 0,
-          useful_life_months: Number(form.useful_life_months) || 60,
-          depreciation_method: form.depreciation_method,
-          annual_rate_pct: Number(form.annual_rate_pct) || 20,
-          accumulated_depreciation: 0,
-          prior_accum_depr: 0,
-          opening_twdv: cost,
-          status: 'Active',
-        })
-        .select('id')
-        .single();
+      if (editingAsset) {
+        const { error } = await supabase
+          .from('fixed_assets')
+          .update({
+            asset_code: code,
+            asset_name: form.asset_name.trim(),
+            description: form.asset_name.trim(),
+            asset_class: form.asset_class,
+            date_acquired: form.date_acquired,
+            historical_cost: cost,
+            salvage_value: Number(form.salvage_value) || 0,
+            useful_life_months: Number(form.useful_life_months) || 60,
+            depreciation_method: form.depreciation_method,
+            annual_rate_pct: Number(form.annual_rate_pct) || 20,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingAsset.id);
+        if (error) throw error;
+        await logActivity(
+          effectiveUserId,
+          user?.id || effectiveUserId,
+          'updated',
+          'fixed_asset',
+          editingAsset.id,
+          `Updated fixed asset ${form.asset_name.trim()} (${formatCurrency(cost)})`
+        );
+        setEditingAsset(null);
+      } else {
+        const { data, error } = await supabase
+          .from('fixed_assets')
+          .insert({
+            user_id: effectiveUserId,
+            asset_code: code,
+            asset_name: form.asset_name.trim(),
+            description: form.asset_name.trim(),
+            asset_class: form.asset_class,
+            date_acquired: form.date_acquired,
+            historical_cost: cost,
+            salvage_value: Number(form.salvage_value) || 0,
+            useful_life_months: Number(form.useful_life_months) || 60,
+            depreciation_method: form.depreciation_method,
+            annual_rate_pct: Number(form.annual_rate_pct) || 20,
+            accumulated_depreciation: 0,
+            prior_accum_depr: 0,
+            opening_twdv: cost,
+            status: 'Active',
+          })
+          .select('id')
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      await logActivity(
-        effectiveUserId,
-        user?.id || effectiveUserId,
-        'created',
-        'fixed_asset',
-        data?.id || '',
-        `Added fixed asset ${form.asset_name.trim()} (${formatCurrency(cost)})`
-      );
+        await logActivity(
+          effectiveUserId,
+          user?.id || effectiveUserId,
+          'created',
+          'fixed_asset',
+          data?.id || '',
+          `Added fixed asset ${form.asset_name.trim()} (${formatCurrency(cost)})`
+        );
+      }
 
       setShowAdd(false);
       setForm({
@@ -253,6 +291,50 @@ export default function FixedAssetsPage() {
         </div>
       )}
 
+      {/* Configurable Capitalisation Policy Bar */}
+      <Card style={{ marginBottom: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <SlidersHorizontal size={16} color="var(--accent-light)" />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Capitalisation Threshold &amp; Materiality Policy</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+              Purchases meeting this threshold &amp; asset nature will be suggested for capitalisation. Accounting depreciation is kept strictly separate from Nigerian Tax Capital Allowances.
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="number"
+            min="0"
+            step="1000"
+            value={thresholdInput}
+            onChange={(e) => setThresholdInput(e.target.value)}
+            style={{
+              width: 130, padding: '7px 10px', borderRadius: 8,
+              background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)',
+              color: 'var(--text-primary)', fontSize: 13, fontWeight: 700, outline: 'none',
+            }}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={savingPolicy}
+            onClick={async () => {
+              const val = Math.max(0, Number(thresholdInput) || 0);
+              setSavingPolicy(true);
+              try {
+                await updateProfile({ capitalisation_threshold: val } as any);
+                setStatusMsg({ type: 'ok', text: `Capitalisation threshold updated to ${formatCurrency(val)}.` });
+              } finally {
+                setSavingPolicy(false);
+              }
+            }}
+          >
+            Save Policy
+          </Button>
+        </div>
+      </Card>
+
       {/* 4 KPI Cards */}
       <div className="mobile-grid-1 mobile-gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
         <Card>
@@ -329,15 +411,43 @@ export default function FixedAssetsPage() {
                         <Badge variant={asset.status === 'Active' ? 'success' : 'default'}>{asset.status}</Badge>
                       </td>
                       <td style={{ padding: '13px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {asset.status === 'Active' ? (
-                          <Button variant="secondary" size="sm" icon={<Trash2 size={12} />} onClick={() => setDisposeTarget(asset)}>
-                            Dispose
+                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          <Button variant="secondary" size="sm" icon={<Table2 size={12} />} onClick={() => setScheduleAsset(asset)}>
+                            Schedule
                           </Button>
-                        ) : (
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            {asset.disposal_date ? `Sold ${formatDate(asset.disposal_date)}` : 'Disposed'}
-                          </span>
-                        )}
+                          {asset.status === 'Active' ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingAsset(asset);
+                                  setForm({
+                                    asset_name: asset.asset_name || asset.description,
+                                    asset_code: asset.asset_code || '',
+                                    asset_class: asset.asset_class,
+                                    date_acquired: asset.date_acquired,
+                                    historical_cost: String(asset.historical_cost),
+                                    salvage_value: String(asset.salvage_value ?? 0),
+                                    useful_life_months: String(asset.useful_life_months ?? 60),
+                                    depreciation_method: asset.depreciation_method || 'straight_line',
+                                    annual_rate_pct: String(asset.annual_rate_pct ?? 20),
+                                  });
+                                  setShowAdd(true);
+                                }}
+                                title="Edit asset"
+                                style={{ padding: 6, borderRadius: 6, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <Button variant="secondary" size="sm" icon={<Trash2 size={12} />} onClick={() => setDisposeTarget(asset)}>
+                                Dispose
+                              </Button>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                              {asset.disposal_date ? `Sold ${formatDate(asset.disposal_date)}` : 'Disposed'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -369,8 +479,8 @@ export default function FixedAssetsPage() {
         </Card>
       )}
 
-      {/* Add Fixed Asset Modal */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Register Fixed Asset">
+      {/* Add / Edit Fixed Asset Modal */}
+      <Modal open={showAdd} onClose={() => { setShowAdd(false); setEditingAsset(null); }} title={editingAsset ? 'Edit Fixed Asset' : 'Register Fixed Asset'}>
         <form onSubmit={handleAddAsset} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
             <Input label="Asset Name" value={form.asset_name} onChange={(e) => setForm({ ...form, asset_name: e.target.value })} placeholder="e.g. MacBook Pro 16, Delivery Van" required />
@@ -415,10 +525,50 @@ export default function FixedAssetsPage() {
           )}
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-            <Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>Cancel</Button>
-            <Button variant="primary" type="submit" loading={saving}>Register Asset</Button>
+            <Button variant="secondary" type="button" onClick={() => { setShowAdd(false); setEditingAsset(null); }}>Cancel</Button>
+            <Button variant="primary" type="submit" loading={saving}>{editingAsset ? 'Save Asset Changes' : 'Register Asset'}</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Depreciation Schedule Modal */}
+      <Modal open={!!scheduleAsset} onClose={() => setScheduleAsset(null)} title={`Depreciation Schedule — ${scheduleAsset?.asset_name || scheduleAsset?.description || ''}`} size="lg">
+        {scheduleAsset && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+              Method: <strong>{scheduleAsset.depreciation_method === 'reducing_balance' ? `Reducing Balance (${scheduleAsset.annual_rate_pct || 20}%/yr)` : `Straight-Line (${scheduleAsset.useful_life_months || 60} months)`}</strong> · Cost: <strong>{formatCurrency(scheduleAsset.historical_cost)}</strong> · Residual: <strong>{formatCurrency(scheduleAsset.salvage_value || 0)}</strong>
+            </div>
+            <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid var(--bg-border)', borderRadius: 10 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--bg-border)' }}>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Year</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Opening NBV</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Monthly Avg</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Annual Depr.</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Accum. Depr.</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Closing NBV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buildDepreciationSchedule(scheduleAsset).map((row) => (
+                    <tr key={row.yearNumber} style={{ borderTop: '1px solid var(--bg-border)' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 600 }}>Yr {row.yearNumber} ({row.calendarYear})</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right' }}>{formatCurrency(row.openingNbv)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)' }}>{formatCurrency(row.monthlyAverage)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--warning)', fontWeight: 600 }}>{formatCurrency(row.annualDepreciation)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right' }}>{formatCurrency(row.accumulatedDepreciation)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(row.closingNbv)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', fontSize: 11.5, color: 'var(--text-muted)' }}>
+              <strong>Nigerian Tax Note:</strong> Accounting depreciation above flows into your P&amp;L and Balance Sheet only. Statutory Nigerian Tax Capital Allowances (NTA 2025) are computed separately during CIT computation.
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Dispose Fixed Asset Modal */}

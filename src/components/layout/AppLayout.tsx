@@ -621,7 +621,7 @@ export default function AppLayout() {
                   style={{ height: 26, objectFit: 'contain' }}
                 />
               </div>
-              <h2 style={{ fontSize: 20, marginBottom: 8 }}>Welcome to ROVA</h2>
+              <h2 style={{ fontSize: 20, marginBottom: 8 }}>Welcome to RovaFlow</h2>
               <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
                 Your account is ready. Click below to complete your setup and access your dashboard.
               </p>

@@ -128,7 +128,8 @@ export default function TaxPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [fixedAssets, setFixedAssets] = useState<FixedAssetRecord[]>([]);
   const [whtNotes, setWhtNotes] = useState<WhtCreditNoteRecord[]>([]);
-  const [showSavingsFinder, setShowSavingsFinder] = useState(false);
+  const [showSavingsFinder] = useState(false);
+  const [comingSoonBtn, setComingSoonBtn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -505,30 +506,34 @@ export default function TaxPage() {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => navigate('/app/tax/cit/new')}
+                onClick={() => setComingSoonBtn('cit_file')}
                 style={{
                   flex: 1,
                   minWidth: 'fit-content',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                   padding: '10px 18px', borderRadius: 12,
-                  background: colors.primaryBtnBg, color: colors.primaryBtnText,
-                  border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  background: comingSoonBtn === 'cit_file' ? colors.amberBadge : colors.primaryBtnBg,
+                  color: comingSoonBtn === 'cit_file' ? colors.amberText : colors.primaryBtnText,
+                  border: comingSoonBtn === 'cit_file' ? `1px solid ${colors.amberText}` : 'none',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 }}
               >
-                <span>Start CIT Filing</span>
-                <ArrowUpRight size={15} />
+                <span>{comingSoonBtn === 'cit_file' ? 'Coming Soon' : 'Start CIT Filing'}</span>
+                {comingSoonBtn !== 'cit_file' && <ArrowUpRight size={15} />}
               </button>
 
               <button
                 type="button"
-                onClick={() => setShowSavingsFinder(v => !v)}
+                onClick={() => setComingSoonBtn('cit_savings')}
                 style={{
                   padding: '10px 16px', borderRadius: 12,
-                  background: colors.pillBg, color: colors.textPrimary,
-                  border: colors.pillBorder, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                  background: comingSoonBtn === 'cit_savings' ? colors.amberBadge : colors.pillBg,
+                  color: comingSoonBtn === 'cit_savings' ? colors.amberText : colors.textPrimary,
+                  border: comingSoonBtn === 'cit_savings' ? `1px solid ${colors.amberText}` : colors.pillBorder,
+                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
                 }}
               >
-                {showSavingsFinder ? 'Hide Savings' : `Tax Savings (${taxSavingsReport.opportunities.length})`}
+                {comingSoonBtn === 'cit_savings' ? 'Coming Soon' : `Tax Savings (${taxSavingsReport.opportunities.length})`}
               </button>
             </div>
           </div>
@@ -566,34 +571,52 @@ export default function TaxPage() {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => navigate('/app/tax/pit/new')}
+                onClick={() => setComingSoonBtn('pit_file')}
                 style={{
                   flex: 1,
                   minWidth: 'fit-content',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                   padding: '10px 18px', borderRadius: 12,
-                  background: colors.primaryBtnBg, color: colors.primaryBtnText,
-                  border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  background: comingSoonBtn === 'pit_file' ? colors.amberBadge : colors.primaryBtnBg,
+                  color: comingSoonBtn === 'pit_file' ? colors.amberText : colors.primaryBtnText,
+                  border: comingSoonBtn === 'pit_file' ? `1px solid ${colors.amberText}` : 'none',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 }}
               >
-                <span>Start PIT Filing</span>
-                <ArrowUpRight size={15} />
+                <span>{comingSoonBtn === 'pit_file' ? 'Coming Soon' : 'Start PIT Filing'}</span>
+                {comingSoonBtn !== 'pit_file' && <ArrowUpRight size={15} />}
               </button>
 
               <button
                 type="button"
-                onClick={() => navigate('/app/tax/pit/admin')}
+                onClick={() => setComingSoonBtn('pit_jurisdictions')}
                 style={{
                   padding: '10px 16px', borderRadius: 12,
-                  background: colors.pillBg, color: colors.textPrimary,
-                  border: colors.pillBorder, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                  background: comingSoonBtn === 'pit_jurisdictions' ? colors.amberBadge : colors.pillBg,
+                  color: comingSoonBtn === 'pit_jurisdictions' ? colors.amberText : colors.textPrimary,
+                  border: comingSoonBtn === 'pit_jurisdictions' ? `1px solid ${colors.amberText}` : colors.pillBorder,
+                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
                 }}
               >
-                Jurisdictions
+                {comingSoonBtn === 'pit_jurisdictions' ? 'Coming Soon' : 'Jurisdictions'}
               </button>
             </div>
           </div>
         </div>
+
+        {comingSoonBtn && (
+          <div style={{
+            marginTop: 14, padding: '12px 16px', borderRadius: 14,
+            background: colors.amberBadge, border: `1px solid ${isDark ? 'rgba(245,158,11,0.35)' : 'rgba(217,119,6,0.3)'}`,
+            color: colors.amberText, fontSize: 13, fontWeight: 600,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          }}>
+            <span>Coming Soon — Automated CIT &amp; PIT self-filing tools are launching shortly on RovaFlow.</span>
+            <button type="button" onClick={() => setComingSoonBtn(null)} style={{ background: 'none', border: 'none', color: colors.amberText, cursor: 'pointer', padding: 2 }}>
+              <X size={15} />
+            </button>
+          </div>
+        )}
       </section>
 
       {showSavingsFinder && (

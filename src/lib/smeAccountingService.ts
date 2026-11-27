@@ -995,3 +995,210 @@ export async function disposeFixedAssetWithJournal(params: {
 
   return { gainOrLoss };
 }
+
+// ── 7. Capitalisation Policy, Asset Purchase from Tx & Depreciation Schedule ──
+
+export type TransactionClassificationType =
+  | 'ordinary'
+  | 'asset_purchase'
+  | 'owner_drawings'
+  | 'capital_contribution'
+  | 'loan'
+  | 'transfer';
+
+export interface AssetPurchaseDraft {
+  asset_name: string;
+  asset_class: OperationalFixedAsset['asset_class'];
+  useful_life_months: number;
+  salvage_value: number;
+  depreciation_method: 'straight_line' | 'reducing_balance';
+  annual_rate_pct: number;
+}
+
+const ASSET_NATURE_KEYWORDS: { pattern: RegExp; suggestedClass: OperationalFixedAsset['asset_class'] }[] = [
+  { pattern: /\b(laptop|macbook|computer|desktop|server|printer|scanner|iphone|ipad|tablet|pos terminal|monitor|router)\b/i, suggestedClass: 'Computer & IT Infrastructure' },
+  { pattern: /\b(vehicle|car|van|truck|bus|bike|motorcycle|tricycle|keke|hilux|toyota|honda)\b/i, suggestedClass: 'Commercial Motor Vehicles' },
+  { pattern: /\b(generator|machinery|machine|compressor|freezer|inverter|solar|air conditioner|ac unit|oven)\b/i, suggestedClass: 'Plant & Heavy Machinery' },
+  { pattern: /\b(furniture|desk|chair|table|cabinet|shelf|shelving|sofa|fitting|counter)\b/i, suggestedClass: 'Office Furniture & Equipment' },
+  { pattern: /\b(building|land|warehouse|property|shop purchase|renovation|leasehold)\b/i, suggestedClass: 'Leasehold Land & Buildings' },
+];
+
+export function evaluateCapitalisationSuggestion(params: {
+  description: string;
+  amount: number;
+  threshold: number;
+}): {
+  shouldSuggestCapitalise: boolean;
+  reason: string;
+  suggestedClass: OperationalFixedAsset['asset_class'];
+} {
+  const { description, amount, threshold } = params;
+  const matched = ASSET_NATURE_KEYWORDS.find((k) => k.pattern.test(description || ''));
+  const meetsThreshold = amount >= Math.max(0, threshold || 100000);
+
+  if (matched && meetsThreshold) {
+    return {
+      shouldSuggestCapitalise: true,
+      reason: `This looks like a capital asset (${matched.suggestedClass}) and meets your ${formatCurrency(threshold)} capitalisation threshold. Consider recording as an Asset Purchase instead of an immediate expense.`,
+      suggestedClass: matched.suggestedClass,
+    };
+  }
+  if (matched && amount > 0 && amount < threshold) {
+    return {
+      shouldSuggestCapitalise: false,
+      reason: `Looks like equipment, but ${formatCurrency(amount)} is below your ${formatCurrency(threshold)} materiality threshold — expensing immediately is usually appropriate (you may still override).`,
+      suggestedClass: matched.suggestedClass,
+    };
+  }
+  if (!matched && meetsThreshold) {
+    return {
+      shouldSuggestCapitalise: true,
+      reason: `Amount (${formatCurrency(amount)}) meets your ${formatCurrency(threshold)} capitalisation threshold. If this item will be used for more than 12 months, classify it as an Asset Purchase.`,
+      suggestedClass: 'Office Furniture & Equipment',
+    };
+  }
+  return {
+    shouldSuggestCapitalise: false,
+    reason: '',
+    suggestedClass: 'Office Furniture & Equipment',
+  };
+}
+
+export async function registerFixedAssetFromTransaction(params: {
+  userId: string;
+  actorId: string;
+  transactionId: string;
+  date: string;
+  cost: number;
+  paymentMethod: 'transfer' | 'cash';
+  draft: AssetPurchaseDraft;
+}): Promise<{ assetId: string; journalEntryId: string | null }> {
+  const { userId, actorId, transactionId, date, cost, paymentMethod, draft } = params;
+  const code = `FA-${String(Date.now()).slice(-4)}`;
+  const name = draft.asset_name.trim() || 'Fixed Asset';
+  const coa = ASSET_CLASS_COA[draft.asset_class] || ASSET_CLASS_COA['Office Furniture & Equipment'];
+
+  // 1. Insert Fixed Asset Register record
+  const { data: asset, error: assetErr } = await supabase
+    .from('fixed_assets')
+    .insert({
+      user_id: userId,
+      asset_code: code,
+      asset_name: name,
+      description: name,
+      asset_class: draft.asset_class,
+      date_acquired: date,
+      historical_cost: cost,
+      salvage_value: Number(draft.salvage_value) || 0,
+      useful_life_months: Math.max(1, Number(draft.useful_life_months) || coa.defaultLifeMonths),
+      depreciation_method: draft.depreciation_method || 'straight_line',
+      annual_rate_pct: Number(draft.annual_rate_pct) || coa.defaultRatePct,
+      accumulated_depreciation: 0,
+      prior_accum_depr: 0,
+      opening_twdv: cost,
+      status: 'Active',
+      source_transaction_id: transactionId,
+    })
+    .select('id')
+    .single();
+
+  if (assetErr || !asset) throw assetErr || new Error('Failed to create fixed asset');
+
+  // 2. Post balanced double-entry Journal Entry: Dr PPE Cost (15x0) / Cr Cash or Bank
+  const creditAccount = paymentMethod === 'cash' ? '1010 Cash on Hand' : '1020 Zenith Bank Current Account';
+  const journalEntryId = await postBalancedJournalEntry({
+    userId,
+    date,
+    description: `Fixed Asset Acquisition — ${name} (${code})`,
+    reference: code,
+    source: 'transaction',
+    lines: [
+      {
+        account_name: coa.costAccount,
+        description: `Capitalise ${name}`,
+        debit: cost,
+        credit: 0,
+      },
+      {
+        account_name: creditAccount,
+        description: `Payment for fixed asset ${name}`,
+        debit: 0,
+        credit: cost,
+      },
+    ],
+  });
+
+  // 3. Link back to transaction (prevents duplicate postings)
+  await supabase
+    .from('transactions')
+    .update({
+      classification_type: 'asset_purchase',
+      fixed_asset_id: asset.id,
+      journal_entry_id: journalEntryId,
+    })
+    .eq('id', transactionId);
+
+  await logActivity(
+    userId,
+    actorId,
+    'created',
+    'fixed_asset',
+    asset.id,
+    `Capitalised fixed asset ${name} (${formatCurrency(cost)}) from transaction`,
+    { asset_code: code, cost, asset_class: draft.asset_class, transaction_id: transactionId }
+  );
+
+  return { assetId: asset.id, journalEntryId };
+}
+
+export interface DepreciationScheduleYearRow {
+  yearNumber: number;
+  calendarYear: number;
+  openingNbv: number;
+  annualDepreciation: number;
+  monthlyAverage: number;
+  accumulatedDepreciation: number;
+  closingNbv: number;
+}
+
+export function buildDepreciationSchedule(asset: OperationalFixedAsset): DepreciationScheduleYearRow[] {
+  const cost = Number(asset.historical_cost) || 0;
+  const salvage = Math.min(cost, Math.max(0, Number(asset.salvage_value) || 0));
+  const lifeMonths = Math.max(1, Number(asset.useful_life_months) || 60);
+  const years = Math.min(20, Math.max(1, Math.ceil(lifeMonths / 12)));
+  const startYear = asset.date_acquired ? new Date(asset.date_acquired).getFullYear() : new Date().getFullYear();
+  const rate = (Number(asset.annual_rate_pct) || 20) / 100;
+
+  const rows: DepreciationScheduleYearRow[] = [];
+  let accum = 0;
+
+  for (let y = 1; y <= years; y++) {
+    const openingNbv = Math.max(salvage, Math.round((cost - accum) * 100) / 100);
+    const remainingDepreciable = Math.max(0, Math.round((openingNbv - salvage) * 100) / 100);
+    if (remainingDepreciable <= 0.01) break;
+
+    let annual = 0;
+    if (asset.depreciation_method === 'reducing_balance') {
+      annual = y === years ? remainingDepreciable : Math.min(remainingDepreciable, openingNbv * rate);
+    } else {
+      const monthsThisYear = y === years ? (lifeMonths % 12 || 12) : 12;
+      annual = Math.min(remainingDepreciable, ((cost - salvage) / lifeMonths) * monthsThisYear);
+    }
+
+    annual = Math.round(annual * 100) / 100;
+    accum = Math.round((accum + annual) * 100) / 100;
+    const closingNbv = Math.max(salvage, Math.round((cost - accum) * 100) / 100);
+
+    rows.push({
+      yearNumber: y,
+      calendarYear: startYear + y - 1,
+      openingNbv,
+      annualDepreciation: annual,
+      monthlyAverage: Math.round((annual / 12) * 100) / 100,
+      accumulatedDepreciation: accum,
+      closingNbv,
+    });
+  }
+
+  return rows;
+}

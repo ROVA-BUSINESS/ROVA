@@ -380,55 +380,7 @@ export default function DashboardPage() {
             gap: 16,
             marginBottom: 24,
           }}>
-            {/* Card 1: Real Connected Bank Balance */}
-            <div style={{
-              background: colors.cardBg,
-              borderRadius: 20,
-              border: colors.cardBorder,
-              boxShadow: colors.cardShadow,
-              padding: '22px 22px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-            }}
-            onClick={() => navigate('/app/payment')}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
-            onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
-            >
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: colors.purpleDim,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: colors.purpleLight,
-              }}>
-                <Wallet size={17} />
-              </div>
-
-              <div style={{ marginTop: 18 }}>
-                <div style={{
-                  fontSize: 25,
-                  fontWeight: 800,
-                  color: colors.textPrimary,
-                  fontFamily: 'Space Grotesk, sans-serif',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {formatCurrency(totalBalance)}
-                </div>
-                <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
-                  {accounts.length > 0
-                    ? `Connected bank${accounts.length === 1 ? '' : 's'} (${accounts.length})`
-                    : 'Connected bank balance'}
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Money In (Green Arrow, Black/Primary Text) */}
+            {/* Card 1: Money In (Green Arrow, Black/Primary Text) */}
             <div data-tour="dashboard-money-in" style={{
               background: colors.cardBg,
               borderRadius: 20,
@@ -474,7 +426,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Card 3: Money Out */}
+            {/* Card 2: Money Out */}
             <div data-tour="dashboard-money-out" style={{
               background: colors.cardBg,
               borderRadius: 20,
@@ -516,6 +468,54 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
                   Money Out
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Real Connected Bank Balance */}
+            <div style={{
+              background: colors.cardBg,
+              borderRadius: 20,
+              border: colors.cardBorder,
+              boxShadow: colors.cardShadow,
+              padding: '22px 22px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            }}
+            onClick={() => navigate('/app/payment')}
+            onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+            onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: colors.purpleDim,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: colors.purpleLight,
+              }}>
+                <Wallet size={17} />
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <div style={{
+                  fontSize: 25,
+                  fontWeight: 800,
+                  color: colors.textPrimary,
+                  fontFamily: 'Space Grotesk, sans-serif',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {formatCurrency(totalBalance)}
+                </div>
+                <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 7, fontWeight: 500 }}>
+                  {accounts.length > 0
+                    ? `Connected bank${accounts.length === 1 ? '' : 's'} (${accounts.length})`
+                    : 'Connected bank balance'}
                 </div>
               </div>
             </div>

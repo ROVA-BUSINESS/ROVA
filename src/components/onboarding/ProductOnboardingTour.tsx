@@ -31,9 +31,9 @@ interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
-    title: 'Welcome to Rova',
+    title: 'Welcome to RovaFlow',
     description:
-      'Rova is your all-in-one platform for managing business finances. Track transactions, monitor sales and expenses, and view live financial reports — all in one simple workspace.',
+      'RovaFlow is your all-in-one platform for managing business finances. Track transactions, monitor sales and expenses, and view live financial reports — all in one simple workspace.',
     icon: Sparkles,
   },
   {
@@ -83,9 +83,9 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'assistant',
-    title: 'Rova AI Assistant',
+    title: 'RovaFlow AI Assistant',
     description:
-      'Ask Rova AI anything about your business finances in plain English — record transactions by text or voice, ask about monthly profit, or get instant bookkeeping guidance.',
+      'Ask RovaFlow AI anything about your business finances in plain English — record transactions by text or voice, ask about monthly profit, or get instant bookkeeping guidance.',
     icon: Bot,
     selectors: ['[data-tour="nav-assistant"]', '[data-tour="floating-assistant-btn"]'],
     preferredPlacement: 'right',
@@ -94,7 +94,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'complete',
     title: "You're All Set!",
     description:
-      'Congratulations on completing your introduction to Rova! You are ready to track your finances with clarity and confidence. You can replay this tour anytime from Settings or Support.',
+      'Congratulations on completing your introduction to RovaFlow! You are ready to track your finances with clarity and confidence. You can replay this tour anytime from Settings or Support.',
     icon: PartyPopper,
     isFinal: true,
   },

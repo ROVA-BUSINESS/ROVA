@@ -131,7 +131,7 @@ export default function SupportPage() {
             color: isDark ? '#c084fc' : '#7c3aed',
             fontSize: 11.5, fontWeight: 700, marginBottom: 10,
           }}>
-            <LifeBuoy size={13} /> ROVA Help &amp; Support
+            <LifeBuoy size={13} /> RovaFlow Help &amp; Support
           </div>
           <h1 style={{
             fontSize: isMobile ? 28 : 34,

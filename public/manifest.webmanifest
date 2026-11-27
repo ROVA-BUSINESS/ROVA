@@ -1,7 +1,7 @@
 {
   "id": "/app",
-  "name": "ROVA — Smart Business Finance",
-  "short_name": "ROVA",
+  "name": "RovaFlow — Smart Business Finance",
+  "short_name": "RovaFlow",
   "description": "AI-powered financial management for Nigerian businesses. Track income, expenses, invoices, payroll, taxes, and payments.",
   "start_url": "/app/dashboard",
   "scope": "/",

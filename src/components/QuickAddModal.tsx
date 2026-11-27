@@ -12,8 +12,16 @@ import {
   calcSalesSelectionsTotal,
   recordInventorySalesForTransaction,
 } from '../lib/salesInventoryHelper';
-import { getAccountingLockDate, isDateLocked, getLockErrorMessage } from '../lib/smeAccountingService';
+import {
+  getAccountingLockDate,
+  isDateLocked,
+  getLockErrorMessage,
+  registerFixedAssetFromTransaction,
+  type AssetPurchaseDraft,
+  type TransactionClassificationType,
+} from '../lib/smeAccountingService';
 import SalesItemsPicker, { type SaleItemSelection } from './SalesItemsPicker';
+import TransactionClassificationPanel from './TransactionClassificationPanel';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -24,12 +32,22 @@ interface Props {
 }
 
 export default function QuickAddModal({ open, onClose }: Props) {
-  const { user, isStaff, staffData } = useAuth();
+  const { user, profile, isStaff, staffData } = useAuth();
   const effectiveUserId = isStaff && staffData ? staffData.owner_id : user?.id;
+  const capThreshold = Number(profile?.capitalisation_threshold) || 100000;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [saleItems, setSaleItems] = useState<SaleItemSelection[]>([]);
+  const [classification, setClassification] = useState<TransactionClassificationType>('ordinary');
+  const [assetDraft, setAssetDraft] = useState<AssetPurchaseDraft>({
+    asset_name: '',
+    asset_class: 'Computer & IT Infrastructure',
+    useful_life_months: 36,
+    salvage_value: 0,
+    depreciation_method: 'straight_line',
+    annual_rate_pct: 33.33,
+  });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -71,6 +89,15 @@ export default function QuickAddModal({ open, onClose }: Props) {
     if (!open) {
       setForm({ description: '', amount: '', type: 'expense', date: new Date().toISOString().split('T')[0], category_id: '', account_id: '' });
       setSaleItems([]);
+      setClassification('ordinary');
+      setAssetDraft({
+        asset_name: '',
+        asset_class: 'Computer & IT Infrastructure',
+        useful_life_months: 36,
+        salvage_value: 0,
+        depreciation_method: 'straight_line',
+        annual_rate_pct: 33.33,
+      });
       setPaymentMethod('transfer');
       setIsLoan(false);
       setLoanDirection('received');
@@ -192,6 +219,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
         date: form.date || new Date().toISOString().split('T')[0],
         category_id: form.category_id || null,
         account_id: form.account_id || null,
+        classification_type: classification,
         notes: [
           `[Method: ${paymentMethod.toUpperCase()}]`,
           isLoan ? `[Loan: ${loanDirection === 'received' ? 'Borrowed' : 'Lent'} | Due: ${loanReminderDate || 'Unspecified'} | Party: ${loanCounterparty || 'N/A'}]` : '',
@@ -207,6 +235,26 @@ export default function QuickAddModal({ open, onClose }: Props) {
       }
 
       const insertedRecord = txData?.[0];
+
+      // If classified as Asset Purchase, register in Fixed Asset Register + post Dr PPE / Cr Cash-Bank GL
+      if (insertedRecord && form.type === 'expense' && classification === 'asset_purchase') {
+        try {
+          await registerFixedAssetFromTransaction({
+            userId: currentUserId,
+            actorId: user?.id || currentUserId,
+            transactionId: insertedRecord.id,
+            date: txDate,
+            cost: amt,
+            paymentMethod,
+            draft: {
+              ...assetDraft,
+              asset_name: assetDraft.asset_name.trim() || form.description.trim() || 'Fixed Asset',
+            },
+          });
+        } catch (faErr) {
+          console.error('Failed to register fixed asset from transaction:', faErr);
+        }
+      }
 
       // Deduct inventory stock if items were linked to this Sales transaction
       if (insertedRecord && saleItems.length > 0 && isSalesCategory(form.category_id, categories, form.type)) {
@@ -367,7 +415,7 @@ export default function QuickAddModal({ open, onClose }: Props) {
                         <button
               key={t}
               type="button"
-              onClick={() => { setForm(p => ({ ...p, type: t, category_id: '' })); setAutoSuggestion(''); }}
+              onClick={() => { setForm(p => ({ ...p, type: t, category_id: '' })); setClassification('ordinary'); setAutoSuggestion(''); }}
               style={{
                 flex: 1, padding: '9px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
                 border: '1px solid', cursor: 'pointer',
@@ -428,6 +476,42 @@ export default function QuickAddModal({ open, onClose }: Props) {
             ))}
           </div>
         </div>
+
+        {/* Transaction Classification (Ordinary, Asset Purchase, Owner's Drawings, Capital, Loan/Transfer) */}
+        <TransactionClassificationPanel
+          txType={form.type}
+          classification={classification}
+          onClassificationChange={(next) => {
+            setClassification(next);
+            // Auto-select matching standard accounting category so P&L, Balance Sheet & Equity stay 100% accurate
+            const findCat = (keywords: string[]) =>
+              categories.find((c) => keywords.some((k) => c.name.toLowerCase().includes(k)));
+            if (next === 'asset_purchase') {
+              const cat = findCat(['equipment', 'asset purchase', 'property', 'ppe', 'fixed asset']);
+              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+              if (!assetDraft.asset_name && form.description.trim()) {
+                setAssetDraft((d) => ({ ...d, asset_name: form.description.trim() }));
+              }
+            } else if (next === 'owner_drawings') {
+              const cat = findCat(['owner drawing', 'drawings', 'dividend']);
+              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+            } else if (next === 'capital_contribution') {
+              const cat = findCat(['owner capital', 'capital injection', 'share capital']);
+              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+            } else if (next === 'loan') {
+              const cat = findCat(['loan received', 'loan repayment', 'loan']);
+              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+            } else if (next === 'transfer') {
+              const cat = findCat(['transfer']);
+              if (cat) setForm((p) => ({ ...p, category_id: cat.id }));
+            }
+          }}
+          description={form.description}
+          amount={Number(form.amount) || 0}
+          threshold={capThreshold}
+          assetDraft={assetDraft}
+          onAssetDraftChange={setAssetDraft}
+        />
 
         {/* Category (full width) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

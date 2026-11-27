@@ -43,6 +43,8 @@ export type Profile = {
   onboarding_step?: number;
   onboarding_tour_completed?: boolean;
   onboarding_tour_completed_at?: string | null;
+  capitalisation_threshold?: number;
+  capitalisation_policy_notes?: string;
   created_at: string;
   updated_at: string;
 };

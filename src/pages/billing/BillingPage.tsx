@@ -752,7 +752,7 @@ export default function BillingPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 800, color: colors.textPrimary, margin: 0 }}>
-              Available ROVA Plans
+              Available RovaFlow Plans
             </h2>
             <p style={{ fontSize: 12.5, color: colors.textMuted, margin: '3px 0 0' }}>
               Choose a monthly one-time plan or daily recurring subscription.
